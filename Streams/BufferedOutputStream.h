@@ -8,6 +8,7 @@
 #include "OutputStream.h"
 
 class BufferedOutputStream: public OutputStream {
+public:
     BufferedOutputStream(int bufferSize);
     virtual ~BufferedOutputStream();
     void create(const char* s);

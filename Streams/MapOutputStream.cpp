@@ -30,7 +30,7 @@ MapOutputStream::~MapOutputStream() {
     // TODO Auto-generated destructor stub
 }
 
-void MapOutputStream::create(char* s) {
+void MapOutputStream::create(const char* s) {
     filedesc = open(s, O_RDWR | O_CREAT | O_TRUNC, (mode_t)0600);
 
     lseek(filedesc,sizeof(int) * n + 1, SEEK_SET);

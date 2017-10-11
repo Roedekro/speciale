@@ -14,9 +14,9 @@ public:
     int size;
     int filedesc;
     const char * name;
-    virtual void create(const char* s);
-    virtual void write(int* number);
-    virtual void close();
+    virtual void create(const char* s) = 0;
+    virtual void write(int* number) = 0;
+    virtual void close() = 0;
 };
 
 

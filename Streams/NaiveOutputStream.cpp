@@ -16,7 +16,7 @@ NaiveOutputStream::NaiveOutputStream() {
 NaiveOutputStream::~NaiveOutputStream() {
     // TODO Auto-generated destructor stub
 }
-void NaiveOutputStream::create(char* s) {
+void NaiveOutputStream::create(const char* s) {
     filedesc = ::open(s, O_CREAT|O_RDWR);
 }
 

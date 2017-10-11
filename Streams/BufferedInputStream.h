@@ -10,6 +10,12 @@
 
 class BufferedInputStream: public InputStream {
 public:
+    long iocounter = 0;
+    int filedesc;
+    int size;
+    int * buffer;
+    int index;
+    int endoffileIndex;
     BufferedInputStream(int bufferSize);
     virtual ~BufferedInputStream();
     void open(const char* s);

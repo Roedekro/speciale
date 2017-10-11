@@ -15,7 +15,7 @@ public:
     int n;
     MapOutputStream(int portionSize, int n);
     virtual ~MapOutputStream();
-    void create(char* s);
+    void create(const char* s);
     void write(int* number);
     void close();
 };

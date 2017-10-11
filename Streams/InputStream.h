@@ -9,16 +9,10 @@
 
 class InputStream {
 public:
-    long iocounter = 0;
-    int filedesc;
-    int size;
-    int * buffer;
-    int index;
-    int endoffileIndex;
-    virtual void open(const char* s);
-    virtual int readNext();
-    virtual bool endOfStream();
-    virtual void close();
+    virtual void open(const char* s) = 0;
+    virtual int readNext() = 0;
+    virtual bool endOfStream() = 0;
+    virtual void close() = 0;
 
 };
 

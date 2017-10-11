@@ -9,9 +9,11 @@
 
 class NaiveInputStream: public InputStream {
 public:
+    long iocounter = 0;
+    int filedesc;
     NaiveInputStream();
     virtual ~NaiveInputStream();
-    void open(char* s);
+    void open(const char* s);
     int readNext();
     bool endOfStream();
     void close();

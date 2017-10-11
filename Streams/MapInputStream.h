@@ -10,6 +10,12 @@
 
 class MapInputStream: public InputStream {
 public:
+    long iocounter = 0;
+    int filedesc;
+    int size;
+    int * buffer;
+    int index;
+    int endoffileIndex;
     FILE* file;
     int * map;
     int portionSize;
@@ -17,7 +23,7 @@ public:
     int n;
     MapInputStream(int portionSize, int n);
     virtual ~MapInputStream();
-    void open(char* s);
+    void open(const char* s);
     int readNext();
     bool endOfStream();
     void close();

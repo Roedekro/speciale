@@ -14,8 +14,8 @@
 
 BufferedOutputStream::BufferedOutputStream(int bufferSize) {
     index = 0;
-    buffer = new int[bufferSize];
-    size = bufferSize;
+    buffer = new int[bufferSize/sizeof(int)];
+    size = bufferSize/sizeof(int);
 }
 
 BufferedOutputStream::~BufferedOutputStream() {
@@ -31,7 +31,7 @@ void BufferedOutputStream::write(int* number) {
     if (index >= size) {
         int tmp = ::write(filedesc, buffer, sizeof(int)*size);
         if(tmp == -1) {
-            std::cout << "Error writing to file in OutC " << name << "\n";
+            std::cout << "Error writing to file in BufferedOutputStream " << name << "\n";
         }
         index = 0;
         iocounter++;
@@ -47,7 +47,7 @@ void BufferedOutputStream::close() {
     }
 
     int tmp = ::close(filedesc);
-    if(tmp == -1) std::cout << "Error closing file in OutC\n";
+    if(tmp == -1) std::cout << "Error closing file in BufferedOutputStream " << name << "\n";
     delete(buffer);
     chmod(name, 0666);
     index = 0;

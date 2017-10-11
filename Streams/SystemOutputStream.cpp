@@ -12,10 +12,10 @@ SystemOutputStream::~SystemOutputStream() {
     // TODO Auto-generated destructor stub
 }
 
-void SystemOutputStream::create(char* s) {
+void SystemOutputStream::create(const char* s) {
     file = fopen(s, "wb");
     if(file == NULL) {
-        perror("File StreamB");
+        perror("File SystemOutputStream");
         //exit(EXIT_FAILURE);
     }
 }

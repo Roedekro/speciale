@@ -11,12 +11,13 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <iostream>
 
 
 BufferedInputStream::BufferedInputStream(int bufferSize) {
     index = 2000000000;
-    buffer = new int[bufferSize];
-    size = bufferSize;
+    buffer = new int[bufferSize/sizeof(int)];
+    size = bufferSize/sizeof(int);
 }
 
 BufferedInputStream::~BufferedInputStream() {
@@ -26,7 +27,8 @@ BufferedInputStream::~BufferedInputStream() {
 void BufferedInputStream::open(const char* s) {
     filedesc = ::open(s, O_RDONLY);
     if(filedesc == -1) {
-        perror("Error opening the file in InputStreamC");
+        std::cout << s << "\n";
+        perror("Error opening the file in BufferedInputStream ");
         exit(EXIT_FAILURE);
     }
 }

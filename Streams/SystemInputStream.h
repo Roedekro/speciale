@@ -10,13 +10,20 @@
 
 class SystemInputStream: public InputStream {
 public:
+    long iocounter = 0;
+    int filedesc;
+    int size;
+    int * buffer;
+    int index;
+    int endoffileIndex;
     FILE* file;
     SystemInputStream();
     virtual ~SystemInputStream();
-    void open(char* s);
+    void open(const char* s);
     int readNext();
     bool endOfStream();
     void close();
+
 };
 
 

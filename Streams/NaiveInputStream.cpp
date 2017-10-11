@@ -18,7 +18,7 @@ NaiveInputStream::~NaiveInputStream() {
     // TODO Auto-generated destructor stub
 }
 
-void NaiveInputStream::open(char* s) {
+void NaiveInputStream::open(const char* s) {
     filedesc = ::open(s, O_RDONLY);
 }
 

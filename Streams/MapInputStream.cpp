@@ -26,7 +26,7 @@ MapInputStream::~MapInputStream() {
     // TODO Auto-generated destructor stub
 }
 
-void MapInputStream::open(char* s) {
+void MapInputStream::open(const char* s) {
     file = fopen(s, "r+");
     if(file == NULL) {
         perror("File is NULL");

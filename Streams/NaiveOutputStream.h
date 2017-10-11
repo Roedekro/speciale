@@ -11,7 +11,7 @@ class NaiveOutputStream: public OutputStream {
 public:
     NaiveOutputStream();
     virtual ~NaiveOutputStream();
-    void create(char* s);
+    void create(const char* s);
     void write(int* number);
     void close();
 

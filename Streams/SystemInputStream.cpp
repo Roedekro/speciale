@@ -13,7 +13,7 @@ SystemInputStream::~SystemInputStream() {
     // TODO Auto-generated destructor stub
 }
 
-void SystemInputStream::open(char* s) {
+void SystemInputStream::open(const char* s) {
     file = fopen(s, "rb");
 }
 
