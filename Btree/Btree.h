@@ -9,12 +9,11 @@
 class Btree {
 public:
     int B;
-    int M;
     int size;
     int root;
     int numberOfNodes;
     long iocounter;
-    Btree(int B, int M);
+    Btree(int B);
     virtual ~Btree();
     void insert(int element);
     void insertInternal(int node, int child1, int child2, int max1, int max2);

@@ -40,6 +40,7 @@ int BufferedInputStream::readNext() {
         endoffileIndex = bytesRead / sizeof(int);
         index = 0;
         iocounter++;
+        read = true;
     }
     int elm = buffer[index];
     index++;
@@ -47,6 +48,9 @@ int BufferedInputStream::readNext() {
 }
 
 bool BufferedInputStream::endOfStream() {
+    if(!read) {
+        return false;
+    }
     if (index == size) { // Se næste blok
         bool b;
         int val;

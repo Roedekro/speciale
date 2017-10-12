@@ -148,7 +148,7 @@ int streamtestwrite(long n, int increment) {
 }
 
 void BtreeInsertTest() {
-    Btree* btree = new Btree(32,64);
+    Btree* btree = new Btree(32);
     InputStream* is = new BufferedInputStream(32);
     ostringstream oss;
     oss << 1;
@@ -156,7 +156,7 @@ void BtreeInsertTest() {
     const char* name = s.c_str();
     is->open(name);
     int element;
-    cout << is->readNext() << "\n";
+    //cout << is->readNext() << "\n";
     while(!is->endOfStream()) {
         element = is->readNext();
         cout << element << "\n";
@@ -164,13 +164,88 @@ void BtreeInsertTest() {
     is->close();
     delete(is);
 
-    cout << "Done!";
+    cout << "Done!\n";
 
-    /*btree->insert(1);
+    btree->insert(1);
     btree->insert(2);
     btree->insert(3);
     btree->insert(4);
-     */
+    btree->insert(5);
+    btree->insert(6); // Korrekt til og med 6
+    btree->insert(7);
+    /*btree->insert(8);
+    */
+
+    for(int i = 1; i < 7; i++) {
+        cout << "-----\n";
+        InputStream* is2 = new BufferedInputStream(32);
+        ostringstream oss2;
+        oss2 << i;
+        string s2 = "B"+oss2.str();
+        const char* name2 = s2.c_str();
+        is2->open(name2);
+        while(!is2->endOfStream()) {
+            element = is2->readNext();
+            cout << element << "\n";
+        }
+        is2->close();
+        delete(is2);
+    }
+
+}
+
+void writeToFileTest() {
+
+    OutputStream* os = new BufferedOutputStream(32);
+    ostringstream oss;
+    oss << 1;
+    string s = "test"+oss.str();
+    const char* name = s.c_str();
+    os->create(name);
+    int element = 3;
+    os->write(&element);
+    os->close();
+
+    InputStream* is = new BufferedInputStream(32);
+    is->open(name);
+    cout << "---\n";
+    while(!is->endOfStream()) {
+        element = is->readNext();
+        cout << element << "\n";
+    }
+    is->close();
+
+    os = new BufferedOutputStream(32);
+    os->create(name);
+    os->write(&element);
+    element = 2;
+    os->write(&element);
+    os->close();
+
+    is = new BufferedInputStream(32);
+    is->open(name);
+    cout << "---\n";
+    while(!is->endOfStream()) {
+        element = is->readNext();
+        cout << element << "\n";
+    }
+    is->close();
+
+    element = 1;
+    os = new BufferedOutputStream(32);
+    os->create(name);
+    os->write(&element);
+    os->close();
+
+    is = new BufferedInputStream(32);
+    is->open(name);
+    cout << "---\n";
+    while(!is->endOfStream()) {
+        element = is->readNext();
+        cout << element << "\n";
+    }
+    is->close();
+
 
 }
 
@@ -185,6 +260,7 @@ int main(int argc, char* argv[]) {
         //streamtestread(10000000,1000000);
         //streamtestwrite(10000000,1000000);
         BtreeInsertTest();
+        //writeToFileTest();
         return 0;
     }
     int test = atoi(argv[1]);

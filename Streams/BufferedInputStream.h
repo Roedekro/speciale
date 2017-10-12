@@ -16,6 +16,7 @@ public:
     int * buffer;
     int index;
     int endoffileIndex;
+    bool read = false;
     BufferedInputStream(int bufferSize);
     virtual ~BufferedInputStream();
     void open(const char* s);
