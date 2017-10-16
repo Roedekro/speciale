@@ -95,47 +95,47 @@ int streamtestwrite(long n, int increment) {
     while(counter <= n) {
 
         OutputStream* os = new NaiveOutputStream();
-        os->create("testRead");
+        os->create("testWrite");
         high_resolution_clock::time_point t1 = high_resolution_clock::now();
         for(int i = 0; i < counter; i++) {
             os->write(&write);
         }
         high_resolution_clock::time_point t2 = high_resolution_clock::now();
         os->close();
-        remove("testRead");
+        remove("testWrite");
         time[0] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
         os = new SystemOutputStream();
-        os->create("testRead");
+        os->create("testWrite");
         t1 = high_resolution_clock::now();
         for(int i = 0; i < counter; i++) {
             os->write(&write);
         }
         t2 = high_resolution_clock::now();
         os->close();
-        remove("testRead");
+        remove("testWrite");
         time[1] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
         os = new BufferedOutputStream(4096);
-        os->create("testRead");
+        os->create("testWrite");
         t1 = high_resolution_clock::now();
         for(int i = 0; i < counter; i++) {
             os->write(&write);
         }
         t2 = high_resolution_clock::now();
         os->close();
-        remove("testRead");
+        remove("testWrite");
         time[2] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
         os = new MapOutputStream(4096,counter);
-        os->create("testRead");
+        os->create("testWrite");
         t1 = high_resolution_clock::now();
         for(int i = 0; i < counter; i++) {
             os->write(&write);
         }
         t2 = high_resolution_clock::now();
         os->close();
-        remove("testRead");
+        remove("testWrite");
         time[3] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
 
@@ -148,7 +148,8 @@ int streamtestwrite(long n, int increment) {
 }
 
 void BtreeInsertTest() {
-    Btree* btree = new Btree(32);
+
+    /*Btree* btree = new Btree(32);
     InputStream* is = new BufferedInputStream(32);
     ostringstream oss;
     oss << 1;
@@ -176,7 +177,7 @@ void BtreeInsertTest() {
     /*btree->insert(8);
     */
 
-    for(int i = 1; i < 7; i++) {
+    /*for(int i = 1; i < 7; i++) {
         cout << "-----\n";
         InputStream* is2 = new BufferedInputStream(32);
         ostringstream oss2;
@@ -190,24 +191,28 @@ void BtreeInsertTest() {
         }
         is2->close();
         delete(is2);
-    }
+    }*/
 
 }
 
+// Should give output 3 | 3 2 | 3 1
 void writeToFileTest() {
 
     OutputStream* os = new BufferedOutputStream(32);
-    ostringstream oss;
+    /*ostringstream oss;
     oss << 1;
     string s = "test"+oss.str();
     const char* name = s.c_str();
-    os->create(name);
+    os->create(name)*/
+    string name = "test";
+    name += to_string(1);
+    os->create(name.c_str());
     int element = 3;
     os->write(&element);
     os->close();
 
     InputStream* is = new BufferedInputStream(32);
-    is->open(name);
+    is->open(name.c_str());
     cout << "---\n";
     while(!is->endOfStream()) {
         element = is->readNext();
@@ -216,14 +221,14 @@ void writeToFileTest() {
     is->close();
 
     os = new BufferedOutputStream(32);
-    os->create(name);
+    os->create(name.c_str());
     os->write(&element);
     element = 2;
     os->write(&element);
     os->close();
 
     is = new BufferedInputStream(32);
-    is->open(name);
+    is->open(name.c_str());
     cout << "---\n";
     while(!is->endOfStream()) {
         element = is->readNext();
@@ -233,12 +238,12 @@ void writeToFileTest() {
 
     element = 1;
     os = new BufferedOutputStream(32);
-    os->create(name);
+    os->create(name.c_str());
     os->write(&element);
     os->close();
 
     is = new BufferedInputStream(32);
-    is->open(name);
+    is->open(name.c_str());
     cout << "---\n";
     while(!is->endOfStream()) {
         element = is->readNext();
@@ -246,8 +251,27 @@ void writeToFileTest() {
     }
     is->close();
 
-
+    cout << name;
+    remove(name.c_str());
 }
+
+void manipulateArray(int* array) {
+    array[1] = 2;
+}
+
+void manipulateArrayTest() {
+
+    int* array = new int[2];
+    array[0] = 1;
+    array[1] = 1;
+
+    cout << array[0] << array[1] << "\n";
+
+    manipulateArray(array);
+
+    cout << array[0] << array[1] << "\n";
+}
+
 
 
 int main(int argc, char* argv[]) {
@@ -256,11 +280,12 @@ int main(int argc, char* argv[]) {
         cout << "Give arguments, try again \n";
 
         // Test
+        //manipulateArrayTest();
         //streamtestread(1000000000,100000000);
         //streamtestread(10000000,1000000);
         //streamtestwrite(10000000,1000000);
-        BtreeInsertTest();
-        //writeToFileTest();
+        //BtreeInsertTest();
+        writeToFileTest();
         return 0;
     }
     int test = atoi(argv[1]);

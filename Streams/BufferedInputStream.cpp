@@ -1,15 +1,11 @@
 //
 // Created by martin on 10/10/17.
-// Based on work from IOAlgorithm course.
 //
 
 #include "BufferedInputStream.h"
 #include <fcntl.h>
-#include <sys/types.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <errno.h>
-#include <string.h>
 #include <stdlib.h>
 #include <iostream>
 
@@ -48,7 +44,7 @@ int BufferedInputStream::readNext() {
 }
 
 bool BufferedInputStream::endOfStream() {
-    if(!read) {
+    if(index == 2000000000) {
         return false;
     }
     if (index == size) { // Se næste blok
@@ -72,4 +68,5 @@ bool BufferedInputStream::endOfStream() {
 
 void BufferedInputStream::close() {
     ::close(filedesc);
+    delete[] buffer;
 }

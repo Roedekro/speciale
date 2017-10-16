@@ -1,12 +1,9 @@
 //
 // Created by martin on 10/10/17.
-// Based on work from IOAlgorithm course.
 //
 
 #include "BufferedOutputStream.h"
 #include <fcntl.h>
-#include <sys/types.h>
-#include <stdio.h>
 #include <unistd.h>
 #include <initializer_list>
 #include <iostream>
@@ -48,7 +45,7 @@ void BufferedOutputStream::close() {
 
     int tmp = ::close(filedesc);
     if(tmp == -1) std::cout << "Error closing file in BufferedOutputStream " << name << "\n";
-    delete(buffer);
+    delete [] buffer;
     chmod(name, 0666);
     index = 0;
 }
