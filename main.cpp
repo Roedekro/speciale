@@ -149,6 +149,59 @@ int streamtestwrite(long n, int increment) {
 
 void BtreeInsertTest() {
 
+    Btree* btree = new Btree(24);
+    KeyValue* kV = new KeyValue(1,1);
+    cout << "Inserting 1\n";
+    btree->insert(kV);
+
+
+    kV->key = 3;
+    kV->value = 3;
+    cout << "Inserting 3\n";
+    btree->insert(kV);
+    kV->key = 4;
+    kV->value = 4;
+    cout << "Inserting 4\n";
+    btree->insert(kV);
+
+    kV->key = 5;
+    kV->value = 5;
+    cout << "Inserting 5\n";
+    btree->insert(kV);
+    kV->key = 6;
+    kV->value = 6;
+    cout << "Inserting 6\n";
+    btree->insert(kV);
+
+
+    kV->key = 2;
+    kV->value = 2;
+    cout << "Inserting 2\n";
+    btree->insert(kV);
+
+    kV->key = 7;
+    kV->value = 7;
+    cout << "Inserting 7\n";
+    btree->insert(kV);
+
+    // Write out nodes
+    for(int i = 1; i < 5; i++) {
+        cout << "-----\n";
+        InputStream* is2 = new BufferedInputStream(32);
+        ostringstream oss2;
+        oss2 << i;
+        string s2 = "B"+oss2.str();
+        const char* name2 = s2.c_str();
+        is2->open(name2);
+        int element = 0;
+        while(!is2->endOfStream()) {
+            element = is2->readNext();
+            cout << element << "\n";
+        }
+        is2->close();
+        delete(is2);
+    }
+
     /*Btree* btree = new Btree(32);
     InputStream* is = new BufferedInputStream(32);
     ostringstream oss;
@@ -177,21 +230,7 @@ void BtreeInsertTest() {
     /*btree->insert(8);
     */
 
-    /*for(int i = 1; i < 7; i++) {
-        cout << "-----\n";
-        InputStream* is2 = new BufferedInputStream(32);
-        ostringstream oss2;
-        oss2 << i;
-        string s2 = "B"+oss2.str();
-        const char* name2 = s2.c_str();
-        is2->open(name2);
-        while(!is2->endOfStream()) {
-            element = is2->readNext();
-            cout << element << "\n";
-        }
-        is2->close();
-        delete(is2);
-    }*/
+
 
 }
 
@@ -284,8 +323,8 @@ int main(int argc, char* argv[]) {
         //streamtestread(1000000000,100000000);
         //streamtestread(10000000,1000000);
         //streamtestwrite(10000000,1000000);
-        //BtreeInsertTest();
-        writeToFileTest();
+        BtreeInsertTest();
+        //writeToFileTest();
         return 0;
     }
     int test = atoi(argv[1]);

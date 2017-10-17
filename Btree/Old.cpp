@@ -2,6 +2,357 @@
 // Created by martin on 10/16/17.
 //
 
+
+/*
+void Btree::insert(keyValue element) {
+
+ // Read in root
+ InputStream* is = new BufferedInputStream(B);
+ string name = "B";
+ name += to_string(root);
+ is->open(name.c_str());
+
+ // Read in root data
+ int height = is->readNext();
+ int nodeSize = is->readNext();
+
+ // Make extra room to insert, just in case.
+ int* keys = new int[nodeSize+1];
+ int* values = new int[nodeSize+2];
+
+// Read in keys
+ int i = 0;
+ while(i < nodeSize) {
+     keys[i] = is->readNext();
+     i++;
+ }
+
+ // Read in values. If internal +1;
+ int to = nodeSize;
+ if(height != 1) {
+     nodeSize++;
+ }
+ while(i < nodeSize) {
+     values[i] = is->readNext();
+     i++;
+ }
+
+ is->close();
+ delete(is);
+
+ if(nodeSize == 2*size-1) {
+
+     // Create new root
+     int rootHeight = height+1;
+     int rootSize = 0;
+     int* rootKeys = new int[1];
+     int* rootValues = new int[2];
+     rootValues[0] = root;
+     int oldRoot = root;
+     root = numberOfNodes++;
+
+     //// <---------------------------------------------------------------------------------------------------------!!!!!!!!!!!!!!!!!!!!!!!
+     //splitChild(root,rootHeight,rootSize,rootKeys,rootValues,oldRoot,height,&nodeSize,keys,values);
+     rootSize++;
+
+     // Write old root to disk
+     OutputStream* os = new BufferedOutputStream(B);
+     os->create(name.c_str());
+     os->write(&height);
+     os->write(&nodeSize);
+     for(int j = 0; j < nodeSize; j++) {
+         os->write(&keys[j]);
+     }
+     for(int j = 0; j < nodeSize+1; j++) {
+         os->write(&values[j]);
+     }
+     os->close();
+     delete(os);
+
+     // Clean up
+     delete[] keys;
+     delete[] values;
+
+     // Recurse
+     insertIntoNonFull(element,root,rootHeight,rootSize,rootKeys,rootValues);
+
+ }
+ else {
+     insertIntoNonFull(element,root,height,nodeSize,keys,values);
+ }
+
+
+}
+
+
+/*
+ * Inserts into an internal node or a leaf.
+ * Will clean up after itself.
+ */
+
+/*
+void Btree::insertIntoNonFull(keyValue element, int id, int height, int nodeSize, int *keys, int *values) {
+
+    int i = nodeSize;
+    if(height == 1) {
+        // Insert into this leaf
+
+        // Check if key is present
+        int j = 0;
+        while(j < nodeSize && keys[j] != element.key) {
+            j++;
+        }
+        if(keys[j] == element.key) {
+            // Special case, just update value
+            values[j] = element.value;
+
+            // Write node to disk
+            OutputStream* os = new BufferedOutputStream(B);
+            string name = "B";
+            name += to_string(id);
+            os->create(name.c_str());
+            os->write(&height);
+            os->write(&nodeSize);
+            for(int k = 0; k < nodeSize; k++) {
+                os->write(&keys[k]);
+            }
+            for(int k = 0; k < nodeSize; k++) {
+                os->write(&values[k]);
+            }
+            os->close();
+            delete(os);
+            delete[] keys;
+            delete[] values;
+            return;
+        }
+        else {
+            // Move keys and values back, insert new pair
+            while(i > 0 && element.key < keys[i-1]) {
+                keys[i] = keys[i-1];
+                values[i] = values[i-1];
+                i--;
+            }
+            keys[i] = element.key;
+            values[i] = element.value;
+            nodeSize++;
+
+            // Write node to disk
+            OutputStream* os = new BufferedOutputStream(B);
+            string name = "B";
+            name += to_string(id);
+            os->create(name.c_str());
+            os->write(&height);
+            os->write(&nodeSize);
+            for(int k = 0; k < nodeSize; k++) {
+                os->write(&keys[k]);
+            }
+            for(int k = 0; k < nodeSize; k++) {
+                os->write(&values[k]);
+            }
+            os->close();
+            delete(os);
+            delete[] keys;
+            delete[] values;
+            return;
+        }
+    }
+    else {
+        // Internal node
+
+        // Find child
+        while(i > 0 && element.key < keys[i-1]) {
+            i--;
+        }
+        int child = values[i];
+
+        // Load in child
+        InputStream* is = new BufferedInputStream(B);
+        string name = "B";
+        name += to_string(child);
+        is->open(name.c_str());
+        int cHeight = is->readNext();
+        int cSize = is->readNext();
+        // Make room to potentially insert
+        int* cKeys = new int[cSize+1];
+        int* cValues = new int[cSize+2];
+        int j = 0;
+        while(j < cSize) {
+            cKeys[j] = is->readNext();
+            j++;
+        }
+        j = 0;
+        while(j < cSize+1) {
+            cValues[j] = is->readNext();
+        }
+        is->close();
+        delete(is);
+
+        // Check if we need to split the child
+        if(cSize == 2*size-1) {
+
+            int newSize = size-1;
+            int* newKeys = new int[newSize];
+            int* newValues = new int[newSize+1];
+
+            splitChild(height, nodeSize, keys, values, i, cKeys, cValues,
+                       newKeys, newValues);
+            nodeSize++;
+
+            cSize = size-1;
+
+            // Check which of the two children we need to recurse upon.
+            if(element.key > keys[i]) {
+                i++;
+                child = values[i];
+
+                // Write out old child
+                OutputStream* os = new BufferedOutputStream(B);
+                string node = "B";
+                node += to_string(child);
+                os->create(node.c_str());
+                os->write(&cHeight);
+                os->write(&cSize);
+                for(int k = 0; k < cSize; k++) {
+                    os->write(&keys[k]);
+                }
+                for(int k = 0; k < cSize+1; k++) {
+                    os->write(&values[k]);
+                }
+                os->close();
+                delete(os);
+                delete[] cKeys;
+                delete[] cValues;
+
+                // Switch child to new child.
+                cKeys = newKeys;
+                cValues = newValues;
+                cSize = newSize;
+
+            }
+            else {
+                // Write out new child
+                OutputStream* os = new BufferedOutputStream(B);
+                string node = "B";
+                node += to_string(numberOfNodes);
+                os->create(node.c_str());
+                os->write(&cHeight);
+                os->write(&newSize);
+                for(int k = 0; k < newSize; k++) {
+                    os->write(&keys[k]);
+                }
+                for(int k = 0; k < newSize+1; k++) {
+                    os->write(&values[k]);
+                }
+                os->close();
+                delete(os);
+                delete[] newKeys;
+                delete[] newValues;
+            }
+        }
+
+        // Write node to disk
+        OutputStream* os = new BufferedOutputStream(B);
+        string node = "B";
+        node += to_string(id);
+        os->create(node.c_str());
+        os->write(&height);
+        os->write(&nodeSize);
+        for(int k = 0; k < nodeSize; k++) {
+            os->write(&keys[k]);
+        }
+        for(int k = 0; k < nodeSize+1; k++) {
+            os->write(&values[k]);
+        }
+        os->close();
+        delete(os);
+        delete[] keys;
+        delete[] values;
+
+        // Insert into child
+        insertIntoNonFull(element,child,cHeight,cSize,cKeys,cValues);
+    }
+}
+
+/*
+ * Splits a child of a node into a new child.
+ * Does not clean up parent, existing child or new child, responsibility is left to calling function.
+ * You must increase parents size by one, and set the old child and new childs size to size-1;
+ * Special case for leafs, where number of values becomes size-1 instead of size, but
+ * there is space left to write out a dummmy value, so just treat it as if it had #size values.
+ */
+
+/*
+void Btree::splitChild(int height, int nodeSize, int *keys, int *values, int childNumber,
+                       int *cKeys, int *cValues, int *newKeys, int *newValues) {
+
+    numberOfNodes++;
+    int newChild = numberOfNodes;
+
+    // Fill out new childs keys
+    for(int j = 0; j < size-1; j++) {
+        newKeys[j] = cKeys[size+j];
+    }
+
+    // Copy values
+    if(height == 2) {
+        // Children are leafs
+        for(int j = 0; j < size-1; j++) {
+            newValues[j] = cValues[size+j]; // <---?
+        }
+    }
+    else {
+        // Children are internal nodes
+        for(int j = 0; j < size; j++) {
+            newValues[j] = cValues[size+j];
+        }
+    }
+
+    // Move parents keys and values back by one
+    for(int j = nodeSize; j > childNumber+1; j--) {
+        keys[j] = keys[j-1];
+    }
+    // New child inherits key from old child. Assign new key to old child.
+    if(height == 2) {
+        // Leaf, old child got extra key
+        keys[childNumber] = cKeys[size-1];
+    }
+    else {
+        keys[childNumber] = cKeys[size-2];
+    }
+
+    for(int j = nodeSize+1; j > childNumber+1; j--) {
+        values[j] = values[j-1];
+    }
+    // Insert pointer to new child
+    values[childNumber+1] = newChild;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #include "Old.h"
 
 

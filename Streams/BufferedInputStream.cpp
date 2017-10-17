@@ -36,7 +36,6 @@ int BufferedInputStream::readNext() {
         endoffileIndex = bytesRead / sizeof(int);
         index = 0;
         iocounter++;
-        read = true;
     }
     int elm = buffer[index];
     index++;

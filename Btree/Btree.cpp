@@ -33,9 +33,11 @@ using namespace std;
 Btree::Btree(int B) {
     // Create root
     this->B = B;
-    size = ((B/sizeof(int))-3)/2; // #keys. Max #keys will be 2*size-1. Min = size.
+    size = ((B/sizeof(int))-2)/2; // #values. Max #keys will be 2*size-1. Min = size.
+                                // Result is that one node can fill out 2*B.
     numberOfNodes = 1;
     root = 1;
+    // Exception for use of writeNode, since this node is empty.
     OutputStream* os = new BufferedOutputStream(B);
     string name = "B";
     name += to_string(1);
@@ -47,7 +49,7 @@ Btree::Btree(int B) {
     os->close();
     delete(os);
     cout << "Created root " << root << " " << name << "\n";
-    cout << "Tree will have #keys = " << size << "\n";
+    cout << "Tree will have size = " << size << " resulting in #keys = " << 2*size-1 << " with int size = " << sizeof(int) << "\n";
 }
 
 Btree::~Btree() {}
@@ -57,92 +59,54 @@ Btree::~Btree() {}
  * If key is already present update value.
 */
 
-void Btree::insert(keyValue element) {
+void Btree::insert(KeyValue* element) {
 
     // Read in root
-    InputStream* is = new BufferedInputStream(B);
-    string name = "B";
-    name += to_string(root);
-    is->open(name.c_str());
-
-    // Read in root data
-    int height = is->readNext();
-    int nodeSize = is->readNext();
-
-    // Make extra room to insert, just in case.
-    int* keys = new int[nodeSize+1];
-    int* values = new int[nodeSize+2];
-
-   // Read in keys
-    int i = 0;
-    while(i < nodeSize) {
-        keys[i] = is->readNext();
-        i++;
-    }
-
-    // Read in values. If internal +1;
-    int to = nodeSize;
-    if(height != 1) {
-        nodeSize++;
-    }
-    while(i < nodeSize) {
-        values[i] = is->readNext();
-        i++;
-    }
-
-    is->close();
-    delete(is);
+    int height, nodeSize;
+    int* ptr_height = &height;
+    int* ptr_nodeSize = &nodeSize;
+    int* keys = new int[size*2-1];
+    int* values = new int[size*2];
+    readNode(root,ptr_height,ptr_nodeSize,keys,values);
 
     if(nodeSize == 2*size-1) {
 
-        // Create new root
-        int rootHeight = height+1;
-        int rootSize = 0;
-        int* rootKeys = new int[1];
-        int* rootValues = new int[2];
-        rootValues[0] = root;
+        numberOfNodes++;
         int oldRoot = root;
-        root = numberOfNodes++;
+        root = numberOfNodes;
 
-        //// <---------------------------------------------------------------------------------------------------------!!!!!!!!!!!!!!!!!!!!!!!
-        //splitChild(root,rootHeight,rootSize,rootKeys,rootValues,oldRoot,height,&nodeSize,keys,values);
-        rootSize++;
+        // New root
+        int newRootHeight = height+1;
+        int* newRootKeys = new int[size*2-1];
+        int* newRootValues = new int[size*2];
+        newRootValues[0] = oldRoot;
 
-        // Write old root to disk
-        OutputStream* os = new BufferedOutputStream(B);
-        os->create(name.c_str());
-        os->write(&height);
-        os->write(&nodeSize);
-        for(int j = 0; j < nodeSize; j++) {
-            os->write(&keys[j]);
-        }
-        for(int j = 0; j < nodeSize+1; j++) {
-            os->write(&values[j]);
-        }
-        os->close();
-        delete(os);
+        // New Child
+        int newChildHeight = height;
+        int newChildSize = size-1;
+        int* newChildKeys = new int[size*2-1];
+        int* newChildValues = new int[size*2];
 
-        // Clean up
-        delete[] keys;
-        delete[] values;
+        splitChild(newRootHeight,0,newRootKeys,newRootValues,0,ptr_nodeSize,keys,values,newChildKeys,newChildValues);
 
-        // Recurse
-        insertIntoNonFull(element,root,rootHeight,rootSize,rootKeys,rootValues);
+        // Save both children
+        writeNode(oldRoot,height,nodeSize,keys,values);
+        writeNode(numberOfNodes,newChildHeight,newChildSize,newChildKeys,newChildValues);
 
+        // Insert into new root
+        insertIntoNonFull(element,root,newRootHeight,1,newRootKeys,newRootValues);
     }
     else {
         insertIntoNonFull(element,root,height,nodeSize,keys,values);
     }
 
-
 }
 
 /*
  * Inserts into an internal node or a leaf.
- * Will clean up after itself.
  */
 
-void Btree::insertIntoNonFull(keyValue element, int id, int height, int nodeSize, int *keys, int *values) {
+void Btree::insertIntoNonFull(KeyValue* element, int id, int height, int nodeSize, int *keys, int *values) {
 
     int i = nodeSize;
     if(height == 1) {
@@ -150,60 +114,28 @@ void Btree::insertIntoNonFull(keyValue element, int id, int height, int nodeSize
 
         // Check if key is present
         int j = 0;
-        while(j < nodeSize && keys[j] != element.key) {
+        while(j < nodeSize && keys[j] != element->key) {
             j++;
         }
-        if(keys[j] == element.key) {
+        if(keys[j] == element->key) {
             // Special case, just update value
-            values[j] = element.value;
-
-            // Write node to disk
-            OutputStream* os = new BufferedOutputStream(B);
-            string name = "B";
-            name += to_string(id);
-            os->create(name.c_str());
-            os->write(&height);
-            os->write(&nodeSize);
-            for(int k = 0; k < nodeSize; k++) {
-                os->write(&keys[k]);
-            }
-            for(int k = 0; k < nodeSize; k++) {
-                os->write(&values[k]);
-            }
-            os->close();
-            delete(os);
-            delete[] keys;
-            delete[] values;
+            values[j] = element->value;
+            writeNode(id,height,nodeSize,keys,values);
+            cout << "Node = " <<  id << " Updated key = " << element->key << " to value = " << element->value << "\n";
             return;
         }
         else {
             // Move keys and values back, insert new pair
-            while(i > 0 && element.key < keys[i-1]) {
+            while(i > 0 && element->key < keys[i-1]) {
                 keys[i] = keys[i-1];
                 values[i] = values[i-1];
                 i--;
             }
-            keys[i] = element.key;
-            values[i] = element.value;
+            keys[i] = element->key;
+            values[i] = element->value;
             nodeSize++;
-
-            // Write node to disk
-            OutputStream* os = new BufferedOutputStream(B);
-            string name = "B";
-            name += to_string(id);
-            os->create(name.c_str());
-            os->write(&height);
-            os->write(&nodeSize);
-            for(int k = 0; k < nodeSize; k++) {
-                os->write(&keys[k]);
-            }
-            for(int k = 0; k < nodeSize; k++) {
-                os->write(&values[k]);
-            }
-            os->close();
-            delete(os);
-            delete[] keys;
-            delete[] values;
+            writeNode(id,height,nodeSize,keys,values);
+            cout << "Node = " <<  id << " Inserted key = " << element->key << " with value = " << element->value << "\n";
             return;
         }
     }
@@ -211,69 +143,42 @@ void Btree::insertIntoNonFull(keyValue element, int id, int height, int nodeSize
         // Internal node
 
         // Find child
-        while(i > 0 && element.key < keys[i-1]) {
+        while(i > 0 && element->key < keys[i-1]) {
             i--;
         }
         int child = values[i];
 
         // Load in child
-        InputStream* is = new BufferedInputStream(B);
-        string name = "B";
-        name += to_string(child);
-        is->open(name.c_str());
-        int cHeight = is->readNext();
-        int cSize = is->readNext();
-        // Make room to potentially insert
-        int* cKeys = new int[cSize+1];
-        int* cValues = new int[cSize+2];
-        int j = 0;
-        while(j < cSize) {
-            cKeys[j] = is->readNext();
-            j++;
-        }
-        j = 0;
-        while(j < cSize+1) {
-            cValues[j] = is->readNext();
-        }
-        is->close();
-        delete(is);
+        int cHeight, cSize;
+        int* ptr_cHeight = &cHeight;
+        int* ptr_cSize = &cSize;
+        int* cKeys = new int[size*2-1];
+        int* cValues = new int[size*2];
+        readNode(child,ptr_cHeight,ptr_cSize,cKeys,cValues);
 
         // Check if we need to split the child
         if(cSize == 2*size-1) {
 
             int newSize = size-1;
-            int* newKeys = new int[newSize];
-            int* newValues = new int[newSize+1];
+            int* newKeys = new int[size*2-1];
+            int* newValues = new int[size*2];
 
-            splitChild(height, nodeSize, keys, values, i, cKeys, cValues,
+            splitChild(height, nodeSize, keys, values, i, ptr_cSize, cKeys, cValues,
             newKeys, newValues);
             nodeSize++;
-            cSize = size-1;
+
+            cout << "Split children new sizes " << cSize << " " << newSize << "\n";
 
             // Check which of the two children we need to recurse upon.
-            if(element.key > keys[i]) {
-                i++;
-                child = values[i];
+            if(element->key > keys[i]) {
 
                 // Write out old child
-                OutputStream* os = new BufferedOutputStream(B);
-                string node = "B";
-                node += to_string(child);
-                os->create(node.c_str());
-                os->write(&cHeight);
-                os->write(&cSize);
-                for(int k = 0; k < cSize; k++) {
-                    os->write(&keys[k]);
-                }
-                for(int k = 0; k < cSize+1; k++) {
-                    os->write(&values[k]);
-                }
-                os->close();
-                delete(os);
-                delete[] cKeys;
-                delete[] cValues;
+                cout << "Writing out old child " << child << " with size " << cSize << "\n";
+                writeNode(child,cHeight,cSize,cKeys,cValues);
 
                 // Switch child to new child.
+                i++;
+                child = values[i];
                 cKeys = newKeys;
                 cValues = newValues;
                 cSize = newSize;
@@ -281,42 +186,12 @@ void Btree::insertIntoNonFull(keyValue element, int id, int height, int nodeSize
             }
             else {
                 // Write out new child
-                OutputStream* os = new BufferedOutputStream(B);
-                string node = "B";
-                node += to_string(numberOfNodes);
-                os->create(node.c_str());
-                os->write(&cHeight);
-                os->write(&newSize);
-                for(int k = 0; k < newSize; k++) {
-                    os->write(&keys[k]);
-                }
-                for(int k = 0; k < newSize+1; k++) {
-                    os->write(&values[k]);
-                }
-                os->close();
-                delete(os);
-                delete[] newKeys;
-                delete[] newValues;
+                writeNode(numberOfNodes,cHeight,newSize,newKeys,newValues);
             }
         }
 
-        // Write node to disk
-        OutputStream* os = new BufferedOutputStream(B);
-        string node = "B";
-        node += to_string(id);
-        os->create(node.c_str());
-        os->write(&height);
-        os->write(&nodeSize);
-        for(int k = 0; k < nodeSize; k++) {
-            os->write(&keys[k]);
-        }
-        for(int k = 0; k < nodeSize+1; k++) {
-            os->write(&values[k]);
-        }
-        os->close();
-        delete(os);
-        delete[] keys;
-        delete[] values;
+        // Write node to disk - Possible optimization, find out if write is necessary for this node.
+        writeNode(id,height,nodeSize,keys,values);
 
         // Insert into child
         insertIntoNonFull(element,child,cHeight,cSize,cKeys,cValues);
@@ -325,11 +200,12 @@ void Btree::insertIntoNonFull(keyValue element, int id, int height, int nodeSize
 
 /*
  * Splits a child of a node into a new child.
- * Assumes values is an even number (if B is even, this is true).
  * Does not clean up parent, existing child or new child, responsibility is left to calling function.
- * You must increase parents size by one, and set the old child and new childs size to size;
+ * You must increase parents size by one, and set the old child and new childs size to size-1;
+ * Will update nodeSize of original child correctly, depending on if its a leaf or not.
+ * New child will have nodeSize = size-1;
  */
-void Btree::splitChild(int height, int nodeSize, int *keys, int *values, int childNumber,
+void Btree::splitChild(int height, int nodeSize, int *keys, int *values, int childNumber, int* childSize,
                        int *cKeys, int *cValues, int *newKeys, int *newValues) {
 
     numberOfNodes++;
@@ -358,11 +234,22 @@ void Btree::splitChild(int height, int nodeSize, int *keys, int *values, int chi
     for(int j = nodeSize; j > childNumber+1; j--) {
         keys[j] = keys[j-1];
     }
-    keys[childNumber+1] = newValues[size-1];
+    // New child inherits key from old child. Assign new key to old child.
+    // Also update size of old child.
+    if(height == 2) {
+        // Leaf, old child got extra key
+        keys[childNumber] = cKeys[size-1];
+        *childSize = size;
+    }
+    else {
+        keys[childNumber] = cKeys[size-2];
+        *childSize = size-1;
+    }
 
     for(int j = nodeSize+1; j > childNumber+1; j--) {
         values[j] = values[j-1];
     }
+    // Insert pointer to new child
     values[childNumber+1] = newChild;
 
 }
@@ -372,6 +259,72 @@ int Btree::query(int element) {
     return 0;
 }
 
-keyValue Btree::deleteElement(int element) {
+void Btree::deleteElement(int element) {
 
+}
+
+/*
+ * Writes out the node to file "B<id>".
+ * Deletes key and value arrays.
+ * Handles that leafs have size-1 values.
+ */
+void Btree::writeNode(int id, int height, int nodeSize, int *keys, int *values) {
+
+    OutputStream* os = new BufferedOutputStream(B);
+    string node = "B";
+    node += to_string(id);
+    os->create(node.c_str());
+    os->write(&height);
+    os->write(&nodeSize);
+    for(int k = 0; k < nodeSize; k++) {
+        os->write(&keys[k]);
+    }
+    if(height > 1) {
+        for(int k = 0; k < nodeSize+1; k++) {
+            os->write(&values[k]);
+        }
+    }
+    else {
+        // Leaf
+        for(int k = 0; k < nodeSize; k++) {
+            os->write(&values[k]);
+        }
+    }
+
+    os->close();
+    delete(os);
+    delete[] keys;
+    delete[] values;
+}
+
+/*
+ * Reads the node of id into the pointers height and size, as well as fills
+ * out the arrays keys and values. Handles leafs (height == 1) appropriately.
+ */
+void Btree::readNode(int id, int* height, int* nodeSize, int *keys, int *values) {
+
+
+    InputStream* is = new BufferedInputStream(B);
+    string name = "B";
+    name += to_string(id);
+    is->open(name.c_str());
+    *height = is->readNext();
+    *nodeSize = is->readNext();
+
+    for(int i = 0; i < *nodeSize; i++) {
+        keys[i] = is->readNext();
+    }
+
+    if(*height > 1) {
+        for(int i = 0; i < *nodeSize+1; i++) {
+            values[i] = is->readNext();
+        }
+    }
+    else {
+        for(int i = 0; i < *nodeSize; i++) {
+            values[i] = is->readNext();
+        }
+    }
+    is->close();
+    delete(is);
 }

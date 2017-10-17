@@ -3,9 +3,13 @@
 //
 
 #ifndef SPECIALE_BTREE_H
-struct keyValue {
+struct KeyValue {
     int key;
     int value;
+    KeyValue(int k, int v) {
+        key = k;
+        value = v;
+    }
 };
 #define SPECIALE_BTREE_H
 
@@ -19,12 +23,14 @@ public:
     long iocounter;
     Btree(int B);
     virtual ~Btree();
-    void insert(keyValue element);
-    void insertIntoNonFull(keyValue element, int id, int height, int nodeSize, int* keys, int* values);
-    void splitChild(int height, int nodeSize, int* keys, int* values, int childNumber,
+    void insert(KeyValue* element);
+    void insertIntoNonFull(KeyValue* element, int id, int height, int nodeSize, int* keys, int* values);
+    void splitChild(int height, int nodeSize, int* keys, int* values, int childNumber, int* childSize,
                     int* cKeys, int* cValues, int* newKeys, int* newValues);
     int query(int element);
-    keyValue deleteElement(int element);
+    void deleteElement(int element);
+    void readNode(int id, int* height, int* nodeSize, int* keys, int* values);
+    void writeNode(int id, int height, int nodeSize, int* keys, int* values);
 };
 
 
