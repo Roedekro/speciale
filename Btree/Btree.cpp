@@ -121,7 +121,7 @@ void Btree::insertIntoNonFull(KeyValue* element, int id, int height, int nodeSiz
             // Special case, just update value
             values[j] = element->value;
             writeNode(id,height,nodeSize,keys,values);
-            cout << "Node = " <<  id << " Updated key = " << element->key << " to value = " << element->value << "\n";
+            //cout << "Node = " <<  id << " Updated key = " << element->key << " to value = " << element->value << "\n";
             return;
         }
         else {
@@ -135,7 +135,7 @@ void Btree::insertIntoNonFull(KeyValue* element, int id, int height, int nodeSiz
             values[i] = element->value;
             nodeSize++;
             writeNode(id,height,nodeSize,keys,values);
-            cout << "Node = " <<  id << " Inserted key = " << element->key << " with value = " << element->value << "\n";
+            //cout << "Node = " <<  id << " Inserted key = " << element->key << " with value = " << element->value << "\n";
             return;
         }
     }
@@ -167,13 +167,13 @@ void Btree::insertIntoNonFull(KeyValue* element, int id, int height, int nodeSiz
             newKeys, newValues);
             nodeSize++;
 
-            cout << "Split children new sizes " << cSize << " " << newSize << "\n";
+            //cout << "Split children new sizes " << cSize << " " << newSize << "\n";
 
             // Check which of the two children we need to recurse upon.
             if(element->key > keys[i]) {
 
                 // Write out old child
-                cout << "Writing out old child " << child << " with size " << cSize << "\n";
+                //cout << "Writing out old child " << child << " with size " << cSize << "\n";
                 writeNode(child,cHeight,cSize,cKeys,cValues);
 
                 // Switch child to new child.
@@ -230,23 +230,23 @@ void Btree::splitChild(int height, int nodeSize, int *keys, int *values, int chi
         }
     }
 
-    // Move parents keys and values back by one
-    for(int j = nodeSize; j > childNumber+1; j--) {
+    // Move parents keys by one
+    for(int j = nodeSize; j > childNumber; j--) {
         keys[j] = keys[j-1];
     }
     // New child inherits key from old child. Assign new key to old child.
+    keys[childNumber] = cKeys[size-1];
+
     // Also update size of old child.
     if(height == 2) {
-        // Leaf, old child got extra key
-        keys[childNumber] = cKeys[size-1];
         *childSize = size;
     }
     else {
-        keys[childNumber] = cKeys[size-2];
         *childSize = size-1;
     }
 
-    for(int j = nodeSize+1; j > childNumber+1; j--) {
+    // Move parents values back by one
+    for(int j = nodeSize+1; j > childNumber; j--) {
         values[j] = values[j-1];
     }
     // Insert pointer to new child
@@ -256,7 +256,52 @@ void Btree::splitChild(int height, int nodeSize, int *keys, int *values, int chi
 
 int Btree::query(int element) {
 
-    return 0;
+    int height, nodeSize;
+    int* ptr_height = &height;
+    int* ptr_nodeSize = &nodeSize;
+    int* keys = new int[size*2-1];
+    int* values = new int[size*2];
+
+    // Load in root
+    int currentNode = root;
+    readNode(currentNode,ptr_height,ptr_nodeSize,keys,values);
+
+    // Go down in tree until we hit the leaf
+    while(height != 1) {
+
+        //cout << "---Inside node " << currentNode << "\n";
+
+        // Find position
+        int i = nodeSize;
+        while(i > 0 && element <= keys[i-1]) {
+            i--;
+        }
+        currentNode = values[i];
+
+        //cout << "Found node " << currentNode << " in place " << i << "\n";
+
+        readNode(currentNode,ptr_height,ptr_nodeSize,keys,values);
+    }
+
+    //cout << "Searching leaf, node " << currentNode << "\n";
+
+    // In leaf
+    int j = 0;
+    while(j < nodeSize && keys[j] != element) {
+        j++;
+    }
+
+    // Postpone return, clean up first.
+    int ret = -1;
+    if(keys[j] == element) {
+        ret = values[j];
+    }
+
+    delete[] keys;
+    delete[] values;
+
+    return ret;
+
 }
 
 void Btree::deleteElement(int element) {
