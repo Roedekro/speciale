@@ -94,19 +94,20 @@ void Btree::insert(KeyValue* element) {
         writeNode(numberOfNodes,newChildHeight,newChildSize,newChildKeys,newChildValues);
 
         // Insert into new root
-        insertIntoNonFull(element,root,newRootHeight,1,newRootKeys,newRootValues);
+        insertIntoNonFull(element,root,newRootHeight,1,newRootKeys,newRootValues,true);
     }
     else {
-        insertIntoNonFull(element,root,height,nodeSize,keys,values);
+        insertIntoNonFull(element,root,height,nodeSize,keys,values,false);
     }
 
 }
 
 /*
  * Inserts into an internal node or a leaf.
+ * Write denotes whether a node was changed, ans thus needs to be written to disk.
  */
 
-void Btree::insertIntoNonFull(KeyValue* element, int id, int height, int nodeSize, int *keys, int *values) {
+void Btree::insertIntoNonFull(KeyValue* element, int id, int height, int nodeSize, int *keys, int *values, bool write) {
 
     int i = nodeSize;
     if(height == 1) {
@@ -121,7 +122,7 @@ void Btree::insertIntoNonFull(KeyValue* element, int id, int height, int nodeSiz
             // Special case, just update value
             values[j] = element->value;
             writeNode(id,height,nodeSize,keys,values);
-            //cout << "Node = " <<  id << " Updated key = " << element->key << " to value = " << element->value << "\n";
+            cout << "Node = " <<  id << " Updated key = " << element->key << " to value = " << element->value << "\n";
             return;
         }
         else {
@@ -143,7 +144,7 @@ void Btree::insertIntoNonFull(KeyValue* element, int id, int height, int nodeSiz
         // Internal node
 
         // Find child
-        while(i > 0 && element->key < keys[i-1]) {
+        while(i > 0 && element->key <= keys[i-1]) {
             i--;
         }
         int child = values[i];
@@ -155,9 +156,13 @@ void Btree::insertIntoNonFull(KeyValue* element, int id, int height, int nodeSiz
         int* cKeys = new int[size*2-1];
         int* cValues = new int[size*2];
         readNode(child,ptr_cHeight,ptr_cSize,cKeys,cValues);
+        bool cWrite = false;
 
         // Check if we need to split the child
         if(cSize == 2*size-1) {
+
+            write = true;
+            cWrite = true;
 
             int newSize = size-1;
             int* newKeys = new int[size*2-1];
@@ -190,11 +195,13 @@ void Btree::insertIntoNonFull(KeyValue* element, int id, int height, int nodeSiz
             }
         }
 
-        // Write node to disk - Possible optimization, find out if write is necessary for this node.
-        writeNode(id,height,nodeSize,keys,values);
+        // Write node to disk, if necessary
+        if(write) {
+            writeNode(id,height,nodeSize,keys,values);
+        }
 
         // Insert into child
-        insertIntoNonFull(element,child,cHeight,cSize,cKeys,cValues);
+        insertIntoNonFull(element,child,cHeight,cSize,cKeys,cValues,cWrite);
     }
 }
 
@@ -304,8 +311,392 @@ int Btree::query(int element) {
 
 }
 
+/*
+ * Deletes the key and value denoted by element.
+ * If no key matching element is present it does nothing.
+ */
 void Btree::deleteElement(int element) {
 
+    //cout << "DeleteElement " << element << "\n";
+
+    // Read in root
+    int height, nodeSize;
+    int* ptr_height = &height;
+    int* ptr_nodeSize = &nodeSize;
+    int* keys = new int[size*2-1];
+    int* values = new int[size*2];
+    readNode(root,ptr_height,ptr_nodeSize,keys,values);
+
+    // Perform check to see if we need to shrink the tree.
+    if(height != 1 && nodeSize == 0) {
+        root = values[0];
+        deleteElement(element);
+    }
+    else {
+        deleteNonSparse(element,root,height,nodeSize,keys,values,false);
+    }
+}
+
+/*
+ * Responsible for cleaning up arguments!
+ * Write indicates whether a node was changed, and thus needs to be written to disk.
+ */
+void Btree::deleteNonSparse(int element, int id, int height, int nodeSize, int *keys, int *values, bool write) {
+
+    //cout << "Delete on node " << id << " height " << height << " of size " << nodeSize << "\n";
+
+    if(height == 1) {
+        // Leaf, delete
+
+        // Find key position
+        int i = 0;
+        while(i < nodeSize && keys[i] != element) {
+            i++;
+        }
+        if(keys[i] == element) {
+            nodeSize--;
+            while(i < nodeSize) {
+                // Move arrays back one place
+                keys[i] = keys[i+1];
+                values[i] = values[i+1];
+                i++;
+            }
+            writeNode(id,height,nodeSize,keys,values);
+            //cout << "Deleted key = " << element << " from node " << id << "\n";
+            return;
+        }
+        else {
+            // Key was not present
+            if(write) {
+                writeNode(id,height,nodeSize,keys,values);
+            }
+            cout << "Key not present in node " << id << "\n";
+            return;
+        }
+    }
+    else {
+        // Internal node, find child to recurse upon
+        int i = nodeSize;
+        while(i > 0 && element <= keys[i-1]) {
+            i--;
+        }
+        int child = values[i];
+
+        // Load in child
+        int cHeight, cSize;
+        int* ptr_cHeight = &cHeight;
+        int* ptr_cSize = &cSize;
+        int* cKeys = new int[size*2-1];
+        int* cValues = new int[size*2];
+        readNode(child,ptr_cHeight,ptr_cSize,cKeys,cValues);
+        bool cWrite = false;
+
+        if(cSize == size-1) {
+
+            write = true;
+            cWrite = true;
+
+            // Fuse child to ensure place for deletion
+            int* ptr_nodeSize = &nodeSize;
+            //cout << "Fusing " << child << "\n";
+            fuseChild(height,ptr_nodeSize,keys,values,i,ptr_cSize,cKeys,cValues);
+            //cout << "Fusing completed\n";
+
+            // Recheck what child to recurse upon
+            // Fusechild will update cKeys and cValues
+            i = nodeSize;
+            while(i > 0 && element <= keys[i-1]) {
+                i--;
+            }
+            child = values[i];
+
+            /*cout << "===Printing out parent\n";
+            cout << height << "\n";
+            cout << nodeSize << "\n";
+            for(int j = 0; j < nodeSize; j++) {
+                cout << keys[j] << "\n";
+            }
+            for(int j = 0; j < nodeSize+1; j++) {
+                cout << values[j] << "\n";
+            }
+            cout << "===Printing out child\n";
+            cout << cHeight << "\n";
+            cout << cSize << "\n";
+            for(int j = 0; j < cSize; j++) {
+                cout << cKeys[j] << "\n";
+            }
+            for(int j = 0; j < cSize+1; j++) {
+                cout << cValues[j] << "\n";
+            }*/
+        }
+
+        if(write) {
+            writeNode(id,height,nodeSize,keys,values);
+        }
+        deleteNonSparse(element,child,cHeight,cSize,cKeys,cValues,cWrite);
+    }
+}
+
+/*
+ * Fuses a child with an appropriate neighbour.
+ * Will update parent as appropriate.
+ * If child fused into other child, keys and values are replaced.
+ */
+void Btree::fuseChild(int height, int* nodeSize, int *keys, int *values, int childNumber, int *childSize,
+                      int *cKeys, int *cValues) {
+
+    /*
+     * Two possible scenarios:
+     * a) The child has a neighbouring sibling who also contains size-1 keys.
+     * b) The child has a neighbouring sibling containing >= size keys.
+     * We prefer case a over case b, since it allows for faster consecutive deletes.
+     */
+
+    int siblingID;
+    int siblingHeight, siblingSize;
+    int* ptr_siblingHeight = &siblingHeight;
+    int* ptr_siblingSize = &siblingSize;
+    int* siblingKeys = new int[size*2-1];
+    int* siblingValues = new int[size*2];
+
+    // Check case and placement
+    bool caseA = false;
+    bool leftSibling = false;
+    if(childNumber == 0) {
+        // Leftmost child, check right sibling
+        siblingID = values[1];
+        readNode(siblingID,ptr_siblingHeight,ptr_siblingSize,siblingKeys,siblingValues);
+        if(siblingSize == size-1) {
+            caseA = true;
+        }
+    }
+    else if (childNumber == (*nodeSize)) {
+        // Rightmost child, check left sibling
+        siblingID = values[(*nodeSize)-1];
+        readNode(siblingID,ptr_siblingHeight,ptr_siblingSize,siblingKeys,siblingValues);
+        if(siblingSize == size-1) {
+            caseA = true;
+        }
+        leftSibling = true;
+    }
+    else {
+        // Check both left and right sibling
+        siblingID = values[childNumber+1];
+        readNode(siblingID,ptr_siblingHeight,ptr_siblingSize,siblingKeys,siblingValues);
+        if(siblingSize == size-1) {
+            caseA = true;
+        }
+        else {
+            siblingID = values[childNumber-1];
+            readNode(siblingID,ptr_siblingHeight,ptr_siblingSize,siblingKeys,siblingValues);
+            if(siblingSize == size-1) {
+                caseA = true;
+            }
+            leftSibling = true;
+        }
+    }
+
+    //cout << "CaseA = " << caseA << " leftSibling = " << leftSibling << " siblingSize = " << siblingSize << "\n";
+
+    // Perform the necessary adjustments
+    if(caseA) {
+        // Case a, fuse child with its sibling
+        // Fuse right child over into left child
+        if(leftSibling) {
+            if(height != 2) {
+                // Internal children
+                // Fuse child into left sibling
+
+                // We lack one key to separate the two sets of keys.
+                // This key is the left siblings rightmost childs
+                // rightmost key. This key can be found separating
+                // the two children in the parent!
+
+                siblingKeys[siblingSize] = keys[childNumber-1];
+
+                for(int i = 0; i < *childSize; i++) {
+                    siblingKeys[siblingSize+1+i] = cKeys[i];
+                }
+                for(int i = 0; i < (*childSize)+1; i++) {
+                    siblingValues[siblingSize+1+i] = cValues[i];
+                }
+                siblingSize = siblingSize+1+(*childSize);
+            }
+            else {
+                // Children are leafs
+                // Fuse child into left sibling
+                for(int i = 0; i < *childSize; i++) {
+                    siblingKeys[siblingSize+i] = cKeys[i];
+                    siblingValues[siblingSize+i] = cValues[i];
+                }
+                siblingSize = siblingSize+(*childSize);
+            }
+
+            // Update parent
+            for(int i = childNumber-1; i < *nodeSize; i++) {
+                keys[i] = keys[i+1];
+            }
+            for(int i = childNumber; i < (*nodeSize); i++) {
+                values[i] = values[i+1];
+            }
+            (*nodeSize)--;
+
+            /*cout << "===Printing out child\n";
+            cout << height-1 << "\n";
+            cout << *childSize << "\n";
+            for(int j = 0; j < *childSize; j++) {
+                cout << cKeys[j] << "\n";
+            }
+            for(int j = 0; j < *childSize; j++) {
+                cout << cValues[j] << "\n";
+            }
+            cout << "===Printing out sibling\n";
+            cout << height-1 << "\n";
+            cout << siblingSize << "\n";
+            for(int j = 0; j < siblingSize; j++) {
+                cout << siblingKeys[j] << "\n";
+            }
+            for(int j = 0; j < siblingSize; j++) {
+                cout << siblingValues[j] << "\n";
+            }*/
+
+            // Dont delete and reassign, copy over and delete instead
+            //delete[] cKeys;
+            //delete[] cValues;
+            //cKeys = siblingKeys;
+            //cValues = siblingValues;
+
+            // "Return" left sibling
+            *childSize = siblingSize;
+
+            if(height != 2) {
+                for(int i = 0; i < siblingSize; i++) {
+                    cKeys[i] = siblingKeys[i];
+                }
+                for(int i = 0; i < siblingSize+1; i++) {
+                    cValues[i] = siblingValues[i];
+                }
+            }
+            else {
+                for(int i = 0; i < siblingSize; i++) {
+                    cKeys[i] = siblingKeys[i];
+                    cValues[i] = siblingValues[i];
+                }
+            }
+            delete[] siblingKeys;
+            delete[] siblingValues;
+            return;
+        }
+        else {
+            if(height != 2) {
+                // Internal children
+                // Fuse right sibling into child
+                cKeys[*childSize] = keys[childNumber];
+
+                for(int i = 0; i < siblingSize; i++) {
+                    cKeys[(*childSize)+1+i] = siblingKeys[i];
+                }
+                for(int i = 0; i < siblingSize+1; i++) {
+                    cValues[(*childSize)+1+i] = siblingValues[i];
+                }
+                (*childSize) = (*childSize)+1+siblingSize;
+            }
+            else {
+                // Children are leafs
+                // Fuse right sibling into child
+                for(int i = 0; i < siblingSize; i++) {
+                    cKeys[(*childSize)+i] = siblingKeys[i];
+                    cValues[(*childSize)+i] = siblingValues[i];
+                }
+                (*childSize) = (*childSize)+siblingSize;
+            }
+
+            // Update parent
+            for(int i = childNumber; i < *nodeSize; i++) {
+                keys[i] = keys[i+1];
+            }
+            for(int i = childNumber+1; i < (*nodeSize)+1; i++) {
+                values[+i] = values[i+1];
+            }
+            (*nodeSize)--;
+
+            // Effectively deleted right sibling
+            delete[] siblingKeys;
+            delete[] siblingValues;
+            return;
+        }
+
+    }
+    else {
+        // Case b, steal a key and a value from the sibling
+        if(leftSibling) {
+            // Steal rightmost value from left sibling
+            if(height != 2) {
+                // Internal nodes
+                // Make room for new value and key
+                for(int i = *childSize; i > 0; i--) {
+                    cKeys[i] = cKeys[i-1];
+                }
+                for(int i = (*childSize)+1; i > 0; i--) {
+                    cValues[i] = cValues[i-1];
+                }
+                cKeys[0] = keys[childNumber-1];
+                cValues[0] = siblingValues[siblingSize];
+                (*childSize)++;
+                siblingSize--;
+                keys[childNumber-1] = siblingKeys[siblingSize];
+            }
+            else {
+                // Leafs
+                for(int i = *childSize; i > 0; i--) {
+                    cKeys[i] = cKeys[i-1];
+                }
+                for(int i = (*childSize)+1; i > 0; i--) {
+                    cValues[i] = cValues[i-1];
+                }
+                //cKeys[0] = keys[childNumber-1];
+                cKeys[0] = siblingKeys[siblingSize-1];
+                cValues[0] = siblingValues[siblingSize-1];
+                (*childSize)++;
+                siblingSize--;
+                keys[childNumber-1] = siblingKeys[siblingSize-1];
+            }
+        }
+        else {
+            // Steal leftmost value from right sibling
+            if(height != 2) {
+                cKeys[*childSize] = keys[childNumber];
+                cValues[(*childSize)+1] = siblingValues[0];
+                (*childSize)++;
+                keys[childNumber] = siblingKeys[0];
+                // Move siblings keys and values forward in arrays
+                for(int i = 0; i < siblingSize-1; i++) {
+                    siblingKeys[i] = siblingKeys[i+1];
+                }
+                for(int i = 0; i < siblingSize; i++) {
+                    siblingValues[i] = siblingValues[i+1];
+                }
+                siblingSize--;
+            }
+            else {
+                //cKeys[*childSize] = keys[childNumber];
+                cKeys[*childSize] = siblingKeys[0];
+                cValues[*childSize] = siblingValues[0];
+                (*childSize)++;
+                keys[childNumber] = siblingKeys[0];
+                // Move siblings keys and values forward in arrays
+                for(int i = 0; i < siblingSize-1; i++) {
+                    siblingKeys[i] = siblingKeys[i+1];
+                    siblingValues[i] = siblingValues[i+1];
+                }
+                siblingSize--;
+            }
+        }
+
+        // Write out sibling
+        writeNode(siblingID,siblingHeight,siblingSize,siblingKeys,siblingValues);
+        return;
+    }
 }
 
 /*

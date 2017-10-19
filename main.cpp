@@ -359,6 +359,108 @@ void insertAndQueryTest() {
 
 }
 
+void insertDeleteAndQueryTest() {
+
+    //int number = 10;
+    // 200, 10 giver problemer
+    // 80, 0 giver problemer med 184
+    int inserts = 200;
+    int deletes = 40;
+
+    Btree* btree = new Btree(24);
+    KeyValue* kV = new KeyValue(1,1);
+
+    // Generate random key values
+    int* keys = new int[inserts];
+    int* values = new int[inserts];
+    //srand(time(NULL));
+    srand(100000);
+    for(int i = 0; i < inserts; i++) {
+        keys[i] = rand()%1000;
+        values[i] = rand()%1000;
+        //keys[i] = rand();
+        //values[i] = rand();
+    }
+
+    for(int i = 0; i < inserts; i++) {
+        kV->key = keys[i];
+        kV->value = values[i];
+        btree->insert(kV);
+        cout << "Inserted " << keys[i] << " with value " << values[i] << "\n";
+    }
+
+    cout << "Inserted " << inserts << " elements into tree\n";
+
+    for(int i = 0; i < deletes; i++) {
+        cout << "=== Deleting element " <<keys[i] << "\n";
+        btree->deleteElement(keys[i]);
+    }
+
+    cout << "Querying remaining elements\n";
+    int res;
+    for(int i = deletes; i < inserts; i++) {
+        //cout << "===== Query for " << keys[i] << "\n";
+        res = btree->query(keys[i]);
+        if(res != values[i]) {
+            bool updated = false;
+            int j = i+1;
+            while(j < inserts) {
+                if(keys[i] == keys[j]) {
+                    updated = true;
+                    break;
+                }
+                j++;
+            }
+            if(updated) {
+                //cout << "Updated " << keys[i] << "\n";
+                if(res != values[j]) {
+                    cout << "Query for " << keys[i] << " should have returned "
+                         << values[j] << " but returned " << res << " i = " << i << "\n";
+                }
+            }
+            else {
+                bool deleted = false;
+                int h = 0;
+                while(h < deletes) {
+                    if(keys[i] == keys[h]) {
+                        deleted = true;
+                        break;
+                    }
+                    h++;
+                }
+                if(!deleted) {
+                    cout << "Query for " << keys[i] << " should have returned "
+                         << values[i] << " but returned " << res << " i = " << i << "\n";
+                }
+            }
+        }
+    }
+
+    cout << "Root is " << btree->root << "\n";
+
+    // Write out nodes
+    /*for(int i = 1; i < 56; i++) {
+        cout << "-----\n";
+        cout << "Node " << i << "\n";
+        InputStream* is2 = new BufferedInputStream(32);
+        ostringstream oss2;
+        oss2 << i;
+        string s2 = "B"+oss2.str();
+        const char* name2 = s2.c_str();
+        is2->open(name2);
+        int element = 0;
+        while(!is2->endOfStream()) {
+            element = is2->readNext();
+            cout << element << "\n";
+        }
+        is2->close();
+        delete(is2);
+    }*/
+
+    cout << "Done!";
+
+}
+
 // Should give output 3 | 3 2 | 3 1
 void writeToFileTest() {
 
@@ -451,7 +553,8 @@ int main(int argc, char* argv[]) {
         //BtreeInsertTest();
         //writeToFileTest();
         //simpleInsertAndQueryTest();
-        insertAndQueryTest();
+        //insertAndQueryTest();
+        insertDeleteAndQueryTest();
         return 0;
     }
     int test = atoi(argv[1]);
