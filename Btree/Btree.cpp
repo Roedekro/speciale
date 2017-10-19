@@ -48,8 +48,8 @@ Btree::Btree(int B) {
     os->write(&zero);
     os->close();
     delete(os);
-    cout << "Created root " << root << " " << name << "\n";
-    cout << "Tree will have size = " << size << " resulting in #keys = " << 2*size-1 << " with int size = " << sizeof(int) << "\n";
+    //cout << "Created root " << root << " " << name << "\n";
+    //cout << "Tree will have size = " << size << " resulting in #keys = " << 2*size-1 << " with int size = " << sizeof(int) << "\n";
 }
 
 Btree::~Btree() {}
@@ -122,7 +122,7 @@ void Btree::insertIntoNonFull(KeyValue* element, int id, int height, int nodeSiz
             // Special case, just update value
             values[j] = element->value;
             writeNode(id,height,nodeSize,keys,values);
-            cout << "Node = " <<  id << " Updated key = " << element->key << " to value = " << element->value << "\n";
+            //cout << "Node = " <<  id << " Updated key = " << element->key << " to value = " << element->value << "\n";
             return;
         }
         else {
@@ -370,7 +370,7 @@ void Btree::deleteNonSparse(int element, int id, int height, int nodeSize, int *
             if(write) {
                 writeNode(id,height,nodeSize,keys,values);
             }
-            cout << "Key not present in node " << id << "\n";
+            //cout << "Key not present in node " << id << "\n";
             return;
         }
     }
