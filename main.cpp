@@ -208,7 +208,7 @@ int streamtestwrite2(long n, int increment) {
 
     using namespace std::chrono;
 
-    long* time = new long[4];
+    long* time = new long[3];
     long counter = increment;
     int write = 2147483647;
     while(counter <= n) {
