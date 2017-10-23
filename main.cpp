@@ -222,7 +222,7 @@ int streamtestwrite2(long n, int increment) {
         high_resolution_clock::time_point t2 = high_resolution_clock::now();
         os->close();
         remove("testWrite");
-        time[1] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
+        time[0] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
         os = new BufferedOutputStream(4096);
         os->create("testWrite");
@@ -233,7 +233,7 @@ int streamtestwrite2(long n, int increment) {
         t2 = high_resolution_clock::now();
         os->close();
         remove("testWrite");
-        time[2] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
+        time[1] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
         os = new MapOutputStream(4096,counter);
         os->create("testWrite");
@@ -244,11 +244,11 @@ int streamtestwrite2(long n, int increment) {
         t2 = high_resolution_clock::now();
         os->close();
         remove("testWrite");
-        time[3] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
+        time[2] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
 
         cout << counter << " " << time[0] << " " << time[1]
-             << " " << time[2] << " " << time[3] << "\n";
+             << " " << time[2] << "\n";
 
         counter = counter + increment;
     }
