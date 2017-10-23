@@ -9,6 +9,7 @@
 
 class InputStream {
 public:
+    long iocounter = 0;
     virtual void open(const char* s) = 0;
     virtual int readNext() = 0;
     virtual bool endOfStream() = 0;

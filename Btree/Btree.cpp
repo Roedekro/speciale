@@ -47,6 +47,7 @@ Btree::Btree(int B) {
     int zero = 0;
     os->write(&zero);
     os->close();
+    iocounter = os->iocounter;
     delete(os);
     //cout << "Created root " << root << " " << name << "\n";
     //cout << "Tree will have size = " << size << " resulting in #keys = " << 2*size-1 << " with int size = " << sizeof(int) << "\n";
@@ -69,6 +70,7 @@ void Btree::insert(KeyValue* element) {
     int* values = new int[size*2];
     readNode(root,ptr_height,ptr_nodeSize,keys,values);
 
+    // Check if we need to split the root
     if(nodeSize == 2*size-1) {
 
         numberOfNodes++;
@@ -330,6 +332,8 @@ void Btree::deleteElement(int element) {
     // Perform check to see if we need to shrink the tree.
     if(height != 1 && nodeSize == 0) {
         root = values[0];
+        delete[] keys;
+        delete[] values;
         deleteElement(element);
     }
     else {
@@ -356,7 +360,7 @@ void Btree::deleteNonSparse(int element, int id, int height, int nodeSize, int *
         if(keys[i] == element) {
             nodeSize--;
             while(i < nodeSize) {
-                // Move arrays back one place
+                // Move array indexes forward one place
                 keys[i] = keys[i+1];
                 values[i] = values[i+1];
                 i++;
@@ -728,6 +732,7 @@ void Btree::writeNode(int id, int height, int nodeSize, int *keys, int *values) 
     }
 
     os->close();
+    iocounter = iocounter + os->iocounter;
     delete(os);
     delete[] keys;
     delete[] values;
@@ -762,5 +767,18 @@ void Btree::readNode(int id, int* height, int* nodeSize, int *keys, int *values)
         }
     }
     is->close();
+    iocounter = iocounter + is->iocounter;
     delete(is);
+}
+
+/*
+ * Removes all node files used.
+ */
+void Btree::cleanup() {
+
+    for(int i = 1; i <= numberOfNodes; i++) {
+        string name = "B";
+        name += to_string(i);
+        remove(name.c_str());
+    }
 }

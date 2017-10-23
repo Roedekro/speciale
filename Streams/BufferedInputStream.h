@@ -10,7 +10,6 @@
 
 class BufferedInputStream: public InputStream {
 public:
-    long iocounter = 0;
     int filedesc;
     int size;
     int * buffer;

@@ -9,7 +9,6 @@
 
 class NaiveInputStream: public InputStream {
 public:
-    long iocounter = 0;
     int filedesc;
     NaiveInputStream();
     virtual ~NaiveInputStream();
