@@ -35,6 +35,9 @@ public:
     void deleteElement(int element);
     void deleteNonSparseInternal(int element, ModifiedInternalNode* node);
     void deleteNonSparse(int element, int id, int height, int nodeSize, int* keys, int* values, bool write);
+    void fuseChildInternal(ModifiedInternalNode* parent, ModifiedInternalNode* child, int childNumber);
+    void fuseChildBorder(ModifiedInternalNode* parent, int childNumber, int* childSize,
+                         int* cKeys, int* cValues);)
     void fuseChild(int height, int* nodeSize, int* keys, int* values, int childNumber, int* childSize,
                    int* cKeys, int* cValues);
     void readNode(int id, int* height, int* nodeSize, int* keys, int* values);
