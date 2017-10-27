@@ -665,6 +665,7 @@ void pointerSize() {
 
 }
 
+// Only works for internal tree
 void recursivePrintModifiedNode(ModifiedInternalNode* node) {
     cout << "---\n";
     cout << node->id << "\n";
@@ -689,9 +690,10 @@ void recursivePrintModifiedNode(ModifiedInternalNode* node) {
 
 void internalModifiedBtreeInsertAndQueryTest() {
 
-    int number = 10;
+    int number = 100;
 
-    ModifiedBtree* btree = new ModifiedBtree(24,10000000);
+    // Internal node size = 56
+    ModifiedBtree* btree = new ModifiedBtree(24,56);
     KeyValue* keyVal = new KeyValue(1,1);
     for(int i = 1; i <= number; i++) {
         keyVal->key = i;
@@ -702,6 +704,7 @@ void internalModifiedBtreeInsertAndQueryTest() {
 
     // Write out internal tree
     //recursivePrintModifiedNode(btree->root);
+    btree->printTree(btree->root);
 
     cout << "===Queries\n";
     for(int i = 1; i <= number; i++) {
@@ -711,6 +714,8 @@ void internalModifiedBtreeInsertAndQueryTest() {
         }
     }
 
+    cout << "Number of nodes " << btree->numberOfNodes;
+    btree->cleanup();
 
 }
 

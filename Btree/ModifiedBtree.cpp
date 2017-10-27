@@ -17,6 +17,7 @@
 #include "../Streams/BufferedInputStream.h"
 #include <sstream>
 #include <iostream>
+#include <unistd.h>
 
 using namespace std;
 
@@ -49,11 +50,13 @@ ModifiedBtree::~ModifiedBtree() {
 
 /*
  * Responsible for externalizing the lowest level of the internal nodes.
- * Should be called when internalNodeCount >= maxInternalNodes.
+ * Should be called when internalNodeCount > maxInternalNodes.
  * The extra nodes will never be greater than O(log(M/B)), and
  * will in practice be much smaller.
  */
 void ModifiedBtree::externalize() {
+
+    cout << "Externalizing #internalNodes " << internalNodeCounter << " maxInternalNodes " << maxInternalNodes << "\n";
 
     if(externalNodeHeight == -1) {
         // Special case, first time we externalize
@@ -86,7 +89,10 @@ void ModifiedBtree::recursiveExternalize(ModifiedInternalNode *node) {
         for(int i = 0; i < node->nodeSize+1; i++) {
             child = node->children[i];
             writeNode(child->id,child->height,child->nodeSize,child->keys,child->values);
+            cout << "Externalized node " << child->id << " from parent " << node->id << "\n";
+            node->values[i] = child->id;
             delete(child);
+            internalNodeCounter--;
         }
         delete[] node->children;
     }
@@ -101,8 +107,12 @@ void ModifiedBtree::insert(KeyValue *element) {
     // Check if we need to split the root
     if(root->nodeSize == 2*size-1) {
         numberOfNodes++;
+        internalNodeCounter++;
         ModifiedInternalNode* newRoot = new ModifiedInternalNode(numberOfNodes,root->height+1,size,false);
         newRoot->children[0] = root;
+        // Note that children of the new root will always be internal
+        // Even if they are supposed to be external we dont externalize them
+        // until after the insertion
         splitChildInternal(newRoot,root,0);
         root = newRoot;
         insertIntoNonFullInternal(element,root);
@@ -112,7 +122,7 @@ void ModifiedBtree::insert(KeyValue *element) {
     }
 
     // Check if we need to externalize
-    if(internalNodeCounter >= maxInternalNodes) {
+    if(internalNodeCounter > maxInternalNodes) {
         externalize();
     }
 }
@@ -342,7 +352,7 @@ void ModifiedBtree::insertIntoNonFull(KeyValue* element, int id, int height, int
 void ModifiedBtree::splitChildInternal(ModifiedInternalNode* parent, ModifiedInternalNode *child, int childNumber) {
 
     cout << "Split Internal Child on parent " << parent->id << " child " << child->id << " childnumber " << childNumber <<"\n";
-    cout << parent->nodeSize << "\n";
+    cout << parent->nodeSize << " " << externalNodeHeight << " " << child->height << "\n";
 
     numberOfNodes++;
     bool externalChildren = (child->height == externalNodeHeight+1);
@@ -376,18 +386,11 @@ void ModifiedBtree::splitChildInternal(ModifiedInternalNode* parent, ModifiedInt
         }
     }
     else {
-        if(child->height == 2) {
-            // Childrens children are external leafs
-            for(int j = 0; j < size-1; j++) {
-                newChild->values[j] = child->values[size+j];
-            }
+        // Childrens children are external nodes
+        for(int j = 0; j < size; j++) {
+            newChild->values[j] = child->values[size+j];
         }
-        else {
-            // Childrens children are external nodes
-            for(int j = 0; j < size; j++) {
-                newChild->values[j] = child->values[size+j];
-            }
-        }
+
     }
 
     // Move parents keys by one
@@ -679,4 +682,87 @@ void ModifiedBtree::readNode(int id, int* height, int* nodeSize, int *keys, int 
     is->close();
     iocounter = iocounter + is->iocounter;
     delete(is);
+}
+
+void ModifiedBtree::printTree(ModifiedInternalNode *node) {
+
+    cout << "=== I " << node->id << "\n";
+    cout << node->height << "\n";
+    cout << node->nodeSize << "\n";
+    cout << "---\n";
+    for(int i = 0; i < node->nodeSize; i++) {
+        cout << node->keys[i] << "\n";
+    }
+    cout << "---\n";
+    if(node->height > 1 && node->height != externalNodeHeight+1) {
+        for(int i = 0; i < node->nodeSize+1; i++) {
+            cout << node->children[i]->id << "\n";
+        }
+        for(int i = 0; i < node->nodeSize+1; i++) {
+            printTree(node->children[i]);
+        }
+    }
+    else if( node->height == 1 && externalNodeHeight == -1) {
+        for(int i = 0; i < node->nodeSize; i++) {
+            cout << node->values[i] << "\n";
+        }
+    }
+    else {
+        for(int i = 0; i < node->nodeSize+1; i++) {
+            cout << node->values[i] << "\n";
+        }
+        for(int i = 0; i < node->nodeSize+1; i++) {
+            printExternal(node->values[i]);
+        }
+    }
+
+}
+
+void ModifiedBtree::printExternal(int node) {
+
+    int height, nodeSize;
+    int* ptr_height = &height;
+    int* ptr_nodeSize = &nodeSize;
+    int* keys = new int[size*2-1];
+    int* values = new int[size*2];
+    readNode(node,ptr_height,ptr_nodeSize,keys,values);
+
+    cout << "=== E " << node << "\n";
+    cout << height << "\n";
+    cout << nodeSize << "\n";
+    cout << "---\n";
+    for(int i = 0; i < nodeSize; i++) {
+        cout << keys[i] << "\n";
+    }
+    cout << "---\n";
+    if(height == 1) {
+        for(int i = 0; i < nodeSize; i++) {
+            cout << values[i] << "\n";
+        }
+    }
+    else {
+        for(int i = 0; i < nodeSize+1; i++) {
+            cout << values[i] << "\n";
+        }
+        for(int i = 0; i < nodeSize+1; i++) {
+            printExternal(values[i]);
+        }
+    }
+}
+
+// Clean up external files
+void ModifiedBtree::cleanup() {
+    for(int i = 1; i <= numberOfNodes; i++) {
+        string name = "B";
+        name += to_string(i);
+        // Doesnt always work
+        /*if(access( name.c_str(), F_OK ) != -1) {
+            remove(name.c_str());
+        }*/
+        // This always works
+        if(FILE *file = fopen(name.c_str(), "r")) {
+            fclose(file);
+            remove(name.c_str());
+        }
+    }
 }

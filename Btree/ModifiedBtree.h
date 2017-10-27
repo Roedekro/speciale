@@ -39,6 +39,8 @@ public:
                    int* cKeys, int* cValues);
     void readNode(int id, int* height, int* nodeSize, int* keys, int* values);
     void writeNode(int id, int height, int nodeSize, int* keys, int* values);
+    void printTree(ModifiedInternalNode* node);
+    void printExternal(int node);
     void cleanup();
 
 };
