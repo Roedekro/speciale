@@ -3,16 +3,9 @@
 //
 
 #ifndef SPECIALE_BTREE_H
-struct KeyValue {
-    int key;
-    int value;
-    KeyValue(int k, int v) {
-        key = k;
-        value = v;
-    }
-};
 #define SPECIALE_BTREE_H
 
+#include "KeyValue.h"
 
 class Btree {
 public:

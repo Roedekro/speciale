@@ -10,6 +10,8 @@
 #include "Streams/SystemOutputStream.h"
 #include "Streams/MapOutputStream.h"
 #include "Btree/Btree.h"
+#include "Btree/ModifiedInternalNode.h"
+#include "Btree/ModifiedBtree.h"
 
 #include <ctime>
 #include <ratio>
@@ -646,6 +648,75 @@ void manipulateArrayTest() {
     cout << array[0] << array[1] << "\n";
 }
 
+void pointerSize() {
+    /*
+    ModifiedInternalNode* node = new ModifiedInternalNode(1,1,1);
+    int size = sizeof(node);
+    cout << size << "\n";
+
+    node->values[0] = (ModifiedInternalNode*) 10;
+
+    int res = (int) node->values[0];
+
+    cout << res << "\n";
+
+    delete(node);
+     */
+
+}
+
+void recursivePrintModifiedNode(ModifiedInternalNode* node) {
+    cout << "---\n";
+    cout << node->id << "\n";
+    cout << node->height << "\n";
+    cout << node->nodeSize << "\n";
+    for(int i = 0; i < node->nodeSize; i++) {
+        cout << node->keys[i] << "\n";
+    }
+    if(node->height > 1) {
+        cout << "=== Start " << node->id << "\n";
+        for(int i = 0; i <= node->nodeSize; i++) {
+            recursivePrintModifiedNode(node->children[i]);
+        }
+        cout << "=== Stop " << node->id << "\n";
+    }
+    else {
+        for(int i = 0; i < node->nodeSize; i++) {
+            cout << node->values[i] << "\n";
+        }
+    }
+}
+
+void internalModifiedBtreeInsertAndQueryTest() {
+
+    int number = 10;
+
+    ModifiedBtree* btree = new ModifiedBtree(24,10000000);
+    KeyValue* keyVal = new KeyValue(1,1);
+    for(int i = 1; i <= number; i++) {
+        keyVal->key = i;
+        keyVal->value = i;
+        cout << "Inserting " << keyVal->key << "\n";
+        btree->insert(keyVal);
+    }
+
+    // Write out internal tree
+    //recursivePrintModifiedNode(btree->root);
+
+    cout << "===Queries\n";
+    for(int i = 1; i <= number; i++) {
+        int ret = btree->query(i);
+        if(ret != i) {
+            cout << ret << "\n";
+        }
+    }
+
+
+}
+
+
+
+
 
 
 int main(int argc, char* argv[]) {
@@ -662,7 +733,9 @@ int main(int argc, char* argv[]) {
         //writeToFileTest();
         //simpleInsertAndQueryTest();
         //insertAndQueryTest();
-        insertDeleteAndQueryTest();
+        //insertDeleteAndQueryTest();
+        //pointerSize();
+        internalModifiedBtreeInsertAndQueryTest();
         return 0;
     }
     int test = atoi(argv[1]);

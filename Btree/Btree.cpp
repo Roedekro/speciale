@@ -15,14 +15,13 @@
  *
  * This is followed by a list of keys of size k,
  * which in turn is followed by a list of
- * values/pointers of size k+1
+ * values/pointers of size k+1. Leafs have k values.
  */
 
 #include "Btree.h"
 #include "../Streams/BufferedOutputStream.h"
 #include "../Streams/BufferedInputStream.h"
 #include <sstream>
-#include <vector>
 #include <iostream>
 
 using namespace std;
