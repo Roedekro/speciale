@@ -14,10 +14,12 @@ public:
     int M;
     int size;
     ModifiedInternalNode* root;
-    int numberOfNodes;
-    int internalNodeCounter;
-    int maxInternalNodes;
-    int externalNodeHeight;
+    int numberOfNodes; // Created during lifetime. Used to avoid duplicates.
+    int currentNumberOfNodes; // Actual number of nodes in the tree
+    int internalNodeCounter; // Number of nodes internal memory
+    int maxInternalNodes; // O(M/B). Can exceed temporarily by a factor O(log_B (M/B)).
+    int minInternalNodes;
+    int externalNodeHeight; // Height of the tree where all nodes, and below, are external
     long iocounter;
     ModifiedBtree(int B, int M);
     virtual ~ModifiedBtree();
@@ -32,12 +34,14 @@ public:
     void splitChild(int height, int nodeSize, int* keys, int* values, int childNumber, int* childSize,
                     int* cKeys, int* cValues, int* newKeys, int* newValues);
     int query(int element);
+    void internalize();
+    void recursiveInternalize(ModifiedInternalNode* node);
     void deleteElement(int element);
     void deleteNonSparseInternal(int element, ModifiedInternalNode* node);
     void deleteNonSparse(int element, int id, int height, int nodeSize, int* keys, int* values, bool write);
     void fuseChildInternal(ModifiedInternalNode* parent, ModifiedInternalNode* child, int childNumber);
     void fuseChildBorder(ModifiedInternalNode* parent, int childNumber, int* childSize,
-                         int* cKeys, int* cValues);)
+                         int* cKeys, int* cValues);
     void fuseChild(int height, int* nodeSize, int* keys, int* values, int childNumber, int* childSize,
                    int* cKeys, int* cValues);
     void readNode(int id, int* height, int* nodeSize, int* keys, int* values);
