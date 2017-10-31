@@ -825,7 +825,6 @@ void BufferedBtreeInsertDeleteAndQueryTest() {
 
     //btree->deleteElement(1);
 
-
     cout << "=== Queries\n";
     for(int i = deletes+1; i <= number; i++) {
         int ret = btree->query(i);
@@ -873,6 +872,52 @@ void internalNodeCalculation() {
 
 }
 
+void sortTest() {
+
+    std::vector<KeyValueTime>* buffer = new std::vector<KeyValueTime>();
+    buffer->reserve(10);
+    KeyValueTime* keyValueTime = new KeyValueTime(1,1,1);
+    for(int i = 1; i <= 10; i++) {
+        keyValueTime->key = 11-i;
+        keyValueTime->time = 11-i;
+        buffer->push_back(*keyValueTime);
+    }
+
+    for(int i = 0; i < 10; i++) {
+        cout << buffer->at(i).key << " " << buffer->at(i).time << "\n";
+    }
+
+    BufferedBTree* bTree = new BufferedBTree(40,1120);
+    bTree->sortInternal(buffer);
+
+    cout << "---\n";
+    for(int i = 0; i < 10; i++) {
+        cout << buffer->at(i).key << " " << buffer->at(i).time << "\n";
+    }
+
+
+    /*KeyValueTime** array = new KeyValueTime*[10];
+    for(int i = 1; i <= 10; i++) {
+        array[i-1] = new KeyValueTime(11-i,11-i,11-i);
+    }
+
+    array[8]->key = 1;
+
+    for(int i = 0; i < 10; i++) {
+        cout << array[i]->key << " " << array[i]->time << "\n";
+    }
+
+    BufferedBTree* bTree = new BufferedBTree(40,1120);
+    bTree->sortInternal(array,10);
+
+    cout << "---\n";
+    for(int i = 0; i < 10; i++) {
+        cout << array[i]->key << " " << array[i]->time << "\n";
+    }*/
+
+
+}
+
 
 
 
@@ -896,7 +941,8 @@ int main(int argc, char* argv[]) {
         //internalModifiedBtreeInsertAndQueryTest();
         //internalModifiedBtreeInsertDeleteAndQueryTest();
         //internalNodeCalculation();
-        BufferedBtreeInsertDeleteAndQueryTest();
+        //BufferedBtreeInsertDeleteAndQueryTest();
+        sortTest();
         return 0;
     }
     int test = atoi(argv[1]);

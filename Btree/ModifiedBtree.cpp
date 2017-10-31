@@ -9,6 +9,8 @@
 // Some comments copied over, internal has double meaning.
 // Either internal memory, or a non-leaf node (potentially external).
 //
+// NOTE: Each node will use 2*B space.
+//
 
 #include "ModifiedBtree.h"
 #include "../Streams/OutputStream.h"

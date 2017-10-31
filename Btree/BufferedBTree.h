@@ -14,6 +14,7 @@ public:
     int B;
     int M;
     int size;
+    int bufferSize;
     BufferedInternalNode* root;
     int numberOfNodes; // Created during lifetime. Used to avoid duplicates.
     int currentNumberOfNodes; // Actual number of nodes in the tree
@@ -27,7 +28,7 @@ public:
     void externalize();
     void recursiveExternalize(BufferedInternalNode* node);
     void insert(KeyValueTime* element);
-    void insertIntoNonFullInternal(KeyValueTime* element, BufferedInternalNode* node);
+    void insertIntoNonFullInternal(BufferedInternalNode* node);
     void insertIntoNonFull(KeyValueTime* element, int id, int height, int nodeSize, int* keys, int* values, bool write);
     void splitChildInternal(BufferedInternalNode* parent, BufferedInternalNode* child, int childNumber);
     void splitChildBorder(BufferedInternalNode* parent, int childNumber, int* childSize,
@@ -50,7 +51,7 @@ public:
     void printTree(BufferedInternalNode* node);
     void printExternal(int node);
     void cleanup();
-
+    void sortInternal(std::vector<KeyValueTime>* buffer);
 };
 
 

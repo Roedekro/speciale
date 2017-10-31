@@ -7,17 +7,19 @@
 // Delta can then be used as a tradeoff between
 // insert and query time.
 //
+// NOTE: Each node will use 4*B space!
+//
 
 #include "BufferedBTree.h"
 #include "../Streams/OutputStream.h"
 #include "../Streams/BufferedOutputStream.h"
 #include "../Streams/InputStream.h"
 #include "../Streams/BufferedInputStream.h"
-#include "BufferedInternalNode.h"
 #include <sstream>
 #include <iostream>
 #include <unistd.h>
 #include <cmath>
+#include <algorithm>
 
 using namespace std;
 
@@ -29,15 +31,15 @@ BufferedBTree::BufferedBTree(int B, int M) {
     this->B = B;
     this->M = M;
     size = ((B/sizeof(int))-2)/4; // #values. Max #keys will be 4*size-1. Min = size.
-    // Result is that one node can fill out 2*B.
+    bufferSize = (int) 2*B/(sizeof(int)*3); // Because KeyValueTime is 3 ints.
     numberOfNodes = 1;
     currentNumberOfNodes = 1;
-    root = new BufferedInternalNode(numberOfNodes,1,size,true);
+    root = new BufferedInternalNode(numberOfNodes,1,size,true,bufferSize);
     internalNodeCounter=1;
     externalNodeHeight = -1; // Height the external nodes begin <--------------------------------------------------------------------------!!!!!!!!!!!!!!
     // How many nodes can we store in internal Memory?
-    // Three ints, an array of keys, and an array of pointers, pr. Node.
-    int internalNodeSize = ((3*sizeof(int)) + ((size*4-1)*sizeof(int)) + (size*4*sizeof(BufferedInternalNode*)));
+    // Three ints, an array of keys, and an array of pointers, pr. Node. + a buffer.
+    int internalNodeSize = ((3*sizeof(int)) + ((size*4-1)*sizeof(int)) + (size*4*sizeof(BufferedInternalNode*)) + (2*B));
     maxInternalNodes = M/internalNodeSize;
     int internalHeight = (int) (log(maxInternalNodes) / log(4*size));
     if(internalHeight - (log(maxInternalNodes) / log(4*size)) != 0) {
@@ -48,7 +50,8 @@ BufferedBTree::BufferedBTree(int B, int M) {
     minInternalNodes = (int) pow(4*size,internalHeight-1);
     iocounter = 0;
     cout << "Created root " << root->id << "\n";
-    cout << "Tree will have size = " << size << " resulting in #keys = " << 4*size-1 << " with int size = " << sizeof(int) << "\n";
+    cout << "Tree will have size = " << size << " resulting in #keys = " << 4*size-1 << " with int size = " << sizeof(int) << " and buffer size "
+            << bufferSize << "\n";
     cout << "Max internal nodes = " << maxInternalNodes << " with internal node size = " << internalNodeSize << "\n";
     cout << "Internal height is " << internalHeight << " and min internal nodes is " << minInternalNodes << "\n";
 }
@@ -116,35 +119,149 @@ void BufferedBTree::recursiveExternalize(BufferedInternalNode *node) {
  */
 void BufferedBTree::insert(KeyValueTime *element) {
 
-    // Check if we need to split the root
-    if(root->nodeSize == 4*size-1) {
-        numberOfNodes++;
-        internalNodeCounter++;
-        currentNumberOfNodes++;
-        BufferedInternalNode* newRoot = new BufferedInternalNode(numberOfNodes,root->height+1,size,false);
-        newRoot->children[0] = root;
-        // Note that children of the new root will always be internal
-        // Even if they are supposed to be external we dont externalize them
-        // until after the insertion
-        splitChildInternal(newRoot,root,0);
-        root = newRoot;
-        insertIntoNonFullInternal(element,root);
+    // Commented out, work in progress
+
+    /*root->buffer->push_back(*element);
+
+    if(root->buffer->size() < bufferSize) {
+        // Do nothing
+        return;
     }
     else {
-        insertIntoNonFullInternal(element,root);
-    }
+        // Sort the buffer of the root
+        sortInternal(root->buffer);
 
-    // Check if we need to externalize
-    if(internalNodeCounter > maxInternalNodes) {
-        externalize();
+        // Check if we need to split the root
+        // In which case the buffer also gets split,
+        // and no further action is needed.
+        if(root->nodeSize == 4*size-1) {
+            numberOfNodes++;
+            internalNodeCounter++;
+            currentNumberOfNodes++;
+            BufferedInternalNode* newRoot = new BufferedInternalNode(numberOfNodes,root->height+1,size,false,bufferSize);
+            (*newRoot->children)[0] = root;
+            // Note that children of the new root will always be internal
+            // Even if they are supposed to be external we dont externalize them
+            // until after the insertion
+            splitChildInternal(newRoot,root,0);
+            root = newRoot;
+
+            // Special case if root was leaf???
+
+        }
+        else {
+            insertIntoNonFullInternal(root);
+        }
+
+        // Check if we need to externalize
+        if(internalNodeCounter > maxInternalNodes) {
+            externalize();
+        }
     }
+     */
 }
 
-void BufferedBTree::insertIntoNonFullInternal(KeyValueTime *element, BufferedInternalNode *node) {
+/*
+ * Assumes the input nodes buffer is sorted.
+ */
+void BufferedBTree::insertIntoNonFullInternal(BufferedInternalNode *node) {
+
+    // commented out because work in progress
+
+
+    // Split the sorted buffer of node to its children
+    /*if(node->height == 2) {
+        // Children are leafs
+
+        if(externalNodeHeight <= 0) {
+            // Internal children who are leafs
+
+            // Use two temporary vectors to merge
+            // childrens buffer with ours
+            std::vector<KeyValueTime>* toChild = new std::vector<KeyValueTime>();
+            toChild->reserve(bufferSize);
+            std::vector<KeyValueTime>* temp;
+
+            // Distribute to children
+            BufferedInternalNode* child;
+            int bufferIndex = 0;
+            for(int i = 0; i < node->nodeSize; i++) {
+                child = node->children->at(i);
+                int divider = node->values->at(i);
+                // Run through buffer, adding to toChild
+                while(bufferIndex < node->buffer->size() && (*node->buffer)[bufferIndex].key <= divider) {
+                    toChild->push_back((*node->buffer)[bufferIndex]);
+                }
+                temp = child->buffer;
+                child->buffer = new std::vector<KeyValueTime>();
+                child->buffer->reserve(bufferSize);
+                // Merge toChild and temp into new child buffer
+                int toChildIndex = 0;
+                int tempIndex = 0;
+                while(toChildIndex < toChild->size() || tempIndex < temp->size()) {
+                    // Pick
+                    if(toChildIndex >= toChild->size()) {
+                        // toChild done, add from temp
+                        KeyValueTime kvt = temp->at(tempIndex);
+                        child->buffer->push_back(kvt);
+                        tempIndex++;
+                    }
+                    else if(tempIndex >= temp->size()) {
+                        KeyValueTime kvt = toChild->at(toChildIndex);
+                        child->buffer->push_back(kvt);
+                        toChildIndex++;
+                    }
+                    else {
+                        if(temp->at(tempIndex).key == toChild->at(toChildIndex).key) {
+                            // Special case, update
+
+                        }
+                        else if(temp->at(tempIndex).key < toChild->at(toChildIndex).key) {
+                            KeyValueTime kvt = temp->at(tempIndex);
+                            child->buffer->push_back(kvt);
+                            tempIndex++;
+                        }
+                        else {
+                            KeyValueTime kvt = toChild->at(toChildIndex);
+                            child->buffer->push_back(kvt);
+                            toChildIndex++;
+                        }
+                    }
+                }
+            }
+            // Last child
+
+
+        }
+        else {
+            // Children are external leafs
+
+        }
+
+
+    }
+    else {
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     //cout << "Insert Non Full Internal " << element->key << " Node ID = " << node->id << "\n";
 
-    int i = node->nodeSize;
+    /*int i = node->nodeSize;
     if(node->height == 1) {
         // Insert into this leaf
 
@@ -253,6 +370,7 @@ void BufferedBTree::insertIntoNonFullInternal(KeyValueTime *element, BufferedInt
             insertIntoNonFull(element,child,cHeight,cSize,cKeys,cValues,cWrite);
         }
     }
+    */
 }
 
 /*
@@ -374,10 +492,10 @@ void BufferedBTree::splitChildInternal(BufferedInternalNode* parent, BufferedInt
     BufferedInternalNode* newChild;
     // Special case if this is a leaf
     if(child->height == 1) {
-        newChild = new BufferedInternalNode(numberOfNodes,child->height,size,true);
+        newChild = new BufferedInternalNode(numberOfNodes,child->height,size,true,bufferSize);
     }
     else {
-        newChild = new BufferedInternalNode(numberOfNodes,child->height,size,externalChildren);
+        newChild = new BufferedInternalNode(numberOfNodes,child->height,size,externalChildren,bufferSize);
     }
 
     // Fill out new childs keys
@@ -658,7 +776,7 @@ void BufferedBTree::recursiveInternalize(BufferedInternalNode *node) {
         for(int i = 0; i < node->nodeSize+1; i++) {
             int id = node->values[i];
             cout << "Internalizing node " << id << "\n";
-            BufferedInternalNode* child = new BufferedInternalNode(id,0,size,true);
+            BufferedInternalNode* child = new BufferedInternalNode(id,0,size,true,bufferSize);
             int* ptr_height = &(child->height);
             int* ptr_nodeSize = &(child->nodeSize);
             readNode(id,ptr_height,ptr_nodeSize,child->keys,child->values);
@@ -682,7 +800,7 @@ void BufferedBTree::deleteElement(int element) {
             // Special case where root is the only node in internal memory,
             // and we must internalize its child
             int child = root->values[0];
-            root = new BufferedInternalNode(root->values[0],root->height-1,size,true);
+            root = new BufferedInternalNode(root->values[0],root->height-1,size,true,bufferSize);
             int height, nodeSize;
             int* ptr_height = &height;
             int* ptr_nodeSize = &nodeSize;
@@ -1814,4 +1932,37 @@ void BufferedBTree::cleanup() {
             remove(name.c_str());
         }
     }
+}
+
+/*
+ * Sort an array of KeyValueTime by key and time
+ */
+void BufferedBTree::sortInternal(std::vector<KeyValueTime>* buffer) {
+
+
+    std::sort(buffer->begin(), buffer->end(),[](KeyValueTime a, KeyValueTime b) -> bool
+    {
+        if(a.key == b.key) {
+            return a.time < b.time;
+        }
+        else {
+            return a.key < b.key;
+        }
+    } );
+
+    /*std::sort(buffer->begin(), buffer->end(),[](KeyValueTime a, KeyValueTime b) -> bool
+    {
+        if(a->key == b->key) {
+            return a->time < b->time;
+        }
+        else {
+            return a->key < b->key;
+        }
+    } );
+
+    /*bool ValueCmp(KeyValueTime const & a, KeyValueTime const & b)
+    {
+        return a.key < b.key;
+    }
+    std::sort(buffer,buffer+bSize,ValueCmp);*/
 }
