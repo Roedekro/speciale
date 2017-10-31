@@ -12,6 +12,7 @@
 #include "Btree/Btree.h"
 #include "Btree/ModifiedInternalNode.h"
 #include "Btree/ModifiedBtree.h"
+#include "Btree/BufferedBTree.h"
 
 #include <ctime>
 #include <ratio>
@@ -784,6 +785,71 @@ void internalModifiedBtreeInsertDeleteAndQueryTest() {
 
 }
 
+void BufferedBtreeInsertDeleteAndQueryTest() {
+
+    int number = 100;
+    int deletes = number/3*2;
+    int* keys = new int[number];
+    int* values = new int[number];
+
+    BufferedBTree* btree = new BufferedBTree(40,1120); // 20
+    KeyValueTime* keyVal = new KeyValueTime(1,1,1);
+    for(int i = 1; i <= number; i++) {
+        keyVal->key = i;
+        keyVal->value = i;
+        keys[i] = keyVal->key;
+        values[i] = keyVal->value;
+        cout << "Inserting " << keyVal->key << "\n";
+        btree->insert(keyVal);
+    }
+
+    // Write out internal tree
+    //recursivePrintModifiedNode(btree->root);
+    //btree->printTree(btree->root);
+
+    for(int i = 1; i <= deletes; i++) {
+        cout << "=== Deleting " << i << "\n";
+        btree->deleteElement(i);
+        //cout << btree->internalNodeCounter << "\n";
+    }
+
+    /*for(int i = 1; i <= 57; i++) {
+        cout << "=== Deleting " << i << "\n";
+        btree->deleteElement(i);
+        //cout << btree->internalNodeCounter << "\n";
+    }*/
+    cout << "Root is " << btree->root->id << "\n";
+    btree->printTree(btree->root);
+    cout << "External node height is " << btree->externalNodeHeight << "\n";
+    cout << "Tree height height is " << btree->root->height << "\n";
+
+    //btree->deleteElement(1);
+
+
+    cout << "=== Queries\n";
+    for(int i = deletes+1; i <= number; i++) {
+        int ret = btree->query(i);
+        if(ret != i) {
+            cout << keys[i] << " returned " << ret << " should have returned " << values[i] << "\n";
+        }
+    }
+    /*for(int i = 1; i <= number; i++) {
+        int ret = btree->query(i);
+        if(ret != i) {
+            cout << keys[i] << " returned " << ret << " should have returned " << values[i] << "\n";
+        }
+    }
+
+    cout << "External node height is " << btree->externalNodeHeight << "\n";
+    cout << "Tree height height is " << btree->root->height << "\n";
+    btree->printTree(btree->root); */
+
+    cout << "Number of nodes " << btree->currentNumberOfNodes << "\n";
+    cout << btree->numberOfNodes << " " << btree->internalNodeCounter;
+    btree->cleanup();
+
+}
+
 void internalNodeCalculation() {
 
     int B = 24;
@@ -828,8 +894,9 @@ int main(int argc, char* argv[]) {
         //insertDeleteAndQueryTest();
         //pointerSize();
         //internalModifiedBtreeInsertAndQueryTest();
-        internalModifiedBtreeInsertDeleteAndQueryTest();
+        //internalModifiedBtreeInsertDeleteAndQueryTest();
         //internalNodeCalculation();
+        BufferedBtreeInsertDeleteAndQueryTest();
         return 0;
     }
     int test = atoi(argv[1]);
