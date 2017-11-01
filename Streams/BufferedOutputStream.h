@@ -12,6 +12,7 @@ public:
     BufferedOutputStream(int bufferSize);
     virtual ~BufferedOutputStream();
     void create(const char* s);
+    void open(const char* s); // Will append rather than overwrite.
     void write(int* number);
     void close();
 };

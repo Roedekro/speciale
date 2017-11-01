@@ -12,7 +12,8 @@
 #include "Btree/Btree.h"
 #include "Btree/ModifiedInternalNode.h"
 #include "Btree/ModifiedBtree.h"
-#include "Btree/BufferedBTree.h"
+#include "BufferedBTree/BufferedBTree.h"
+#include "TruncatedBufferTree/ExternalBufferedBTree.h"
 
 #include <ctime>
 #include <ratio>
@@ -874,7 +875,27 @@ void internalNodeCalculation() {
 
 void sortTest() {
 
-    std::vector<KeyValueTime>* buffer = new std::vector<KeyValueTime>();
+
+    KeyValueTime** array = new KeyValueTime*[10];
+    for(int i = 1; i <= 10; i++) {
+        array[i-1] = new KeyValueTime(11-i,11-i,11-i);
+    }
+
+    array[8]->key = 1;
+
+    for(int i = 0; i < 10; i++) {
+        cout << array[i]->key << " " << array[i]->time << "\n";
+    }
+
+    ExternalBufferedBTree* btree = new ExternalBufferedBTree(1,1);
+    btree->sortInternalArray(array,10);
+
+    cout << "---\n";
+    for(int i = 0; i < 10; i++) {
+        cout << array[i]->key << " " << array[i]->time << "\n";
+    }
+
+    /*std::vector<KeyValueTime>* buffer = new std::vector<KeyValueTime>();
     buffer->reserve(10);
     KeyValueTime* keyValueTime = new KeyValueTime(1,1,1);
     for(int i = 1; i <= 10; i++) {
@@ -893,7 +914,7 @@ void sortTest() {
     cout << "---\n";
     for(int i = 0; i < 10; i++) {
         cout << buffer->at(i).key << " " << buffer->at(i).time << "\n";
-    }
+    }*/
 
 
     /*KeyValueTime** array = new KeyValueTime*[10];
@@ -918,6 +939,35 @@ void sortTest() {
 
 }
 
+void sizeTest() {
+
+    KeyValueTime* keyValueTime = new KeyValueTime(1,1,1);
+    cout << "size of KeyValueTime is " << sizeof(*keyValueTime) << "\n";
+    cout << "size of KeyValueTime is " << sizeof(KeyValueTime) << "\n";
+}
+
+void sortAndRemoveTest() {
+
+    KeyValueTime** array = new KeyValueTime*[10];
+    for(int i = 1; i <= 10; i++) {
+        array[i-1] = new KeyValueTime(11-i,11-i,11-i);
+    }
+
+    array[8]->key = 1;
+    array[4]->key = 5;
+
+    for(int i = 0; i < 10; i++) {
+        cout << array[i]->key << " " << array[i]->time << "\n";
+    }
+
+    ExternalBufferedBTree* btree = new ExternalBufferedBTree(1,1);
+    int ret = btree->sortAndRemoveDuplicatesInternalArray(array,10);
+
+    cout << "--- " << ret << " \n";
+    for(int i = 0; i < 10; i++) {
+        cout << array[i]->key << " " << array[i]->time << "\n";
+    }
+}
 
 
 
@@ -942,7 +992,9 @@ int main(int argc, char* argv[]) {
         //internalModifiedBtreeInsertDeleteAndQueryTest();
         //internalNodeCalculation();
         //BufferedBtreeInsertDeleteAndQueryTest();
-        sortTest();
+        //sortTest();
+        //sizeTest();
+        sortAndRemoveTest();
         return 0;
     }
     int test = atoi(argv[1]);

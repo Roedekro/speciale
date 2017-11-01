@@ -24,6 +24,12 @@ void BufferedOutputStream::create(const char* s) {
     name = s;
 }
 
+// Will append rather than overwrite.
+void BufferedOutputStream::open(const char* s) {
+    filedesc = ::open(s, O_CREAT|O_APPEND|O_RDWR);
+    name = s;
+}
+
 void BufferedOutputStream::write(int* number) {
     if (index >= size) {
         int tmp = ::write(filedesc, buffer, sizeof(int)*size);

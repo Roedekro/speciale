@@ -14,6 +14,7 @@ struct KeyValueTime {
         value = v;
         time = t;
     }
+    KeyValueTime();
 };
 
 #endif //SPECIALE_KEYVALUETIME_H
