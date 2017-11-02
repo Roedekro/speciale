@@ -26,7 +26,8 @@ void BufferedOutputStream::create(const char* s) {
 
 // Will append rather than overwrite.
 void BufferedOutputStream::open(const char* s) {
-    filedesc = ::open(s, O_CREAT|O_APPEND|O_RDWR);
+    filedesc = ::open(s, O_CREAT|O_RDWR|O_APPEND);
+    //filedesc = ::open(s, O_RDWR|O_APPEND);
     name = s;
 }
 

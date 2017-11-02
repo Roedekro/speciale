@@ -4,14 +4,20 @@
  * buffered BTree correct before implementing
  * the Truncated Buffered Tree.
  *
- * A node is laid out with its height, size, and buffersize,
- * followed by its keys and its values.
+ * A node is laid out with its height, size, buffersize,
+ * and temp buffer size, followed by its keys and its values.
  * A node will be stored in "B<id>".
  *
  * A buffer of node id consists of integers
- * denoting KeyValueTime.
+ * denoting KeyValueTimes.
  * A buffer is stored in "Buf<id>".
  * A temp buffer may be stored in "Temp<id>".
+ * A general temporary buffer is denoted "Temp",
+ * belonging to no specific node.
+ * The buffers are denoted as type 1, 2 and 3 respectively.
+ * No buffer may exceed O(M) except temporarily during flushes,
+ * when the primary buffer and a temporary buffer is merged,
+ * both potentially of size O(M).
  *
  * NOTE: Buffers MUST be deleted after flush.
  * This way new elements can just be appended.
@@ -32,6 +38,10 @@
 #include <assert.h>
 
 using namespace std;
+
+/***********************************************************************************************************************
+ * General Methods
+ **********************************************************************************************************************/
 
 ExternalBufferedBTree::ExternalBufferedBTree(int B, int M) {
 
@@ -61,18 +71,10 @@ ExternalBufferedBTree::ExternalBufferedBTree(int B, int M) {
     os->write(&height);
     int zero = 0;
     os->write(&zero);
-    os->close();
-    iocounter = os->iocounter;
-    delete(os);
-
-    // Manually write out an empty root buffer
-    os = new BufferedOutputStream(streamBuffer);
-    name = "Buf";
-    name += to_string(1);
-    os->create(name.c_str());
+    os->write(&zero);
     os->write(&zero);
     os->close();
-    iocounter += os->iocounter;
+    iocounter = os->iocounter;
     delete(os);
 
 }
@@ -101,42 +103,39 @@ void ExternalBufferedBTree::update(KeyValueTime *keyValueTime) {
         // Flush to root
         if(rootBufferSize + update_bufferSize >= maxExternalBufferSize) {
 
+            // Write update_buffer to roots temp buffer
+            writeBuffer(root,update_buffer,update_bufferSize,2);
+
             // Load in roots buffer
             KeyValueTime** rootBuffer = new KeyValueTime*[rootBufferSize];
-            readBuffer(root,rootBuffer,false);
-            sortInternalArray(rootBuffer,rootBufferSize);
+            readBuffer(root,rootBuffer,1);
+            // Sort, remove, output
+            rootBufferSize = sortAndRemoveDuplicatesInternalArray(rootBuffer,rootBufferSize);
+            writeBuffer(root,rootBuffer,rootBufferSize,3); // Write to temp
 
             // Merge the two buffers into a new buffer.
-            // Removes duplicate keys, and cleans up.
-            //mergeInternalBuffersAndOutput(root, bufferSize, buffer, rootBufferSize, rootBuffer);
+            mergeExternalBuffers(root,3,2,1); // In from Temp<root> and Temp, out to Buf<root>.
 
-            // Load in root
-            int height, nodeSize;
+            // Load in entire root, as regardless of the outcome we will need keys and values.
+            int height, nodeSize, bufferSize, tempSize;
             int* ptr_height = &height;
             int* ptr_nodeSize = &nodeSize;
+            int* ptr_bufferSize = &bufferSize;
+            int* ptr_tempSize = &tempSize;
             int* keys = new int[size*4-1];
             int* values = new int[size*4];
-            readNode(root,ptr_height,ptr_nodeSize,keys,values);
+            readNode(root,ptr_height,ptr_nodeSize,ptr_bufferSize,ptr_tempSize,keys,values);
 
-            // If root needs to split do so.
-            // Also splits the buffer and removes the
-            // need to flush.
-            if(nodeSize == size*4-1) {
+            // We will delete buffer below.
+            writeNodeInfo(root,height,nodeSize,0,0);
 
-
-            }
-            // Else flush roots buffer
-            else {
-
-                // Read in buffer
-
-            }
-
+            // Flush to children.
+            flushToChildren(root,height,nodeSize,keys,values);
 
         }
         else {
             // Append buffer to roots buffer
-            appendBuffer(root,update_buffer,update_bufferSize,false);
+            appendBuffer(root,update_buffer,update_bufferSize,1);
             rootBufferSize = rootBufferSize + update_bufferSize;
         }
 
@@ -145,102 +144,43 @@ void ExternalBufferedBTree::update(KeyValueTime *keyValueTime) {
     }
 }
 
-/*
- * Writes out the node to file "B<id>".
- * Deletes key and value arrays.
- * Handles that leafs have size-1 values.
- */
-void ExternalBufferedBTree::writeNode(int id, int height, int nodeSize, int *keys, int *values) {
-
-    OutputStream* os = new BufferedOutputStream(streamBuffer);
-    string node = "B";
-    node += to_string(id);
-    os->create(node.c_str());
-    os->write(&height);
-    os->write(&nodeSize);
-    for(int k = 0; k < nodeSize; k++) {
-        os->write(&keys[k]);
-    }
-    if(height > 1) {
-        for(int k = 0; k < nodeSize+1; k++) {
-            os->write(&values[k]);
-        }
-    }
-    else {
-        // Leaf
-        for(int k = 0; k < nodeSize; k++) {
-            os->write(&values[k]);
-        }
-    }
-
-    os->close();
-    iocounter = iocounter + os->iocounter;
-    delete(os);
-    delete[] keys;
-    delete[] values;
-}
+/***********************************************************************************************************************
+ * Tree Structural Methods
+ **********************************************************************************************************************/
 
 /*
- * Reads the node of id into the pointers height and size, as well as fills
- * out the arrays keys and values. Handles leafs (height == 1) appropriately.
+ * Flushes the buffer of the node to its children.
+ * The buffer can be larger than O(M).
+ * The resulting buffers of the children may be larger than O(M).
+ * The buffer of the parent will be deleted after the function completes.
+ * Buffer of parent assumed to be in sorted order.
  */
-void ExternalBufferedBTree::readNode(int id, int* height, int* nodeSize, int *keys, int *values) {
+void ExternalBufferedBTree::flushToChildren(int id, int height, int nodeSize, int *keys, int *values) {
+
+    // TODO: Implement flushToChildren
 
 
-    InputStream* is = new BufferedInputStream(streamBuffer);
-    string name = "B";
-    name += to_string(id);
-    is->open(name.c_str());
-    *height = is->readNext();
-    *nodeSize = is->readNext();
+    // Delete parents now empty buffer
 
-    for(int i = 0; i < *nodeSize; i++) {
-        keys[i] = is->readNext();
-    }
-
-    if(*height > 1) {
-        for(int i = 0; i < *nodeSize+1; i++) {
-            values[i] = is->readNext();
-        }
-    }
-    else {
-        for(int i = 0; i < *nodeSize; i++) {
-            values[i] = is->readNext();
-        }
-    }
-    is->close();
-    iocounter = iocounter + is->iocounter;
-    delete(is);
 }
 
-/* Deprecated
-int ExternalBufferedBTree::getBufferSize(int id) {
-    InputStream* is = new BufferedInputStream(streamBuffer);
-    string name = "Buf";
-    name += to_string(id);
-    is->open(name.c_str());
-    int ret = is->readNext();
-    is->close();
-    iocounter = iocounter + is->iocounter;
-    delete(is);
-    return ret;
-}*/
+
+
+
+
+/***********************************************************************************************************************
+ * Buffer Handling Methods
+ **********************************************************************************************************************/
 
 /*
  * Convention that we will never read a file over size M (in bytes).
  * Will return actual size of buffer.
  */
-int ExternalBufferedBTree::readBuffer(int id, KeyValueTime **buffer, bool temp) {
+int ExternalBufferedBTree::readBuffer(int id, KeyValueTime **buffer, int type) {
 
     InputStream* is = new BufferedInputStream(streamBuffer);
-    string name;
-    if(!temp) {
-        name = "Buf";
-    }
-    else {
-        name = "Temp";
-    }
-    name += to_string(id);
+    string name = getBufferName(id,type);
+    //cout << "Read Buffer name = " << name << "\n";
     is->open(name.c_str());
     int newKey,newValue,newTime;
     //for(int i = 0; i < bSize; i++) {
@@ -262,17 +202,11 @@ int ExternalBufferedBTree::readBuffer(int id, KeyValueTime **buffer, bool temp) 
  * Writes out buffer, cleans up.
  * Removes existing file, writes out new one.
  */
-void ExternalBufferedBTree::writeBuffer(int id, KeyValueTime** buffer, int bSize, bool temp) {
+void ExternalBufferedBTree::writeBuffer(int id, KeyValueTime** buffer, int bSize, int type) {
 
     // Name
-    string name;
-    if(!temp) {
-        name = "Buf";
-    }
-    else {
-        name = "Temp";
-    }
-    name += to_string(id);
+    string name = getBufferName(id,type);
+    //cout << "Write Buffer name = " << name << "\n";
 
     // Remove existing buffer if present
     if(FILE *file = fopen(name.c_str(), "r")) {
@@ -305,9 +239,364 @@ void ExternalBufferedBTree::writeBuffer(int id, KeyValueTime** buffer, int bSize
  * Appends buffer of size bSize to the buffer of node id.
  * Will clean up and delete elements after output.
  */
-void ExternalBufferedBTree::appendBuffer(int id, KeyValueTime **buffer, int bSize, bool temp) {
+void ExternalBufferedBTree::appendBuffer(int id, KeyValueTime **buffer, int bSize, int type) {
+
+    // Name
+    string name = getBufferName(id,type);
+    //cout << "Append Buffer name = " << name << "\n";
+
+    // Open file
+    BufferedOutputStream* os = new BufferedOutputStream(streamBuffer);
+    os->open(name.c_str());
+
+    // Append buffer
+    for(int i = 0; i < bSize; i++) {
+        os->write(&buffer[i]->key);
+        os->write(&buffer[i]->value);
+        os->write(&buffer[i]->time);
+    }
+
+    // Cleanup
+    os->close();
+    iocounter = iocounter + os->iocounter;
+    delete(os);
+    for(int i = 0; i < bSize; i++) {
+        delete(buffer[i]);
+    }
+    delete[] buffer;
+
 
 }
+
+int ExternalBufferedBTree::loadSortRemoveDuplicatesOutputBuffer(int id, int type) {
+
+    // Load in buffer, max size M.
+    KeyValueTime** temp_buffer = new KeyValueTime*[maxExternalBufferSize];
+    int temp_bufferSize = readBuffer(id,temp_buffer,type);
+    // Sort and remove duplicates, cleans up duplicates.
+    int ret = sortAndRemoveDuplicatesInternalArray(temp_buffer,temp_bufferSize);
+    // Output new buffer, cleans up remaining elements and buffer.
+    writeBuffer(id,temp_buffer,ret,type);
+    return ret;
+}
+
+/*
+ * Will merge a nodes buffer and temp buffer, removing duplicates.
+ * Will place the merged buffer into the nodes buffer file.
+ * This might temporarily mean the buffer exceeds O(M).
+ * Will return the number of elements in the buffer.
+ */
+int ExternalBufferedBTree::mergeExternalBuffers(int id, int inType1, int inType2, int outType) {
+
+    InputStream* is1 = new BufferedInputStream(streamBuffer);
+    InputStream* is2 = new BufferedInputStream(streamBuffer);
+    OutputStream* os = new BufferedOutputStream(streamBuffer);
+
+    // First inputstream
+    string name1 = getBufferName(id,inType1);
+    is1->open(name1.c_str());
+
+    // Second inputstream
+    string name2 = getBufferName(id,inType2);
+    is2->open(name2.c_str());
+
+    // Outputtream
+    string name3 = getBufferName(id,outType);
+    // Delete file if present
+    if(FILE *file = fopen(name3.c_str(), "r")) {
+        fclose(file);
+        remove(name3.c_str());
+    }
+    // Create file
+    os->create(name3.c_str());
+
+    int outputsize = 0;
+    // Read in initial elements
+    int key1, value1, time1;
+    int key2, value2, time2;
+    key1 = is1->readNext();
+    value1 = is1->readNext();
+    time1 = is1->readNext();
+    key2 = is2->readNext();
+    value2 = is2->readNext();
+    time2 = is2->readNext();
+
+    // Merge files until we reach end of stream for one
+    // Assumption: When the while loop terminates both
+    // KeyValueTimes have been written to output (if it should),
+    // and one of the streams will have terminated.
+    while(true) {
+        if(key1 == key2) {
+            // Resolve duplicate
+            // Largest time will always have priority
+            // Discard other KeyValueTime
+            if(time1 > time2) {
+                os->write(&key1);
+                os->write(&value1);
+                os->write(&time1);
+                outputsize++;
+                // Read in new KeyValueTimes
+                if(!is1->endOfStream() && !is2->endOfStream()) {
+                    // Load in new element
+                    key1 = is1->readNext();
+                    value1 = is1->readNext();
+                    time1 = is1->readNext();
+                    // Discard other element
+                    key2 = is2->readNext();
+                    value2 = is2->readNext();
+                    time2 = is2->readNext();
+                }
+                else {
+                    break;
+                }
+            }
+            else {
+                os->write(&key2);
+                os->write(&value2);
+                os->write(&time2);
+                outputsize++;
+                // Read in new KeyValueTimes
+                if(!is1->endOfStream() && !is2->endOfStream()) {
+                    // Load in new element
+                    key2 = is2->readNext();
+                    value2 = is2->readNext();
+                    time2 = is2->readNext();
+                    // Discard other element
+                    key1 = is1->readNext();
+                    value1 = is1->readNext();
+                    time1 = is1->readNext();
+                }
+                else {
+                    break;
+                }
+            }
+        }
+        else {
+            // Write out one of the KeyValueTimes, try and load in new
+            // Break if one of the streams reached EOF.
+            if(key1 < key2) {
+                os->write(&key1);
+                os->write(&value1);
+                os->write(&time1);
+                outputsize++;
+                if(!is1->endOfStream()) {
+                    // Load in new element
+                    key1 = is1->readNext();
+                    value1 = is1->readNext();
+                    time1 = is1->readNext();
+                }
+                else {
+                    // Write out other item
+                    os->write(&key2);
+                    os->write(&value2);
+                    os->write(&time2);
+                    outputsize++;
+                    break;
+                }
+            }
+            else {
+                os->write(&key2);
+                os->write(&value2);
+                os->write(&time2);
+                outputsize++;
+                if(!is2->endOfStream()) {
+                    // Load in new element
+                    key2 = is2->readNext();
+                    value2 = is2->readNext();
+                    time2 = is2->readNext();
+                }
+                else {
+                    // Write out other item
+                    os->write(&key1);
+                    os->write(&value1);
+                    os->write(&time1);
+                    outputsize++;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Use Assumption: When the while loop terminates both
+    // KeyValueTimes have been written to output,
+    // and one of the streams will have terminated.
+    if(!is1->endOfStream()) {
+        // is1 did not finish
+        while(!is1->endOfStream()) {
+            key1 = is1->readNext();
+            value1 = is1->readNext();
+            time1 = is1->readNext();
+            os->write(&key1);
+            os->write(&value1);
+            os->write(&time1);
+            outputsize++;
+        }
+    }
+    else {
+        // is2 did not finish
+        while(!is2->endOfStream()) {
+            key2 = is2->readNext();
+            value2 = is2->readNext();
+            time2 = is2->readNext();
+            os->write(&key2);
+            os->write(&value2);
+            os->write(&time2);
+            outputsize++;
+        }
+    }
+
+    // Clean up
+    is1->close();
+    iocounter = iocounter + is1->iocounter;
+    delete(is1);
+    is2->close();
+    iocounter = iocounter + is2->iocounter;
+    delete(is2);
+    os->close();
+    iocounter = iocounter + os->iocounter;
+    delete(os);
+
+    if(FILE *file = fopen(name1.c_str(), "r")) {
+        fclose(file);
+        remove(name1.c_str());
+    }
+    if(FILE *file = fopen(name2.c_str(), "r")) {
+        fclose(file);
+        remove(name2.c_str());
+    }
+
+    // Update node
+    /*int height, nodeSize, bufferSize, tempSize;
+    int* ptr_height = &height;
+    int* ptr_nodeSize = &nodeSize;
+    int* ptr_bufferSize = &bufferSize;
+    int* ptr_tempSize = &tempSize;
+    readNodeInfo(id,ptr_height,ptr_nodeSize,ptr_bufferSize,ptr_tempSize);
+    bufferSize = outputsize;
+    tempSize = 0;
+    writeNodeInfo(id,height,nodeSize,bufferSize,tempSize);*/
+    return outputsize;
+
+}
+
+/***********************************************************************************************************************
+ * Utility Methods
+ **********************************************************************************************************************/
+
+/*
+ * Writes out the node to file "B<id>".
+ * Deletes key and value arrays.
+ * Handles that leafs have size-1 values.
+ */
+void ExternalBufferedBTree::writeNode(int id, int height, int nodeSize, int bufferSize, int tempSize, int *keys, int *values) {
+
+    OutputStream* os = new BufferedOutputStream(streamBuffer);
+    string node = "B";
+    node += to_string(id);
+    os->create(node.c_str());
+    os->write(&height);
+    os->write(&nodeSize);
+    os->write(&bufferSize);
+    os->write(&tempSize);
+    for(int k = 0; k < nodeSize; k++) {
+        os->write(&keys[k]);
+    }
+    if(height > 1) {
+        for(int k = 0; k < nodeSize+1; k++) {
+            os->write(&values[k]);
+        }
+    }
+    else {
+        // Leaf
+        for(int k = 0; k < nodeSize; k++) {
+            os->write(&values[k]);
+        }
+    }
+
+    os->close();
+    iocounter = iocounter + os->iocounter;
+    delete(os);
+    delete[] keys;
+    delete[] values;
+}
+
+void ExternalBufferedBTree::writeNodeInfo(int id, int height, int nodeSize, int bufferSize, int tempSize) {
+
+    OutputStream* os = new BufferedOutputStream(streamBuffer);
+    string node = "B";
+    node += to_string(id);
+    os->create(node.c_str());
+    os->write(&height);
+    os->write(&nodeSize);
+    os->write(&bufferSize);
+    os->write(&tempSize);
+    os->close();
+    iocounter = iocounter + os->iocounter;
+    delete(os);
+}
+
+/*
+ * Reads the node of id into the pointers height and size, as well as fills
+ * out the arrays keys and values. Handles leafs (height == 1) appropriately.
+ */
+void ExternalBufferedBTree::readNode(int id, int* height, int* nodeSize, int* bufferSize, int* tempSize, int *keys, int *values) {
+
+
+    InputStream* is = new BufferedInputStream(streamBuffer);
+    string name = "B";
+    name += to_string(id);
+    is->open(name.c_str());
+    *height = is->readNext();
+    *nodeSize = is->readNext();
+    *bufferSize = is->readNext();
+    *tempSize = is->readNext();
+
+    for(int i = 0; i < *nodeSize; i++) {
+        keys[i] = is->readNext();
+    }
+
+    if(*height > 1) {
+        for(int i = 0; i < *nodeSize+1; i++) {
+            values[i] = is->readNext();
+        }
+    }
+    else {
+        for(int i = 0; i < *nodeSize; i++) {
+            values[i] = is->readNext();
+        }
+    }
+    is->close();
+    iocounter = iocounter + is->iocounter;
+    delete(is);
+}
+
+void ExternalBufferedBTree::readNodeInfo(int id, int *height, int *nodeSize, int *bufferSize, int *tempSize) {
+
+    InputStream* is = new BufferedInputStream(streamBuffer);
+    string name = "B";
+    name += to_string(id);
+    is->open(name.c_str());
+    *height = is->readNext();
+    *nodeSize = is->readNext();
+    *bufferSize = is->readNext();
+    *tempSize = is->readNext();
+    is->close();
+    iocounter = iocounter + is->iocounter;
+    delete(is);
+}
+
+/* Deprecated
+int ExternalBufferedBTree::getBufferSize(int id) {
+    InputStream* is = new BufferedInputStream(streamBuffer);
+    string name = "Buf";
+    name += to_string(id);
+    is->open(name.c_str());
+    int ret = is->readNext();
+    is->close();
+    iocounter = iocounter + is->iocounter;
+    delete(is);
+    return ret;
+}*/
 
 /*
  * Sort an array of KeyValueTime by key and time
@@ -367,285 +656,21 @@ int ExternalBufferedBTree::sortAndRemoveDuplicatesInternalArray(KeyValueTime **b
     return write;
 }
 
-int ExternalBufferedBTree::loadSortRemoveDuplicatesOutputBuffer(int id, bool temp) {
+std::string ExternalBufferedBTree::getBufferName(int id, int type) {
 
-    // Load in buffer, max size M.
-    KeyValueTime** temp_buffer = new KeyValueTime*[maxExternalBufferSize];
-    int temp_bufferSize = readBuffer(id,temp_buffer,temp);
-    // Sort and remove duplicates, cleans up duplicates.
-    int ret = sortAndRemoveDuplicatesInternalArray(temp_buffer,temp_bufferSize);
-    // Output new buffer, cleans up remaining elements and buffer.
-    writeBuffer(id,temp_buffer,ret,temp);
-    return ret;
+    string name = "Error, wrong type";
+    if(type == 1) {
+        name = "Buf";
+        name += to_string(id);
+    }
+    else if(type == 2) {
+        name = "Temp";
+        name += to_string(id);
+    }
+    else if(type == 3) {
+        name = "Temp";
+    }
+    return name;
+
 }
 
-/*
- * Merge the two internal buffers while removing duplicate keys.
- * Will delete the original external buffer, and write the new merged buffer to disk.
- * Cleans up the two buffers.
- * Buffers must contain at least 2 elements;
- */
-/*void ExternalBufferedBTree::mergeInternalBuffersAndOutput(int id, int bufSizeA, KeyValueTime **bufferA, int bufSizeB,
-                                         KeyValueTime **bufferB) {
-
-    assert(bufSizeA >= 2 && "mergeInternalBuffers buffer A too small");
-    assert(bufSizeB >= 2 && "mergeInternalBuffers buffer B too small");
-
-    // Pseudokode
-
-    /*Læs ind fra A {
-            Fjern duplikater
-    };
-
-    Læs ind fra B {
-            Fjern duplikater
-    };
-    while(ikke færdig) {
-
-        Udvælg mindste af A eller B
-
-        Afhængig af valg, indlæs næste
-
-        Hvis A læs ind fra A {
-                Fjern duplikater
-        };
-        ellers
-        læs ind fra B {
-                Fjern duplikater
-        };
-    }*/
-
-
-    /*int indexA = 0;
-    int indexB = 0;
-    KeyValueTime *a1,*a2,*b1,*b2; // Lookahead one to remove duplicates
-    bool merging = true;
-    bool reachedEndA = false;
-    bool reachedEndB = false;
-    bool localDuplicate;
-    bool duplicate = false; // Any duplicate throughout the entire process
-
-    // Find first element from A
-    a1 = bufferA[indexA];
-    indexA++;
-    // Look ahead to remove duplicates
-    localDuplicate = true;
-    while(localDuplicate) {
-        if(indexA < bufSizeA) {
-            a2 = bufferA[indexA];
-            if(a1->key == a2->key) {
-                // Duplicate, resolve. Sorted by time as secondary.
-                // Several combinations possible
-                // Insert1 + delete2 = delete2
-                // Insert1 + insert2 = insert2
-                // delete1 + insert2 = insert2
-                // delete1 + delete2 = delete2
-                // Notice how second update always overwrite first
-                a1 = a2;
-                indexA++;
-                duplicate = true;
-            }
-            else {
-                localDuplicate = false;
-            }
-        }
-        else {
-            localDuplicate = false;
-        }
-    }
-    // Element from A placed in a1
-
-    // Find first element from B
-    b1 = bufferB[indexB];
-    indexB++;
-    // Look ahead to remove duplicates
-    localDuplicate = true;
-    while(localDuplicate) {
-        if(indexB < bufSizeB) {
-            b2 = bufferB[indexB];
-            if(b1->key == b2->key) {
-                b1 = a2;
-                indexB++;
-                duplicate = true;
-            }
-            else {
-                localDuplicate = false;
-            }
-        }
-        else {
-            localDuplicate = false;
-        }
-    }
-    // Element from B placed in b1
-
-    // Remove buffer
-    string name = "Buf";
-    name += to_string(id);
-    remove(name.c_str());
-    OutputStream* os = new BufferedOutputStream(streamBuffer);
-    os->create(name.c_str());
-    int newSize = bufSizeA+bufSizeB;
-    os->write(&newSize);
-
-    newSize = 0;
-    // Merge until one buffer runs empty
-    while(merging) {
-
-        // Check duplicates across buffers
-        if(a1->key = b1->key) {
-            duplicate = true;
-            // Resolve duplicate
-            if(a1->time > b1->time) {
-                // A won, read in new B.
-                if(indexB < bufSizeB) {
-                    b1 = bufferB[indexB];
-                    indexB++;
-                    // Look ahead to remove duplicates
-                    localDuplicate = true;
-                    while(localDuplicate) {
-                        if(indexB < bufSizeB) {
-                            b2 = bufferB[indexB];
-                            if(b1->key == b2->key) {
-                                b1 = a2;
-                                indexB++;
-                                duplicate = true;
-                            }
-                            else {
-                                localDuplicate = false;
-                            }
-                        }
-                        else {
-                            localDuplicate = false;
-                        }
-                    }
-                }
-                else {
-                    reachedEndB = true;
-                    break;
-                }
-            }
-            else {
-                // B won, read in new A.
-                if(indexA < bufSizeA) {
-                    a1 = bufferA[indexA];
-                    indexA++;
-                    // Look ahead to remove duplicates
-                    localDuplicate = true;
-                    while(localDuplicate) {
-                        if(indexA < bufSizeA) {
-                            a2 = bufferA[indexA];
-                            if(a1->key == a2->key) {
-                                a1 = a2;
-                                indexA++;
-                                duplicate = true;
-                            }
-                            else {
-                                localDuplicate = false;
-                            }
-                        }
-                        else {
-                            localDuplicate = false;
-                        }
-                    }
-                }
-                else {
-                    reachedEndA;
-                    break;
-                }
-            }
-        }
-        else {
-            newSize++;
-            if(a1->key < b1->key) {
-                os->write(&a1->key);
-                os->write(&a1->value);
-                os->write(&a1->time);
-                // Read in new KeyValueTime from A
-                if(indexA < bufSizeA) {
-                    a1 = bufferA[indexA];
-                    indexA++;
-                    // Look ahead to remove duplicates
-                    localDuplicate = true;
-                    while(localDuplicate) {
-                        if(indexA < bufSizeA) {
-                            a2 = bufferA[indexA];
-                            if(a1->key == a2->key) {
-                                a1 = a2;
-                                indexA++;
-                                duplicate = true;
-                            }
-                            else {
-                                localDuplicate = false;
-                            }
-                        }
-                        else {
-                            localDuplicate = false;
-                        }
-                    }
-                }
-                else {
-                    reachedEndA;
-                    break;
-                }
-            }
-            else {
-                os->write(&b1->key);
-                os->write(&b1->value);
-                os->write(&b1->time);
-                if(indexB < bufSizeB) {
-                    b1 = bufferB[indexB];
-                    indexB++;
-                    // Look ahead to remove duplicates
-                    localDuplicate = true;
-                    while(localDuplicate) {
-                        if(indexB < bufSizeB) {
-                            b2 = bufferB[indexB];
-                            if(b1->key == b2->key) {
-                                b1 = a2;
-                                indexB++;
-                                duplicate = true;
-                            }
-                            else {
-                                localDuplicate = false;
-                            }
-                        }
-                        else {
-                            localDuplicate = false;
-                        }
-                    }
-                }
-                else {
-                    reachedEndB = true;
-                    break;
-                }
-            }
-        }
-    }
-    // Handle remaining elements from the two buffers
-
-
-    // Clean up
-    os->close();
-    iocounter = iocounter + os->iocounter;
-    delete(os);
-
-    if(duplicate) {
-        // Size of buffer doesnt match,
-        // write out new size.
-        OutputStream* os = new BufferedOutputStream(streamBuffer);
-
-    }
-
-
-    // Clean up
-    for(int i = 0; i < bufSizeA; i++) {
-        delete(bufferA[i]);
-    }
-    delete[] bufferA;
-
-    for(int i = 0; i < bufSizeB; i++) {
-        delete(bufferB[i]);
-    }
-    delete[] bufferB;
-}
-     */

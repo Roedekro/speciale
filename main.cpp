@@ -20,6 +20,7 @@
 #include <chrono>
 #include <sstream>
 #include <cmath>
+#include <iostream>
 
 using namespace std;
 
@@ -969,7 +970,88 @@ void sortAndRemoveTest() {
     }
 }
 
+void BufferWriteReadAppendTest() {
 
+    KeyValueTime** array = new KeyValueTime*[10];
+    for(int i = 1; i <= 10; i++) {
+        array[i-1] = new KeyValueTime(11-i,11-i,11-i);
+    }
+
+    ExternalBufferedBTree* btree = new ExternalBufferedBTree(1,1);
+
+    btree->writeBuffer(42,array,10,1);
+
+    array = new KeyValueTime*[10];
+
+    btree->readBuffer(42,array,1);
+
+    for(int i = 0; i < 10; i++) {
+        cout << array[i]->key << " " << array[i]->time << "\n";
+    }
+    cout << "---\n";
+
+    array[0]->time = 20;
+
+    btree->appendBuffer(42,array,10,1);
+
+    array = new KeyValueTime*[20];
+
+    btree->readBuffer(42,array,1);
+
+    for(int i = 0; i < 20; i++) {
+        cout << array[i]->key << " " << array[i]->time << "\n";
+    }
+
+    // Delete file, append (create), read
+    string name = "Buf";
+    name += to_string(42);
+    if(std::FILE *file = fopen(name.c_str(), "r")) {
+        fclose(file);
+        remove(name.c_str());
+    }
+
+    cout << "---\n";
+
+    array = new KeyValueTime*[10];
+    for(int i = 1; i <= 10; i++) {
+        array[i-1] = new KeyValueTime(11-i,11-i,11-i);
+    }
+
+    btree->appendBuffer(42,array,10,1);
+
+    array = new KeyValueTime*[10];
+
+    btree->readBuffer(42,array,1);
+
+    for(int i = 0; i < 10; i++) {
+        cout << array[i]->key << " " << array[i]->time << "\n";
+    }
+
+}
+
+
+
+void test() {
+    // Test
+    //manipulateArrayTest();
+    //streamtestread(1000000000,100000000);
+    //streamtestread(10000000,1000000);
+    //streamtestwrite(10000000,1000000);
+    //BtreeInsertTest();
+    //writeToFileTest();
+    //simpleInsertAndQueryTest();
+    //insertAndQueryTest();
+    //insertDeleteAndQueryTest();
+    //pointerSize();
+    //internalModifiedBtreeInsertAndQueryTest();
+    //internalModifiedBtreeInsertDeleteAndQueryTest();
+    //internalNodeCalculation();
+    //BufferedBtreeInsertDeleteAndQueryTest();
+    //sortTest();
+    //sizeTest();
+    //sortAndRemoveTest();
+    BufferWriteReadAppendTest();
+}
 
 
 int main(int argc, char* argv[]) {
@@ -977,24 +1059,8 @@ int main(int argc, char* argv[]) {
     if(argc == 1) {
         cout << "Give arguments, try again \n";
 
-        // Test
-        //manipulateArrayTest();
-        //streamtestread(1000000000,100000000);
-        //streamtestread(10000000,1000000);
-        //streamtestwrite(10000000,1000000);
-        //BtreeInsertTest();
-        //writeToFileTest();
-        //simpleInsertAndQueryTest();
-        //insertAndQueryTest();
-        //insertDeleteAndQueryTest();
-        //pointerSize();
-        //internalModifiedBtreeInsertAndQueryTest();
-        //internalModifiedBtreeInsertDeleteAndQueryTest();
-        //internalNodeCalculation();
-        //BufferedBtreeInsertDeleteAndQueryTest();
-        //sortTest();
-        //sizeTest();
-        sortAndRemoveTest();
+        test();
+
         return 0;
     }
     int test = atoi(argv[1]);
