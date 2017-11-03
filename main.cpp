@@ -1027,6 +1027,52 @@ void BufferWriteReadAppendTest() {
         cout << array[i]->key << " " << array[i]->time << "\n";
     }
 
+
+
+
+}
+
+void sortAndRemoveDuplicatesExternalBufferTest() {
+
+    KeyValueTime** array = new KeyValueTime*[10];
+    for(int i = 1; i <= 10; i++) {
+        array[i-1] = new KeyValueTime(11-i,11-i,11-i);
+    }
+
+    array[8]->key = 1;
+    array[4]->key = 5;
+
+    for(int i = 0; i < 10; i++) {
+        cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
+    }
+    cout << "---\n";
+
+    ExternalBufferedBTree* btree = new ExternalBufferedBTree(1,1);
+
+    btree->writeBuffer(42,array,10,1);
+
+    array = new KeyValueTime*[10];
+    for(int i = 0; i < 10; i++) {
+        array[i] = new KeyValueTime(i+5,i+6,i+7);
+    }
+
+    for(int i = 0; i < 10; i++) {
+        cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
+    }
+    cout << "---\n";
+
+    btree->appendBuffer(42,array,10,1);
+
+    int newSize = btree->sortAndRemoveDuplicatesExternalBuffer(42,20,10);
+
+    array = new KeyValueTime*[newSize];
+
+    btree->readBuffer(42,array,1);
+
+    for(int i = 0; i < newSize; i++) {
+        cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
+    }
+
 }
 
 
@@ -1050,7 +1096,8 @@ void test() {
     //sortTest();
     //sizeTest();
     //sortAndRemoveTest();
-    BufferWriteReadAppendTest();
+    //BufferWriteReadAppendTest();
+    sortAndRemoveDuplicatesExternalBufferTest();
 }
 
 

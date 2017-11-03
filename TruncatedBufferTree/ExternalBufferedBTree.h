@@ -28,7 +28,7 @@ public:
     long iocounter;
     long numberOfNodes; // Total nodes in lifetime, used to avoid duplicates.
     long currentNumberOfNodes; // Current number of nodes in the tree.
-    int time; // Sufficient to insert and delete over 5GB worth of key/values.
+    int treeTime; // Sufficient to insert and delete over 5GB worth of key/values.
 
     /*
      * General Methods
@@ -40,9 +40,13 @@ public:
     /*
      * Tree Structural Methods
      */
-    void splitChild(int height, int nodeSize, int* keys, int* values, int childNumber, int* childSize,
-        int* childBufferSize, int* childKeys, int* childValues, int* newBufferSize, int* newKeys, int* newValues);
-    void flushToChildren(int id, int height, int nodeSize, int* keys, int* values);
+    void flush(int id, int height, int nodeSize, int* keys, int* values);
+    void splitInternal(int height, int nodeSize, int* keys, int* values, int childNumber,
+               int cSize, int* cKeys, int* cValues);
+    void fuseInternal(int height, int nodeSize, int* keys, int* values, int childNumber,
+                       int* cSize, int* cKeys, int* cValues);
+    void splitLeaf();
+    void fuseLeaf();
 
     /*
      * Buffer Handling Methods
@@ -50,19 +54,28 @@ public:
     int readBuffer(int id, KeyValueTime** buffer, int type); // Returns buffer size
     void writeBuffer(int id, KeyValueTime** buffer, int bSize, int type);
     void appendBuffer(int id, KeyValueTime** buffer, int bSize, int type);
-    int loadSortRemoveDuplicatesOutputBuffer(int id, int type); // Returns buffer size
-    int mergeExternalBuffers(int id, int type1, int type2, int outType); // Returns buffer size
+    int sortAndRemoveDuplicatesExternalBuffer(int id, int bufferSize, int sortedSize);
 
     /*
      * Utility Methods
      */
     void sortInternalArray(KeyValueTime** buffer, int bufferSize);
     int sortAndRemoveDuplicatesInternalArray(KeyValueTime** buffer, int bufferSize);
-    void readNode(int id, int* height, int* nodeSize, int*bufferSize, int* tempSize, int* keys, int* values);
-    void writeNode(int id, int height, int nodeSize, int bufferSize, int tempSize, int* keys, int* values);
-    void readNodeInfo(int id, int* height, int* nodeSize, int*bufferSize, int* tempSize);
-    void writeNodeInfo(int id, int height, int nodeSize, int bufferSize, int tempSize);
+    void readNode(int id, int* height, int* nodeSize, int*bufferSize, int* keys, int* values);
+    void writeNode(int id, int height, int nodeSize, int bufferSize, int* keys, int* values);
+    void readNodeInfo(int id, int* height, int* nodeSize, int*bufferSize);
+    void writeNodeInfo(int id, int height, int nodeSize, int bufferSize);
     std::string getBufferName(int id, int type);
+    void readLeafInfo(int id);
+    void writeLeafInfo(int id);
+
+    /*
+     * Deprecated methods, used in development / later replaced
+     */
+    void splitChild(int height, int nodeSize, int* keys, int* values, int childNumber, int* childSize,
+                    int* childBufferSize, int* childKeys, int* childValues, int* newBufferSize, int* newKeys, int* newValues);
+    int loadSortRemoveDuplicatesOutputBuffer(int id, int type); // Returns buffer size, deprecated.
+    int mergeExternalBuffers(int id, int type1, int type2, int outType); // Returns buffer size, deprecated.
 };
 
 
