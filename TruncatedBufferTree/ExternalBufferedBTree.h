@@ -19,6 +19,7 @@ public:
     int B;
     int M;
     int size; // Nodes, up to 4x size.
+    int leafSize;
     int maxBufferSize; // Max internal update size.
     int maxExternalBufferSize; // Max external buffer size.
     int root;
@@ -43,10 +44,10 @@ public:
     void flush(int id, int height, int nodeSize, int* keys, int* values);
     void splitInternal(int height, int nodeSize, int* keys, int* values, int childNumber,
                int cSize, int* cKeys, int* cValues);
-    void fuseInternal(int height, int nodeSize, int* keys, int* values, int childNumber,
+    void splitLeaf(int nodeSize, int* keys, int* values, int* leafs, int leafNumber);
+    int fuseInternal(int height, int nodeSize, int* keys, int* values, int childNumber,
                        int* cSize, int* cKeys, int* cValues);
-    void splitLeaf();
-    void fuseLeaf();
+    int fuseLeaf(int nodeSize, int* keys, int* values, int* leafs, int leafNumber);
 
     /*
      * Buffer Handling Methods
@@ -54,20 +55,29 @@ public:
     int readBuffer(int id, KeyValueTime** buffer, int type); // Returns buffer size
     void writeBuffer(int id, KeyValueTime** buffer, int bSize, int type);
     void appendBuffer(int id, KeyValueTime** buffer, int bSize, int type);
+    void appendBufferNoDelete(int id, KeyValueTime** buffer, int bSize, int type);
     int sortAndRemoveDuplicatesExternalBuffer(int id, int bufferSize, int sortedSize);
+    int sortAndRemoveDuplicatesExternalLeaf(int id, int bufferSize, int sortedSize);
 
     /*
      * Utility Methods
      */
     void sortInternalArray(KeyValueTime** buffer, int bufferSize);
     int sortAndRemoveDuplicatesInternalArray(KeyValueTime** buffer, int bufferSize);
+    int sortAndRemoveDuplicatesInternalArrayLeaf(KeyValueTime** buffer, int bufferSize);
     void readNode(int id, int* height, int* nodeSize, int*bufferSize, int* keys, int* values);
     void writeNode(int id, int height, int nodeSize, int bufferSize, int* keys, int* values);
     void readNodeInfo(int id, int* height, int* nodeSize, int*bufferSize);
     void writeNodeInfo(int id, int height, int nodeSize, int bufferSize);
     std::string getBufferName(int id, int type);
-    void readLeafInfo(int id);
-    void writeLeafInfo(int id);
+    int readLeafInfo(int id, int* leafs);
+    void writeLeafInfo(int id, int* leafs, int leafSize);
+    int readLeaf(int id, KeyValueTime** buffer);
+    void writeLeaf(int id, KeyValueTime** buffer, int bufferSize);
+    void cleanUpExternallyAfterNodeOrLeaf(int id);
+    void printTree();
+    void printNode(int node);
+    void printLeaf(int leaf);
 
     /*
      * Deprecated methods, used in development / later replaced

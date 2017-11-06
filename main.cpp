@@ -1075,6 +1075,128 @@ void sortAndRemoveDuplicatesExternalBufferTest() {
 
 }
 
+void testLeafReadWriteAndSortRemove() {
+
+    KeyValueTime** array = new KeyValueTime*[20];
+    for(int i = 1; i <= 10; i++) {
+        array[i-1] = new KeyValueTime(i,i,i);
+    }
+
+    //array[1]->value = -2;
+    //array[1]->time = 5;
+
+    for(int i = 11; i <= 20; i++) {
+        array[i-1] = new KeyValueTime(i-9,i-8,i-7);
+    }
+
+    array[10]->value = -2;
+
+    cout << "Original array:\n";
+
+    for(int i = 0; i < 20; i++) {
+        cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
+    }
+    cout << "---\n";
+
+    cout << "Array after write and read:\n";
+
+    ExternalBufferedBTree* btree = new ExternalBufferedBTree(1,1);
+
+    btree->writeLeaf(42,array,20);
+
+    array = new KeyValueTime*[20];
+
+    int ret = btree->readLeaf(42,array);
+
+    for(int i = 0; i < ret; i++) {
+        cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
+    }
+    cout << "---\n";
+
+    // Clean up
+    for(int i = 0; i < ret; i++) {
+        delete(array[i]);
+    }
+    delete[] array;
+
+    btree->sortAndRemoveDuplicatesExternalLeaf(42,20,10);
+
+    array = new KeyValueTime*[20];
+    ret = btree->readLeaf(42,array);
+
+    cout << "Array after external sort/remove:\n";
+    for(int i = 0; i < ret; i++) {
+        cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
+    }
+    cout << "---\n";
+    cout << "Generated original array again\n";
+    cout << "---\n";
+
+    // Clean up
+    for(int i = 0; i < ret; i++) {
+        delete(array[i]);
+    }
+    delete[] array;
+
+    array = new KeyValueTime*[20];
+    for(int i = 1; i <= 10; i++) {
+        array[i-1] = new KeyValueTime(i,i,i);
+    }
+
+    //array[1]->value = -2;
+    //array[1]->time = 5;
+
+    for(int i = 11; i <= 20; i++) {
+        array[i-1] = new KeyValueTime(i-9,i-8,i-7);
+    }
+
+    array[10]->value = -2;
+
+    ret = btree->sortAndRemoveDuplicatesInternalArrayLeaf(array,20);
+
+    cout << "Array after internal sort/remove:\n";
+    for(int i = 0; i < ret; i++) {
+        cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
+    }
+}
+
+void externalBufferedBTreeInsertDeleteQuery() {
+
+    // Insert elements
+    KeyValueTime** array = new KeyValueTime*[20];
+    for(int i = 1; i <= 10; i++) {
+        array[i-1] = new KeyValueTime(i,i,0);
+    }
+
+    for(int i = 11; i <= 20; i++) {
+        array[i-1] = new KeyValueTime(i-9,i-8,0);
+    }
+
+    int B = 96;
+    int M = 6144;
+
+    //cout << (M/(sizeof(int)*2*B*4)) << "\n";
+
+    ExternalBufferedBTree* bTree = new ExternalBufferedBTree(B,M);
+
+
+    //int updates = 4;
+    /*for(int i = 0; i < updates; i++) {
+        bTree->update(array[i]);
+    }*/
+
+    int updates = 600;
+    for(int i = 1; i <= updates; i++) {
+        bTree->update(new KeyValueTime(i,i,0));
+    }
+
+
+    cout << "Done inserting\n";
+
+    //bTree->printTree();
+
+}
+
 
 
 void test() {
@@ -1097,7 +1219,9 @@ void test() {
     //sizeTest();
     //sortAndRemoveTest();
     //BufferWriteReadAppendTest();
-    sortAndRemoveDuplicatesExternalBufferTest();
+    //sortAndRemoveDuplicatesExternalBufferTest();
+    //testLeafReadWriteAndSortRemove();
+    externalBufferedBTreeInsertDeleteQuery();
 }
 
 
