@@ -1197,6 +1197,39 @@ void externalBufferedBTreeInsertDeleteQuery() {
 
 }
 
+void testHandleDeletesExternalLeaf() {
+
+    KeyValueTime** array = new KeyValueTime*[10];
+    for(int i = 1; i <= 10; i++) {
+        array[i-1] = new KeyValueTime(i,i,i);
+    }
+    array[1]->key = 1;
+    array[5]->key = 5;
+    array[5]->value = -5;
+    array[7]->key = 9;
+    array[7]->value = -8;
+
+    for(int i = 0; i < 10; i++) {
+        cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
+    }
+
+    ExternalBufferedBTree* bTree = new ExternalBufferedBTree(1,1);
+
+    bTree->writeLeaf(42,array,10);
+
+    int ret = bTree->handleDeletesLeafOriginallyEmptyExternal(42);
+
+    cout << ret << "\n";
+
+    array = new KeyValueTime*[10];
+
+    ret = bTree->readLeaf(42,array);
+    for(int i = 0; i < ret; i++) {
+        cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
+    }
+
+}
+
 
 
 void test() {
@@ -1221,7 +1254,8 @@ void test() {
     //BufferWriteReadAppendTest();
     //sortAndRemoveDuplicatesExternalBufferTest();
     //testLeafReadWriteAndSortRemove();
-    externalBufferedBTreeInsertDeleteQuery();
+    externalBufferedBTreeInsertDeleteQuery(); // <------ ExternalBufferedBTree Main test!
+    //testHandleDeletesExternalLeaf();
 }
 
 

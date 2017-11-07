@@ -28,8 +28,8 @@ public:
     int update_bufferSize; // Current amount of updates in our buffer.
     KeyValueTime** update_buffer; // Buffer of size O(B) updates.
     long iocounter;
-    long numberOfNodes; // Total nodes in lifetime, used to avoid duplicates.
-    long currentNumberOfNodes; // Current number of nodes in the tree.
+    int numberOfNodes; // Total nodes in lifetime, used to avoid duplicates.
+    int currentNumberOfNodes; // Current number of nodes in the tree.
     int treeTime; // Sufficient to insert and delete over 5GB worth of key/values.
 
     /*
@@ -42,13 +42,13 @@ public:
     /*
      * Tree Structural Methods
      */
-    void flush(int id, int height, int nodeSize, int* keys, int* values);
-    void splitInternal(int height, int nodeSize, int* keys, int* values, int childNumber,
-               int cSize, int* cKeys, int* cValues);
-    void splitLeaf(int nodeSize, int* keys, int* values, std::vector<int>* leafs, int leafNumber);
-    int fuseInternal(int height, int nodeSize, int* keys, int* values, int childNumber,
-                       int* cSize, int* cKeys, int* cValues);
-    int fuseLeaf(int nodeSize, int* keys, int* values, std::vector<int>* leafs, int leafNumber);
+    void flush(int id, int height, int nodeSize, std::vector<int>* keys, std::vector<int>* values);
+    int splitInternal(int height, int nodeSize, std::vector<int>* keys, std::vector<int>* values, int childNumber,
+               int cSize, std::vector<int>* cKeys, std::vector<int>* cValues);
+    void splitLeaf(int nodeSize, std::vector<int>* keys, std::vector<int>* values, std::vector<int>* leafs, int leafNumber);
+    int fuseInternal(int height, int nodeSize, std::vector<int>* keys, std::vector<int>* values, int childNumber,
+                       int* cSize, std::vector<int>* cKeys, std::vector<int>* cValues);
+    int fuseLeaf(int nodeSize, std::vector<int>* keys, std::vector<int>* values, std::vector<int>* leafs, int leafNumber);
 
     /*
      * Buffer Handling Methods
@@ -59,15 +59,16 @@ public:
     void appendBufferNoDelete(int id, KeyValueTime** buffer, int bSize, int type);
     int sortAndRemoveDuplicatesExternalBuffer(int id, int bufferSize, int sortedSize);
     int sortAndRemoveDuplicatesExternalLeaf(int id, int bufferSize, int sortedSize);
+    void sortInternalArray(KeyValueTime** buffer, int bufferSize);
+    int sortAndRemoveDuplicatesInternalArray(KeyValueTime** buffer, int bufferSize);
+    int sortAndRemoveDuplicatesInternalArrayLeaf(KeyValueTime** buffer, int bufferSize);
+    int handleDeletesLeafOriginallyEmptyExternal(int id);
 
     /*
      * Utility Methods
      */
-    void sortInternalArray(KeyValueTime** buffer, int bufferSize);
-    int sortAndRemoveDuplicatesInternalArray(KeyValueTime** buffer, int bufferSize);
-    int sortAndRemoveDuplicatesInternalArrayLeaf(KeyValueTime** buffer, int bufferSize);
-    void readNode(int id, int* height, int* nodeSize, int*bufferSize, int* keys, int* values);
-    void writeNode(int id, int height, int nodeSize, int bufferSize, int* keys, int* values);
+    void readNode(int id, int* height, int* nodeSize, int*bufferSize, std::vector<int>* keys, std::vector<int>* values);
+    void writeNode(int id, int height, int nodeSize, int bufferSize, std::vector<int>* keys, std::vector<int>* values);
     void readNodeInfo(int id, int* height, int* nodeSize, int*bufferSize);
     void writeNodeInfo(int id, int height, int nodeSize, int bufferSize);
     std::string getBufferName(int id, int type);
