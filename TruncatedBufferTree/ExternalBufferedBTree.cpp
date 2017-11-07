@@ -86,8 +86,8 @@ ExternalBufferedBTree::ExternalBufferedBTree(int B, int M) {
     delete(os);
 
     // Write leaf info for node
-    int* leafs = new int[1];
-    leafs[0] = 0;
+    vector<int>* leafs = new vector<int>(1);
+    (*leafs)[0] = 0;
     writeLeafInfo(1,leafs,1);
 
     cout << "Tree will have between " << size << " and " << (4*size-1) << " fanout\n";
@@ -295,37 +295,40 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, int *keys, i
             remove(name.c_str());
         }
 
-        int* leafs = new int[3*size*4](); // Cant split into more than 3x max size
+        //int* leafs = new int[4*size*4](); // Cant split into more than 4x max size
+        vector<int>* leafs = new vector<int>();
+        leafs->reserve(size*4); // Reserve M/B.
+
         readLeafInfo(id,leafs); // Leafs now contains previous size of each leaf
 
         cout << "Flushing leafs\n";
-        cout << leafs[0] << "\n";
+        cout << (*leafs)[0] << "\n";
 
         // Update size of every leaf, sort and remove duplicates
         for(int i = 0; i < nodeSize+1; i++) {
-            cout << "Leaf " << i << " original size " << leafs[i] << " appended " << appendedToLeafs[i] << "\n";
+            cout << "Leaf " << i << " original size " << (*leafs)[i] << " appended " << appendedToLeafs[i] << "\n";
             // Update size
-            leafs[i] = appendedToLeafs[i] + leafs[i];
+            (*leafs)[i] = appendedToLeafs[i] + (*leafs)[i];
             if(appendedToLeafs[i] > 0) {
                 // Sort and remove duplicates
                 // Check if it can be done internally
-                cout << leafs[i] << " " << M/sizeof(KeyValueTime) << "\n";
-                if(leafs[i] <= M/sizeof(KeyValueTime)) {
+                cout << (*leafs)[i] << " " << M/sizeof(KeyValueTime) << "\n";
+                if((*leafs)[i] <= M/sizeof(KeyValueTime)) {
                     cout << "Internal\n";
                     // Internal, load in elements
-                    KeyValueTime** temp = new KeyValueTime*[leafs[i]];
-                    cout << "Attempting to read in leaf " << values[i] << " size " << leafs[i] << "\n";
+                    KeyValueTime** temp = new KeyValueTime*[(*leafs)[i]];
+                    cout << "Attempting to read in leaf " << values[i] << " size " << (*leafs)[i] << "\n";
 
                     readLeaf(values[i], temp);
-                    leafs[i] = sortAndRemoveDuplicatesInternalArrayLeaf(temp,leafs[i]);
-                    writeLeaf(values[i],temp,leafs[i]);
+                    (*leafs)[i] = sortAndRemoveDuplicatesInternalArrayLeaf(temp,(*leafs)[i]);
+                    writeLeaf(values[i],temp,(*leafs)[i]);
                 }
                 else {
                     cout << "External\n";
                     // External
                     // Handle originally empty leaf
-                    if(leafs[i] - appendedToLeafs[i] > 0) {
-                        leafs[i] = sortAndRemoveDuplicatesExternalLeaf(id,leafs[i],appendedToLeafs[i]);
+                    if((*leafs)[i] - appendedToLeafs[i] > 0) {
+                        (*leafs)[i] = sortAndRemoveDuplicatesExternalLeaf(id,(*leafs)[i],appendedToLeafs[i]);
                         // Leaf was output by the above method.
                     }
                     // TODO: Buffer is sorted order, but contains deletes in leaf.
@@ -334,15 +337,15 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, int *keys, i
         }
 
         cout << "Splittin and fusing leafs\n";
-        cout << leafs[0] << "\n";
+        cout << (*leafs)[0] << "\n";
         // Split and fuse leafs
         for(int i = 0; i < nodeSize+1; i++) {
-            if(leafs[i] > 4*leafSize) {
+            if((*leafs)[i] > 4*leafSize) {
                 splitLeaf(nodeSize, keys, values, leafs, i);
                 nodeSize++;
                 // Leafs array will be updated in size
                 // Check if we need to recurse upon leaf again
-                if(leafs[i] > 4*leafSize) {
+                if((*leafs)[i] > 4*leafSize) {
                     // Recheck child
                     i--;
                 }
@@ -351,7 +354,7 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, int *keys, i
                     i++;
                 }
             }
-            else if(leafs[i] < leafSize) {
+            else if((*leafs)[i] < leafSize) {
                 // Fuse
                 int ret = fuseLeaf(nodeSize,keys,values,leafs,i);
                 // -1 = fused from left neighbour
@@ -364,7 +367,7 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, int *keys, i
                     i--; // Minimum recheck this position
                     // Check if previous child needs to be split
                     // With leftmost child safeguard
-                    if(i >= 0 && leafs[i] > leafSize * 4) {
+                    if(i >= 0 && (*leafs)[i] > leafSize * 4) {
                         i--; // Recheck left neighbour
                     }
                 }
@@ -372,7 +375,7 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, int *keys, i
                     // Fused next child into this one,
                     // check size
                     nodeSize--;
-                    if(leafs[i] < leafSize || leafs[i] > leafSize*4) {
+                    if((*leafs)[i] < leafSize || (*leafs)[i] > leafSize*4) {
                         i--; // Recheck
                     }
                 }
@@ -570,12 +573,12 @@ void ExternalBufferedBTree::splitInternal(int height, int nodeSize, int *keys, i
 
 }
 
-void ExternalBufferedBTree::splitLeaf(int nodeSize, int *keys, int *values, int *leafs, int leafNumber) {
+void ExternalBufferedBTree::splitLeaf(int nodeSize, int *keys, int *values, vector<int> *leafs, int leafNumber) {
 
     cout << "Splitleaf on leaf " << values[leafNumber] << "\n";
 
     // Split leaf in half
-    int newSize = leafs[leafNumber]/2;
+    int newSize = (*leafs)[leafNumber]/2;
 
     InputStream* is = new BufferedInputStream(streamBuffer);
     string name1 = getBufferName(values[leafNumber],4);
@@ -587,6 +590,7 @@ void ExternalBufferedBTree::splitLeaf(int nodeSize, int *keys, int *values, int 
         fclose(file);
         remove(name1.c_str());
     }
+    os->create(name2.c_str());
 
     // Write to temp file
     int key,value,time;
@@ -640,13 +644,16 @@ void ExternalBufferedBTree::splitLeaf(int nodeSize, int *keys, int *values, int 
     }
     keys[leafNumber] = newKey;
 
+    // Add element to leafs
+    leafs->push_back(0);
+    // Move values and leafs back by one
     for(int i = nodeSize+2; i > leafNumber; i--) {
         values[i] = values[i-1];
-        leafs[i] = leafs[i-1];
+        (*leafs)[i] = (*leafs)[i-1];
     }
     values[leafNumber+1] = newLeaf;
-    leafs[leafNumber] = newSize;
-    leafs[leafNumber+1] = leafs[leafNumber+1] - newSize;
+    (*leafs)[leafNumber] = newSize;
+    (*leafs)[leafNumber+1] = (*leafs)[leafNumber+1] - newSize;
 
 }
 
@@ -687,7 +694,7 @@ int ExternalBufferedBTree::fuseInternal(int height, int nodeSize, int *keys, int
 
 }
 
-int ExternalBufferedBTree::fuseLeaf(int nodeSize, int *keys, int *values, int *leafs, int leafNumber) {
+int ExternalBufferedBTree::fuseLeaf(int nodeSize, int *keys, int *values, vector<int> *leafs, int leafNumber) {
 
 
     return 0;
@@ -1582,14 +1589,16 @@ void ExternalBufferedBTree::writeLeaf(int id, KeyValueTime **buffer, int bufferS
 /*
  * Reads leaf into from "Leaf<id>", and returns its size
  */
-int ExternalBufferedBTree::readLeafInfo(int id, int *leafs) {
+//int ExternalBufferedBTree::readLeafInfo(int id, int *leafs) {
+int ExternalBufferedBTree::readLeafInfo(int id, vector<int> *leafs) {
 
     InputStream* is = new BufferedInputStream(streamBuffer);
     string name = getBufferName(id,4);
     is->open(name.c_str());
     int counter = 0;
     while(!is->endOfStream()) {
-        leafs[counter] = is->readNext();
+        //leafs[counter] = is->readNext();
+        leafs->push_back(is->readNext());
         counter++;
     }
 
@@ -1604,7 +1613,8 @@ int ExternalBufferedBTree::readLeafInfo(int id, int *leafs) {
 /*
  * Also deletes the array
  */
-void ExternalBufferedBTree::writeLeafInfo(int id, int *leafs, int leafSize) {
+//void ExternalBufferedBTree::writeLeafInfo(int id, int *leafs, int leafSize) {
+void ExternalBufferedBTree::writeLeafInfo(int id, vector<int> *leafs, int leafSize) {
 
     OutputStream* os = new BufferedOutputStream(streamBuffer);
     string name = getBufferName(id,4);
@@ -1614,14 +1624,15 @@ void ExternalBufferedBTree::writeLeafInfo(int id, int *leafs, int leafSize) {
     }
     os->create(name.c_str());
     for(int i = 0; i < leafSize; i++) {
-        os->write(&(leafs[i]));
+        //os->write(&(leafs[i]));
+        os->write(&(leafs->at(i)));
     }
 
     // Clean up
     os->close();
     iocounter = iocounter + os->iocounter;
     delete(os);
-    delete[] leafs;
+    //delete[] leafs;
 }
 
 void ExternalBufferedBTree::printTree() {
@@ -1677,11 +1688,11 @@ void ExternalBufferedBTree::printNode(int node) {
 
     if(nodeSize > 0 || values[0] != 0) {
         if(height == 1) {
-            int* leafs = new int[nodeSize+1];
+            vector<int>* leafs = new vector<int>();
             readLeafInfo(node,leafs);
             cout << "--- Leafs\n";
             for(int i = 0; i < nodeSize+1; i++) {
-                cout << leafs[i] << "\n";
+                cout << (*leafs)[i] << "\n";
             }
             delete[] leafs;
             for(int i = 0; i < nodeSize+1; i++) {

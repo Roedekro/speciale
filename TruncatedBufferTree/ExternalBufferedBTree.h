@@ -8,6 +8,7 @@
 
 #include "../BufferedBTree/keyValueTime.h"
 #include <string>
+#include <vector>
 
 class ExternalBufferedBTree {
 public:
@@ -44,10 +45,10 @@ public:
     void flush(int id, int height, int nodeSize, int* keys, int* values);
     void splitInternal(int height, int nodeSize, int* keys, int* values, int childNumber,
                int cSize, int* cKeys, int* cValues);
-    void splitLeaf(int nodeSize, int* keys, int* values, int* leafs, int leafNumber);
+    void splitLeaf(int nodeSize, int* keys, int* values, std::vector<int>* leafs, int leafNumber);
     int fuseInternal(int height, int nodeSize, int* keys, int* values, int childNumber,
                        int* cSize, int* cKeys, int* cValues);
-    int fuseLeaf(int nodeSize, int* keys, int* values, int* leafs, int leafNumber);
+    int fuseLeaf(int nodeSize, int* keys, int* values, std::vector<int>* leafs, int leafNumber);
 
     /*
      * Buffer Handling Methods
@@ -70,8 +71,8 @@ public:
     void readNodeInfo(int id, int* height, int* nodeSize, int*bufferSize);
     void writeNodeInfo(int id, int height, int nodeSize, int bufferSize);
     std::string getBufferName(int id, int type);
-    int readLeafInfo(int id, int* leafs);
-    void writeLeafInfo(int id, int* leafs, int leafSize);
+    int readLeafInfo(int id, std::vector<int>* leafs);
+    void writeLeafInfo(int id, std::vector<int>* leafs, int leafSize);
     int readLeaf(int id, KeyValueTime** buffer);
     void writeLeaf(int id, KeyValueTime** buffer, int bufferSize);
     void cleanUpExternallyAfterNodeOrLeaf(int id);
