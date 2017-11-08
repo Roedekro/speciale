@@ -80,6 +80,7 @@ public:
     void printTree();
     void printNode(int node);
     void printLeaf(int leaf);
+    void cleanUpTree();
 
     /*
      * Deprecated methods, used in development / later replaced

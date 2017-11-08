@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <iostream>
+#include <sys/stat.h>
 
 
 BufferedInputStream::BufferedInputStream(int bufferSize) {
@@ -21,7 +22,7 @@ BufferedInputStream::~BufferedInputStream() {
 }
 
 void BufferedInputStream::open(const char* s) {
-    filedesc = ::open(s, O_RDONLY);
+    filedesc = ::open(s, O_RDONLY, 0666);
     if(filedesc == -1) {
         std::cout << s << "\n";
         perror("Error opening the file in BufferedInputStream ");
