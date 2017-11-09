@@ -107,6 +107,7 @@ ExternalBufferedBTree::~ExternalBufferedBTree() {
  */
 void ExternalBufferedBTree::update(KeyValueTime *keyValueTime) {
 
+    forcedFlushed = false;
     treeTime++;
     keyValueTime->time = treeTime;
     update_buffer[update_bufferSize] = keyValueTime;
@@ -227,6 +228,79 @@ void ExternalBufferedBTree::update(KeyValueTime *keyValueTime) {
         //update_buffer = new KeyValueTime*[maxBufferSize];
         update_bufferSize = 0;
     }
+}
+
+/*
+ * Returns -1 if element not present.
+ */
+int ExternalBufferedBTree::query(int element) {
+
+    // Flush the entire tree before we start to query.
+    if(!forcedFlushed) {
+        flushEntireTree();
+    }
+
+    int currentNode = root;
+    int height, nodeSize, bufferSize;
+    int* ptr_height = &height;
+    int* ptr_nodeSize = &nodeSize;
+    int* ptr_bufferSize = &bufferSize;
+    vector<int>* keys = new vector<int>();
+    keys->reserve(4*size-1);
+    vector<int>* values = new vector<int>();
+    values->reserve(4*size);
+    readNode(currentNode, ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
+
+    // Search for correct leaf node
+    while(height != 1) {
+        // Find matching key
+        int i = nodeSize;
+        while(i > 0 && element <= (*keys)[i-1]) {
+            i--;
+        }
+        currentNode = (*values)[i];
+        delete(keys);
+        delete(values);
+        keys = new vector<int>();
+        keys->reserve(4*size-1);
+        values = new vector<int>();
+        values->reserve(4*size);
+        readNode(currentNode, ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
+    }
+
+    int i = nodeSize;
+    while(i > 0 && element <= (*keys)[i-1]) {
+        i--;
+    }
+    int leaf = (*values)[i];
+
+    vector<int>* leafs = new vector<int>();
+    leafs->reserve(size*4);
+    readLeafInfo(currentNode,leafs);
+
+    KeyValueTime** buffer = new KeyValueTime*[maxBufferSize];
+    readLeaf(leaf,buffer);
+
+    int ret = -1;
+    int index = 0;
+    while(index < (*leafs)[i] && element != buffer[index]->key) {
+        index++;
+    }
+    if(element = buffer[index]->key) {
+        ret = buffer[index]->value;
+    }
+
+    // Clean up
+    for(int j = 0; j < (*leafs)[i]; j++) {
+        delete(buffer[j]);
+    }
+    delete[] buffer;
+    delete(leafs);
+    delete(keys);
+    delete(values);
+
+    return ret;
+
 }
 
 /***********************************************************************************************************************
@@ -556,7 +630,6 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, vector<int> 
         int* ptr_cNodeSize = &cNodeSize;
         int* ptr_cBufferSize = &cBufferSize;
         vector<int>* cKeys;
-
         vector<int>* cValues;
 
         cout << "Flushing children of node " << id << "\n";
@@ -657,6 +730,509 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, vector<int> 
         delete(cValues);
     }
 }
+
+/*
+ * As above, except we continuously flush buffers in the entire tree.
+ */
+void ExternalBufferedBTree::forcedFlush(int id, int height, int nodeSize, int bufferSize, std::vector<int> *keys,
+                                        std::vector<int> *values) {
+
+    cout << "Force Flushing node " << id << "\n";
+
+    if(height == 1) {
+        cout << "Node is a leaf node\n";
+
+        int* appendedToLeafs = new int[nodeSize+1](); // Initialized to zero
+
+        if(bufferSize != 0) {
+            // Children are leafs, special case
+            InputStream *parentBuffer = new BufferedInputStream(streamBuffer);
+            string name = getBufferName(id, 1);
+            parentBuffer->open(name.c_str());
+            //cout << "Opened parent stream\n";
+
+            if(nodeSize == 0) {
+                // Only one child, give it the entire buffer
+                cout << "Only child is " << (*values)[0] << "\n";
+                BufferedOutputStream* os = new BufferedOutputStream(streamBuffer);
+                name = getBufferName((*values)[0],4);
+                os->open(name.c_str());
+                int key, value, time;
+                while(!parentBuffer->endOfStream()) {
+                    key = parentBuffer->readNext();
+                    value = parentBuffer->readNext();
+                    time = parentBuffer->readNext();
+                    os->write(&key);
+                    os->write(&value);
+                    os->write(&time);
+                    (appendedToLeafs[0])++;
+                }
+
+                // Clean up
+                os->close();
+                iocounter = iocounter + os->iocounter;
+                delete(os);
+            }
+            else {
+                // Open streams to every childs buffer so we can append
+                BufferedOutputStream **appendStreams = new BufferedOutputStream*[nodeSize + 1];
+                BufferedOutputStream *os;
+                for (int i = 0; i < nodeSize + 1; i++) {
+                    name = getBufferName((*values)[i], 4);
+                    os = new BufferedOutputStream(streamBuffer);
+                    os->open(name.c_str());
+                }
+
+                int childIndex = 0;
+                int key, value, time;
+                while (!parentBuffer->endOfStream()) {
+                    key = parentBuffer->readNext();
+                    value = parentBuffer->readNext();
+                    time = parentBuffer->readNext();
+                    if (key > (*keys)[childIndex]) {
+                        // Find new index
+                        while (key > (*keys)[childIndex] && childIndex < nodeSize) {
+                            childIndex++;
+                        }
+                    }
+                    // Append to childs buffer
+                    appendStreams[childIndex]->write(&key);
+                    appendStreams[childIndex]->write(&value);
+                    appendStreams[childIndex]->write(&time);
+                    (appendedToLeafs[childIndex])++;
+                }
+
+                // Clean up appendStreams
+                for (int i = 0; i < nodeSize + 1; i++) {
+                    os = appendStreams[i];
+                    os->close();
+                    iocounter = iocounter + os->iocounter;
+                    delete (os);
+                }
+
+            }
+
+            // Close parent buffer
+            parentBuffer->close();
+            iocounter = iocounter + parentBuffer->iocounter;
+            delete(parentBuffer);
+
+            // Delete parents now empty buffer
+            name = getBufferName(id,1);
+            if(FILE *file = fopen(name.c_str(), "r")) {
+                fclose(file);
+                remove(name.c_str());
+            }
+        }
+
+        //int* leafs = new int[4*size*4](); // Cant split into more than 4x max size
+        vector<int>* leafs = new vector<int>();
+        leafs->reserve(size*4); // Reserve M/B.
+
+        readLeafInfo(id,leafs); // Leafs now contains previous size of each leaf
+
+        cout << "Flushing leafs\n";
+        // Update size of every leaf, sort and remove duplicates
+        for(int i = 0; i < nodeSize+1; i++) {
+            // Update size
+            (*leafs)[i] = appendedToLeafs[i] + (*leafs)[i];
+            if(appendedToLeafs[i] > 0) {
+                // Sort and remove duplicates
+                // Check if it can be done internally
+                cout << (*leafs)[i] << " " << M/sizeof(KeyValueTime) << "\n";
+                if((*leafs)[i] <= M/sizeof(KeyValueTime)) {
+                    cout << "Internal\n";
+                    // Internal, load in elements
+                    KeyValueTime** temp = new KeyValueTime*[(*leafs)[i]];
+                    readLeaf((*values)[i], temp);
+                    (*leafs)[i] = sortAndRemoveDuplicatesInternalArrayLeaf(temp,(*leafs)[i]);
+                    writeLeaf((*values)[i],temp,(*leafs)[i]);
+                }
+                else {
+                    // External
+                    // Handle originally empty leaf
+                    if((*leafs)[i] - appendedToLeafs[i] > 0) {
+                        (*leafs)[i] = sortAndRemoveDuplicatesExternalLeaf(id,(*leafs)[i],appendedToLeafs[i]);
+                        // Leaf was output by the above method.
+                    }
+                    else {
+                        // There was no original elements in the leaf.
+                        // Leaf now consits of appended elements in order of key and time,
+                        // but we need to remove deletes and corresponding inserts.
+
+                        handleDeletesLeafOriginallyEmptyExternal((*values)[i]);
+                    }
+                }
+            }
+        }
+
+        delete[] appendedToLeafs;
+
+
+        cout << "=== Splitting\n";
+        // Split first, so we can guarantee fuses doesnt fuse with HUGE nodes.
+        // Remove empty elements before fuse phase,
+        // since they are hard to handle for fuses.
+        for(int i = 0; i < nodeSize+1; i++) {
+            if((*leafs)[i] > 4*leafSize) {
+                cout << "Split START " << i << "\n";
+                splitLeaf(nodeSize, keys, values, leafs, i);
+                cout << "Split STOP\n";
+                nodeSize++;
+                // Leafs array will be updated in size
+                // Check if we need to recurse upon leaf again
+                if((*leafs)[i] > 4*leafSize) {
+                    // Recheck child
+                    i--;
+                }
+                else {
+                    // Next child will be proper.
+                    i++;
+                }
+            }
+            else if((*leafs)[i] == 0) {
+                //TODO: Check if this causes any issues
+                // Erase this element, fuses below cant handle empty leafs.
+                if(i != nodeSize) {
+                    keys->erase(keys->begin() + i);
+                }
+                values->erase(values->begin() + i);
+                leafs->erase(leafs->begin() + i);
+                nodeSize--;
+                i--;
+            }
+        }
+
+        cout << "=== Fusing\n";
+        // Fuse
+        for(int i = 0; i < nodeSize+1; i++) {
+            if((*leafs)[i] < leafSize) {
+                // Fuse
+                int ret = fuseLeaf(nodeSize, keys, values, leafs, i);
+                // -1 = fused from left neighbour
+                // 0 = stole from one of the neighbours
+                // 1 = fused with the right neighbour
+                if (ret == -1) {
+                    // Fused into previous child
+                    // Recheck this position
+                    nodeSize--;
+                    i--; // Minimum recheck this position
+                    // Check if previous child needs to be split
+                    // With leftmost child safeguard
+                    if (i >= 0 && (*leafs)[i] > leafSize * 4) {
+                        splitLeaf(nodeSize, keys, values, leafs, i);
+                        nodeSize++;
+                        i++;
+                    }
+                } else if (ret == 1) {
+                    // Fused next child into this one
+                    nodeSize--;
+                    // Check if we need to split or fuse
+                    if ((*leafs)[i] > leafSize * 4) {
+                        splitLeaf(nodeSize, keys, values, leafs, i);
+                        nodeSize++;
+                        i++;
+                    } else if ((*leafs)[i] < leafSize) {
+                        i--; // Fuse this leaf again
+                    }
+                }
+            }
+        }
+
+        // Write out parents info to disk
+        writeNode(id,height,nodeSize,0,keys,values);
+
+        // Write out updated leaf info
+        writeLeafInfo(id,leafs,nodeSize+1);
+
+    }
+    else {
+        // Children are internal nodes.
+        // Flush parents buffer to childrens buffers.
+        int* appendedToChild = new int[nodeSize+1](); // Initialized to zero
+
+
+        if(bufferSize != 0) {
+            InputStream *parentBuffer = new BufferedInputStream(streamBuffer);
+            string name = getBufferName(id, 1);
+            parentBuffer->open(name.c_str());
+
+            cout << "Writing out childrens buffer names\n";
+            for(int i = 0; i < nodeSize+1; i++) {
+                cout << getBufferName((*values)[i],1) << "\n";
+            }
+
+            cout << "Creating OutputStreams\n";
+            // Open streams to every childs buffer so we can append
+            BufferedOutputStream** appendStreams = new BufferedOutputStream*[nodeSize+1];
+            for(int i = 0; i < nodeSize+1; i++) {
+                name = getBufferName((*values)[i],1);
+                appendStreams[i] = new BufferedOutputStream(streamBuffer);
+                appendStreams[i]->open(name.c_str());
+            }
+
+            // Append KeyValueTimes to children
+            // Remember how many KVTs we wrote to each
+
+            int childIndex = 0;
+            int key, value, time;
+            while(!parentBuffer->endOfStream()) {
+                key = parentBuffer->readNext();
+                value = parentBuffer->readNext();
+                time = parentBuffer->readNext();
+                if(key > (*keys)[childIndex]) {
+                    // Find new index
+                    while(key > (*keys)[childIndex] && childIndex < nodeSize) {
+                        childIndex++;
+                    }
+                }
+                // Append to childs buffer
+                appendStreams[childIndex]->write(&key);
+                appendStreams[childIndex]->write(&value);
+                appendStreams[childIndex]->write(&time);
+                (appendedToChild[childIndex])++;
+            }
+
+            // Clean up appendStreams and parentBuffer
+            for(int i = 0; i < nodeSize+1; i++) {
+                cout << "Closing stream " << i << "\n";
+                appendStreams[i]->close();
+                iocounter = iocounter + appendStreams[i]->iocounter;
+                delete(appendStreams[i]);
+                /*os = appendStreams[i];
+                os->close();
+                iocounter = iocounter + os->iocounter;
+                delete(os);*/
+            }
+            delete[] appendStreams;
+
+            parentBuffer->close();
+            iocounter = iocounter + parentBuffer->iocounter;
+            delete(parentBuffer);
+
+            // Delete parents now empty buffer
+            name = getBufferName(id,1);
+            if(FILE *file = fopen(name.c_str(), "r")) {
+                fclose(file);
+                remove(name.c_str());
+            }
+        }
+
+        // Update bufferSize of every child
+        // Handle any buffer overflows in children
+        int cHeight, cNodeSize, cBufferSize;
+        int* ptr_cHeight = &cHeight;
+        int* ptr_cNodeSize = &cNodeSize;
+        int* ptr_cBufferSize = &cBufferSize;
+        vector<int>* cKeys;
+        vector<int>* cValues;
+
+        cout << "Flushing children of node " << id << "\n";
+        // Update childrens bufferSizes and flush if required.
+        for(int i = 0; i < nodeSize+1; i++) {
+            cKeys = new vector<int>();
+            cKeys->reserve(size*4-1);
+            cValues = new vector<int>();
+            cValues->reserve(size*4);
+            readNode((*values)[i],ptr_cHeight,ptr_cNodeSize,ptr_cBufferSize,cKeys,cValues);
+            cBufferSize = cBufferSize + appendedToChild[i];
+            // FORCE FLUSH
+            // Sort childs buffer
+            if(cBufferSize != 0) {
+                sortAndRemoveDuplicatesExternalBuffer((*values)[i],cBufferSize,appendedToChild[i]);
+            }
+            // Flush
+            forcedFlush((*values)[i],cHeight,cNodeSize,cBufferSize,cKeys,cValues);
+            // Child will update its info at end of flush
+        }
+
+        cout << "Splitting children of node " << id << "\n";
+        // Run through the children and split
+        for(int i = 0; i < nodeSize+1; i++) {
+            cKeys = new vector<int>();
+            cKeys->reserve(size*4-1);
+            cValues = new vector<int>();
+            cValues->reserve(size*4);
+            readNode((*values)[i],ptr_cHeight,ptr_cNodeSize,ptr_cBufferSize,cKeys,cValues);
+            if(cNodeSize > 4*size-1) {
+                // Split
+                int ret = splitInternal(height,nodeSize,keys,values,i,cNodeSize,cKeys,cValues);
+                nodeSize++;
+                if(ret > 4*size-1) {
+                    i--; // Recurse upon this node
+                }
+                else {
+                    i++; // Skip next node, we know its size is correct.
+                }
+            }
+            else if(cNodeSize == 0) {
+                // Check if its truly empty, or has a single child we can fuse
+                // TODO: Check
+            }
+        }
+
+        cout << "Fusing children of node " << id << "\n";
+        // Run through children and fuse
+        for(int i = 0; i < nodeSize+1; i++) {
+            cKeys = new vector<int>();
+            cKeys->reserve(size*4-1);
+            cValues = new vector<int>();
+            cValues->reserve(size*4);
+            readNode((*values)[i],ptr_cHeight,ptr_cNodeSize,ptr_cBufferSize,cKeys,cValues);
+            if(cNodeSize < size) {
+                // Fuse
+                int ret = fuseInternal(height,nodeSize,keys,values,i,ptr_cNodeSize,cKeys,cValues);
+                // -1 = fused with left neighbour, check size.
+                // 0 = stole elements from a neighbour, which is fine
+                // 1 = fused with right neighbour, check size.
+                if(ret == -1) {
+                    // Fused with left neighbour, already checked.
+                    // Therefore child can not be too small, check if too large
+                    nodeSize--;
+                    i--; // As a minimum we need to recheck this position with a new child.
+                    if(cNodeSize > 4*size-1) {
+                        // Split left neighbour
+                        readNode((*values)[i],ptr_cHeight,ptr_cNodeSize,ptr_cBufferSize,cKeys,cValues);
+                        splitInternal(height,nodeSize,keys,values,i,cNodeSize,cKeys,cValues);
+                        nodeSize++;
+                        i++;
+                    }
+                }
+                else if(ret == 1) {
+                    // Fused with right child, check size.
+                    nodeSize--;
+                    if(cNodeSize > 4*size-1) {
+                        readNode((*values)[i],ptr_cHeight,ptr_cNodeSize,ptr_cBufferSize,cKeys,cValues);
+                        splitInternal(height,nodeSize,keys,values,i,cNodeSize,cKeys,cValues);
+                        nodeSize++;
+                        i++;
+                    }
+                    else if(cNodeSize < size) {
+                        i--; // Recurse
+                    }
+                }
+            }
+        }
+
+        // Write out parents info to disk
+        writeNode(id,height,nodeSize,0,keys,values);
+
+        // Clean up vectors
+        delete(cKeys);
+        delete(cValues);
+    }
+}
+
+/*
+ * Flushes the entire tree into leaves.
+ */
+void ExternalBufferedBTree::flushEntireTree() {
+
+    // Handle input buffer
+    // Sort the buffer and remove duplicates
+    if(update_bufferSize != 0) {
+        update_bufferSize = sortAndRemoveDuplicatesInternalArray(update_buffer,update_bufferSize);
+        // Append to root
+        appendBufferNoDelete(root,update_buffer,update_bufferSize,1);
+        rootBufferSize = rootBufferSize + update_bufferSize;
+    }
+
+    // Merge input buffer with root buffer
+    if(rootBufferSize != 0) {
+        cout << "Sorting and Removing duplicates from root buffer size " << rootBufferSize << "\n";
+        int rootSize = sortAndRemoveDuplicatesExternalBuffer(root,rootBufferSize,update_bufferSize);
+    }
+
+    // Force flush root
+    int height, nodeSize, bufferSize;
+    int* ptr_height = &height;
+    int* ptr_nodeSize = &nodeSize;
+    int* ptr_bufferSize = &bufferSize;
+    vector<int>* keys = new vector<int>();
+    keys->reserve(4*size-1);
+    vector<int>* values = new vector<int>();
+    values->reserve(4*size);
+    readNode(root,ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
+    forcedFlush(root,height,nodeSize,bufferSize,keys,values);
+
+    // Handle balancing of root
+    keys = new vector<int>();
+    keys->reserve(4*size-1);
+    values = new vector<int>();
+    values->reserve(4*size);
+    readNode(root,ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
+    if(nodeSize > size*4-1) {
+        cout << "Creating new Root\n";
+        // Create new root
+        numberOfNodes++;
+        currentNumberOfNodes++;
+        int newRoot = numberOfNodes;
+        int newHeight = height+1;
+        int newSize = 0;
+        int newBufferSize = 0;
+        vector<int>* newKeys = new vector<int>();
+        vector<int>* newValues = new vector<int>();
+        newValues->push_back(root);
+        cout << "Splitting old root\n";
+        int ret = splitInternal(newHeight,newSize,newKeys,newValues,0,nodeSize,keys,values);
+        cout << "New root size " << ret << "\n";
+        newSize++;
+        root = newRoot;
+        // We might have to split again, recheck
+        if(ret > 4*size-1) {
+            cout << "Splitting roots children\n";
+            // Loop over children until no more splits
+            for(int i = 0; i < newSize+1; i++) {
+                cout << "Checking child " << i << " name " << (*newValues)[i] << "\n";
+                cout << "Root values ";
+                for(int j = 0; j < newSize+1; j++) {
+                    cout << (*newValues)[j] << " ";
+                }
+                cout << "\n";
+
+                keys = new vector<int>();
+                keys->reserve(size*4-1);
+                values = new vector<int>();
+                values->reserve(size*4);
+                readNode((*newValues)[i],ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
+                if(nodeSize > 4*size-1) {
+                    cout << "Splitting child " << (*newValues)[i] << "\n";
+                    ret = splitInternal(newHeight,newSize,newKeys,newValues,i,nodeSize,keys,values);
+                    cout << "Childs new size is " << ret << "\n";
+                    newSize++;
+                    if(ret > 4*size-1) {
+                        i--; // Recurse
+                    }
+                    else {
+                        i++; // We know the next child is fine.
+                    }
+                }
+            }
+        }
+        cout << "Writing new root to disk\n";
+        writeNode(newRoot,newHeight,newSize,0,newKeys,newValues);
+    }
+    else if(nodeSize == 0 && height > 1) {
+        cout << "Deleting Root\n";
+        // Delete this root, make only child new root
+        cleanUpExternallyAfterNodeOrLeaf(root);
+        root = (*values)[0];
+        currentNumberOfNodes--;
+        delete(keys);
+        delete(values);
+    }
+    else {
+        delete(keys);
+        delete(values);
+    }
+    rootBufferSize = 0;
+
+    // Reset internal buffer
+    update_bufferSize = 0;
+
+    forcedFlushed = true;
+}
+
 
 /*
  * Splits an internal node with internal children.

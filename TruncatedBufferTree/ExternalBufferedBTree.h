@@ -31,6 +31,7 @@ public:
     int numberOfNodes; // Total nodes in lifetime, used to avoid duplicates.
     int currentNumberOfNodes; // Current number of nodes in the tree.
     int treeTime; // Sufficient to insert and delete over 5GB worth of key/values.
+    bool forcedFlushed = false;
 
     /*
      * General Methods
@@ -38,6 +39,7 @@ public:
     ExternalBufferedBTree(int B, int M);
     ~ExternalBufferedBTree();
     void update(KeyValueTime* keyValueTime); // Negative value equals delete.
+    int query(int element);
 
     /*
      * Tree Structural Methods
@@ -49,6 +51,8 @@ public:
     int fuseInternal(int height, int nodeSize, std::vector<int>* keys, std::vector<int>* values, int childNumber,
                        int* cSize, std::vector<int>* cKeys, std::vector<int>* cValues);
     int fuseLeaf(int nodeSize, std::vector<int>* keys, std::vector<int>* values, std::vector<int>* leafs, int leafNumber);
+    void flushEntireTree();
+    void forcedFlush(int id, int height, int nodeSize, int bufferSize, std::vector<int>* keys, std::vector<int>* values);
 
     /*
      * Buffer Handling Methods

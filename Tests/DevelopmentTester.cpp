@@ -1231,8 +1231,13 @@ void DevelopmentTester::externalBufferedBTreeInsertDeleteQuery() {
 
     cout << "============================================= DONE INSERTING\n";
 
-    bTree->printTree();
+    //bTree->printTree();
 
+    int ret = bTree->query(1);
+    cout << "Query returned " << ret << "\n";
+
+
+    /*
     cout << "============================================= DELETING\n";
 
     for(int i = 1; i <= updates; i++) {
@@ -1246,6 +1251,8 @@ void DevelopmentTester::externalBufferedBTreeInsertDeleteQuery() {
     cout << "Cleaning up\n";
 
     bTree->cleanUpTree();
+
+     */
 
     cout << "Done!\n";
 
