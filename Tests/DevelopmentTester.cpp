@@ -1233,8 +1233,33 @@ void DevelopmentTester::externalBufferedBTreeInsertDeleteQuery() {
 
     //bTree->printTree();
 
-    int ret = bTree->query(1);
-    cout << "Query returned " << ret << "\n";
+    //bTree->printTree();
+    //bTree->cleanUpTree();
+
+    cout << "Update buffer size is " << bTree->update_bufferSize << "\n";
+    cout << "Root buffer size is " << bTree->rootBufferSize << "\n";
+
+
+    cout << "============================================= Queries\n";
+
+    int ret;
+    /*int ret = bTree->query(1);
+    cout << "Query returned " << ret << "\n";*/
+
+    //bTree->printTree();
+
+
+    ret = 0;
+    for(int i = 1; i <= updates; i++) {
+        ret = bTree->query(i);
+        if(ret != i) {
+            cout << i << " " << ret << "\n";
+        }
+    }
+
+    cout << "============================================= Clean up\n";
+
+    bTree->cleanUpTree();
 
 
     /*
