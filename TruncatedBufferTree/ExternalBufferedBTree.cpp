@@ -337,6 +337,18 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, vector<int> 
     //cout << "Flushing node " << id << "\n";
 
     if(height == 1) {
+
+        vector<int>* leafs = new vector<int>();
+        leafs->reserve(4*size);
+        int* ptr_nodeSize = &nodeSize;
+        handleLeafNodeBufferOverflow(id,ptr_nodeSize,keys,values,leafs);
+
+        // TODO: Write out node, but handle last leaf potential fuse and split first
+
+        /* Handle it differently now.
+
+
+
         //cout << "Node is a leaf node\n";
         // Children are leafs, special case
         InputStream *parentBuffer = new BufferedInputStream(streamBuffer);
@@ -477,9 +489,6 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, vector<int> 
         // Remove empty elements before fuse phase,
         // since they are hard to handle for fuses.
         for(int i = 0; i < nodeSize+1; i++) {
-            /*if(nodeSize+1 != leafs->size()) {
-                cout << "!!! Number of leafs doesnt match up !!!\n";
-            }*/
             if((*leafs)[i] > 4*leafSize) {
                 //cout << "Split START " << i << "\n";
                 splitLeaf(nodeSize, keys, values, leafs, i);
@@ -551,6 +560,7 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, vector<int> 
         // Write out updated leaf info
         writeLeafInfo(id,leafs,nodeSize+1);
 
+         */
     }
     else {
         // Children are internal nodes.
@@ -752,6 +762,21 @@ void ExternalBufferedBTree::forcedFlush(int id, int height, int nodeSize, int bu
     //cout << "Force Flushing node " << id << "\n";
 
     if(height == 1) {
+
+        if(bufferSize != 0) {
+
+            vector<int>* leafs = new vector<int>();
+            leafs->reserve(4*size);
+            int* ptr_nodeSize = &nodeSize;
+            handleLeafNodeBufferOverflow(id,ptr_nodeSize,keys,values,leafs);
+
+            // TODO: Write out node, but handle last leaf potential fuse and split first
+        }
+
+
+
+        /* Handle it different now.
+
         //cout << "Node is a leaf node\n";
 
         int* appendedToLeafs = new int[nodeSize+1](); // Initialized to zero
@@ -797,7 +822,7 @@ void ExternalBufferedBTree::forcedFlush(int id, int height, int nodeSize, int bu
                     /*name = getBufferName((*values)[i], 4);
                     os = new BufferedOutputStream(streamBuffer);
                     os->open(name.c_str());*/
-                }
+                /*}
 
                 int childIndex = 0;
                 int key, value, time;
@@ -869,7 +894,7 @@ void ExternalBufferedBTree::forcedFlush(int id, int height, int nodeSize, int bu
                             cout << temp[i]->key << "\n";
                         }
                     }*/
-                    (*leafs)[i] = sortAndRemoveDuplicatesInternalArrayLeaf(temp,(*leafs)[i]);
+                    /*(*leafs)[i] = sortAndRemoveDuplicatesInternalArrayLeaf(temp,(*leafs)[i]);
                     //cout << (*leafs)[i] << "\n";
                     writeLeaf((*values)[i],temp,(*leafs)[i]);
                 }
@@ -969,6 +994,8 @@ void ExternalBufferedBTree::forcedFlush(int id, int height, int nodeSize, int bu
 
         // Write out updated leaf info
         writeLeafInfo(id,leafs,nodeSize+1);
+
+        */
 
     }
     else {
@@ -2436,6 +2463,522 @@ int ExternalBufferedBTree::handleDeletesLeafOriginallyEmptyExternal(int id) {
     return counter;
 
 }
+
+/*
+ * Handles a buffer overflow in an internal leaf node.
+ * Will also handle flushing a non-overflowing buffer to its leafs.
+ * Will handle empty leafs.
+ *
+ * This method was implemented to handle leafs more effeciently.
+ * It will gather the leafs in a temporary buffer, delete the old leafs,
+ * then merge the elements from the leafs with the elements of the buffer,
+ * writing them out to new (or refused) full leafs.
+ *
+ * This saves handling splits and fuses on the leafs.
+ *
+ * Resulting leafs and node changes will NOT be written to disk.
+ */
+void ExternalBufferedBTree::handleLeafNodeBufferOverflow(int id, int* nodeSize, std::vector<int> *keys,
+                                                         std::vector<int> *values, std::vector<int>* leafs) {
+
+    // Gather the leafs in a temporary buffer
+    string name1 = getBufferName(1,2); // TempBuf1
+    if(FILE *file = fopen(name1.c_str(), "r")) {
+        fclose(file);
+        remove(name1.c_str());
+    }
+    OutputStream* os = new BufferedOutputStream(streamBuffer);
+    os->create(name1.c_str());
+
+    string tempName;
+    int key,value,time;
+    for(int i = 0; i < (*nodeSize)+1; i++) {
+        tempName = getBufferName((*values)[i],4);
+        InputStream* tempIS = new BufferedInputStream(streamBuffer);
+        tempIS->open(tempName.c_str());
+        while(!tempIS->endOfStream()) {
+            key = tempIS->readNext();
+            value = tempIS->readNext();
+            time = tempIS->readNext();
+            os->write(&key);
+            os->write(&value);
+            os->write(&time);
+        }
+        tempIS->close();
+        iocounter = iocounter + tempIS->iocounter;
+        delete(tempIS);
+
+        // Clean up leaf
+        if(FILE *file = fopen(tempName.c_str(), "r")) {
+            fclose(file);
+            remove(tempName.c_str());
+        }
+    }
+
+    os->close();
+    iocounter = iocounter + os->iocounter;
+    delete(os);
+
+    // Merge temp and buffer whilst writing out to reused or new leafs.
+    InputStream* is1 = new BufferedInputStream(streamBuffer);
+    is1->open(name1.c_str()); // TempBuf1
+    string name2 = getBufferName(id,1); // Buffer<id>
+    InputStream* is2 = new BufferedInputStream(streamBuffer);
+    is2->open(name2.c_str());
+
+    string name3 = getBufferName((*values)[0],4); // Reuse old leaf names.
+    os = new BufferedOutputStream(streamBuffer);
+    os->create(name3.c_str());
+    cout << "Writing to " << name3 << "\n";
+
+    int outputsize = 0;
+    int leafCounter = 0; // What leaf we are reusing
+    int key1, value1, time1;
+    int key2, value2, time2;
+    key1 = is1->readNext();
+    value1 = is1->readNext();
+    time1 = is1->readNext();
+    key2 = is2->readNext();
+    value2 = is2->readNext();
+    time2 = is2->readNext();
+
+    int mostRecentKey = 0;
+    bool run = true; // Use this instead of breaks to guarantee we execute bottom code.
+    int fullLeaf = leafSize*4;
+
+    // Merge files until we reach end of stream for one
+    // Assumption: When the while loop terminates both
+    // KeyValueTimes have been written to output (if it should),
+    // and one of the streams will have terminated.
+    while(run) {
+        if(key1 == key2) {
+            // Resolve duplicate
+            // Largest time will always have priority
+            // Discard other KeyValueTime
+            if(time1 > time2) {
+                if(value1 > 0) {
+                    os->write(&key1);
+                    os->write(&value1);
+                    os->write(&time1);
+                    outputsize++;
+                    mostRecentKey = key1;
+                }
+                // Read in new KeyValueTimes
+                if(!is1->endOfStream() && !is2->endOfStream()) {
+                    // Load in new element
+                    key1 = is1->readNext();
+                    value1 = is1->readNext();
+                    time1 = is1->readNext();
+                    // Discard other element
+                    key2 = is2->readNext();
+                    value2 = is2->readNext();
+                    time2 = is2->readNext();
+                }
+                else {
+                    run = false;
+                }
+            }
+            else {
+                if(value2 > 0) {
+                    os->write(&key2);
+                    os->write(&value2);
+                    os->write(&time2);
+                    outputsize++;
+                    mostRecentKey = key2;
+                }
+                // Read in new KeyValueTimes
+                if(!is1->endOfStream() && !is2->endOfStream()) {
+                    // Load in new element
+                    key2 = is2->readNext();
+                    value2 = is2->readNext();
+                    time2 = is2->readNext();
+                    // Discard other element
+                    key1 = is1->readNext();
+                    value1 = is1->readNext();
+                    time1 = is1->readNext();
+                }
+                else {
+                    run = false;
+                }
+            }
+        }
+        else {
+            // Write out one of the KeyValueTimes, try and load in new
+            // Break if one of the streams reached EOF.
+            if(key1 < key2) {
+                if(value1 > 0) {
+                    os->write(&key1);
+                    os->write(&value1);
+                    os->write(&time1);
+                    outputsize++;
+                    mostRecentKey = key1;
+                }
+                if(!is1->endOfStream()) {
+                    // Load in new element
+                    key1 = is1->readNext();
+                    value1 = is1->readNext();
+                    time1 = is1->readNext();
+                }
+                else {
+                    // Write out other item
+                    if(value2 > 0) {
+                        os->write(&key2);
+                        os->write(&value2);
+                        os->write(&time2);
+                        outputsize++;
+                        mostRecentKey = key2;
+                    }
+                    run = false;
+                }
+            }
+            else {
+                if(value2 > 0) {
+                    cout << "Writing out " << key2 << "\n";
+                    os->write(&key2);
+                    os->write(&value2);
+                    os->write(&time2);
+                    outputsize++;
+                    mostRecentKey = key2;
+                }
+                if(!is2->endOfStream()) {
+                    // Load in new element
+                    key2 = is2->readNext();
+                    value2 = is2->readNext();
+                    time2 = is2->readNext();
+                }
+                else {
+                    // Write out other item
+                    if(value1 > 0) {
+                        os->write(&key1);
+                        os->write(&value1);
+                        os->write(&time1);
+                        mostRecentKey = key1;
+                        outputsize++;
+                    }
+                    run = false;
+                }
+            }
+        }
+        // Check if the leaf is full
+        if(outputsize == fullLeaf) {
+            cout << "Filled out leaf\n";
+            os->close();
+            iocounter = iocounter + os->iocounter;
+            delete(os);
+            string newname;
+            // Check if we can reuse old name
+            // and update values
+            leafCounter++;
+            if(leafCounter < (*nodeSize)+1) {
+                newname = getBufferName((*values)[leafCounter],4);
+                (*leafs)[leafCounter] = fullLeaf;
+            }
+            else {
+                numberOfNodes++;
+                newname = getBufferName(numberOfNodes,4);
+                values->push_back(numberOfNodes);
+                leafs->push_back(fullLeaf);
+            }
+
+            // Update key
+            if(leafCounter-1 < (*nodeSize)+1) {
+                (*keys)[leafCounter] = mostRecentKey;
+            }
+            else {
+                keys->push_back(mostRecentKey); // Last one will get popped later
+                (*nodeSize)++;
+            }
+
+            // New outputstream
+            if(FILE *file = fopen(newname.c_str(), "r")) {
+                fclose(file);
+                remove(newname.c_str());
+            }
+            os = new BufferedOutputStream(streamBuffer);
+            os->create(newname.c_str());
+            cout << "Writing to " << newname << "\n";
+            outputsize = 0;
+        }
+    }
+
+    // Use Assumption: When the while loop terminates both
+    // KeyValueTimes have been written to output,
+    // and one of the streams will have terminated.
+    // Furthermore the outputsize has been checked, and a new
+    // outputstream created if necessary.
+    if(!is1->endOfStream()) {
+        // is1 did not finish
+        while(!is1->endOfStream()) {
+            key1 = is1->readNext();
+            value1 = is1->readNext();
+            time1 = is1->readNext();
+            cout << "Writing out " << key1 << "\n";
+            os->write(&key1);
+            os->write(&value1);
+            os->write(&time1);
+            outputsize++;
+            if(outputsize == fullLeaf) {
+                os->close();
+                iocounter = iocounter + os->iocounter;
+                delete(os);
+                string newname;
+                // Check if we can reuse old name
+                leafCounter++;
+                if(!is1->endOfStream()) {
+                    if(leafCounter < (*nodeSize)+1) {
+                        newname = getBufferName((*values)[leafCounter],4);
+                    }
+                    else {
+                        numberOfNodes++;
+                        newname = getBufferName(numberOfNodes,4);
+                    }
+
+                    // New outputstream
+                    if(FILE *file = fopen(newname.c_str(), "r")) {
+                        fclose(file);
+                        remove(newname.c_str());
+                    }
+                    os = new BufferedOutputStream(streamBuffer);
+                    os->create(newname.c_str());
+                    cout << "Writing to " << newname << "\n";
+
+                }
+
+                // and update values
+                if(leafCounter-1 < (*nodeSize)+1) {
+                    (*leafs)[leafCounter] = outputsize;
+                }
+                else {
+                    values->push_back(numberOfNodes);
+                    leafs->push_back(outputsize);
+                }
+
+                // Update key
+                if(leafCounter-1 < (*nodeSize)) {
+                    (*keys)[leafCounter] = mostRecentKey;
+                }
+                else {
+                    keys->push_back(mostRecentKey); // Last one will get popped later
+                    (*nodeSize)++;
+                }
+
+                outputsize = 0;
+            }
+        }
+    }
+    else {
+        // is2 did not finish
+        while(!is2->endOfStream()) {
+            key2 = is2->readNext();
+            value2 = is2->readNext();
+            time2 = is2->readNext();
+            os->write(&key2);
+            os->write(&value2);
+            os->write(&time2);
+            outputsize++;
+            if(outputsize == fullLeaf) {
+                os->close();
+                iocounter = iocounter + os->iocounter;
+                delete(os);
+                string newname;
+                leafCounter++;
+                // Check if we can reuse old name
+                if(!is2->endOfStream()) {
+                    if(leafCounter < (*nodeSize)+1) {
+                        newname = getBufferName((*values)[leafCounter],4);
+                    }
+                    else {
+                        numberOfNodes++;
+                        newname = getBufferName(numberOfNodes,4);
+                    }
+
+                    // New outputstream
+                    if(FILE *file = fopen(newname.c_str(), "r")) {
+                        fclose(file);
+                        remove(newname.c_str());
+                    }
+                    os = new BufferedOutputStream(streamBuffer);
+                    os->create(newname.c_str());
+
+                }
+
+                // and update values
+                if(leafCounter-1 < (*nodeSize)+1) {
+                    (*leafs)[leafCounter] = outputsize;
+                }
+                else {
+                    values->push_back(numberOfNodes);
+                    leafs->push_back(outputsize);
+                }
+
+                // Update key
+                if(leafCounter-1 < (*nodeSize)) {
+                    (*keys)[leafCounter] = mostRecentKey;
+                }
+                else {
+                    keys->push_back(mostRecentKey); // Last one will get popped later
+                    (*nodeSize)++;
+                }
+                leafCounter++;
+
+
+                outputsize = 0;
+            }
+        }
+    }
+
+    // Update the last leaf
+    if(outputsize > 0) {
+        cout << "Updating last leaf\n";
+        leafCounter++;
+        if(leafCounter < (*nodeSize)+1) {
+            (*leafs)[leafCounter] = outputsize;
+        }
+        else {
+            values->push_back(numberOfNodes);
+            leafs->push_back(outputsize);
+        }
+
+        // Update key
+        if(leafCounter < (*nodeSize)) {
+            (*keys)[leafCounter] = mostRecentKey;
+        }
+        else {
+            keys->push_back(mostRecentKey); // Last one will get popped later
+            (*nodeSize)++;
+        }
+    }
+
+    // Pop the last key
+    keys->pop_back();
+
+    // Clean up streams
+    is1->close();
+    iocounter = iocounter + is1->iocounter;
+    delete(is1);
+    is2->close();
+    iocounter = iocounter + is2->iocounter;
+    delete(is2);
+
+    if(outputsize != 0) {
+        os->close();
+        iocounter = iocounter + os->iocounter;
+        delete(os);
+    }
+
+    // Clean up temp files and buffers
+    if(FILE *file = fopen(name1.c_str(), "r")) {
+        fclose(file);
+        remove(name1.c_str());
+    }
+    if(FILE *file = fopen(name2.c_str(), "r")) {
+        fclose(file);
+        remove(name2.c_str());
+    }
+
+    // Delete any unused original leafs
+    if(leafCounter < (*nodeSize)+1) {
+        // We did not fill out original leafs
+        // Remove old leaf data
+        for(int i = leafCounter; i < (*nodeSize)+1; i++) {
+            string tempName = getBufferName((*values)[i],4);
+            if(FILE *file = fopen(tempName.c_str(), "r")) {
+                fclose(file);
+                remove(tempName.c_str());
+            }
+        }
+    }
+
+    // Update nodeSize
+    (*nodeSize) = leafCounter-1;
+
+    //  Dont Write out node info and leaf info
+    //writeNode(id,1,leafCounter-1,0,keys,values);
+    //writeLeafInfo(id,leafs,leafCounter);
+
+}
+
+/*
+ * Handles a special case when the tree is first created, where the root has a single empty leaf.
+ */
+void ExternalBufferedBTree::handleRootEmptyLeafBufferOverflow(int id, int* nodeSize, std::vector<int> *keys,
+                                                              std::vector<int> *values, std::vector<int>* leafs) {
+
+    // The buffer is alreay sorted, just ditribute it across the leafs
+    InputStream* is = new BufferedInputStream(streamBuffer);
+    string rootBufferName = getBufferName(id,1);
+    is->open(rootBufferName.c_str());
+
+    OutputStream* os = new BufferedOutputStream(streamBuffer);
+    string name1 = getBufferName((*values)[0],4); // Leaf2
+    os->create(name1.c_str());
+
+    int outputsize = 0;
+    int key,value,time;
+    int mostRecentKey;
+    int fullLeaf = leafSize*4;
+    int leafCounter = 0;
+    while(!is->endOfStream()) {
+        key = is->readNext();
+        value = is->readNext();
+        time = is->readNext();
+        if(value > 0) {
+            os->write(&key);
+            os->write(&value);
+            os->write(&time);
+            outputsize++;
+            mostRecentKey = key;
+        }
+        if(outputsize == fullLeaf) {
+            os->close();
+            iocounter = iocounter + os->iocounter;
+            delete(os);
+
+            if(!is->endOfStream()) {
+                // Must create new leaf to write to
+                numberOfNodes++;
+                string tempName = getBufferName(numberOfNodes,4);
+                if(FILE *file = fopen(tempName.c_str(), "r")) {
+                    fclose(file);
+                    remove(tempName.c_str());
+                }
+                os = new BufferedOutputStream(streamBuffer);
+                os->create(tempName.c_str());
+            }
+
+            if(leafCounter > 0) {
+                // Create new value
+                values->push_back(numberOfNodes);
+            }
+            keys->push_back(mostRecentKey);
+            leafs->push_back(fullLeaf);
+
+            leafCounter++;
+            outputsize = 0;
+
+        }
+    }
+    if(outputsize > 0) {
+        os->close();
+        iocounter = iocounter + os->iocounter;
+        delete(os);
+        values->push_back(numberOfNodes);
+        keys->push_back(mostRecentKey);
+        leafs->push_back(outputsize);
+        leafCounter++;
+    }
+
+    // Last leaf doesnt require key
+    keys->pop_back();
+
+    // Update nodeSize
+    (*nodeSize) = leafCounter-1;
+
+    // Dont Write node and leaf data to disk
+
+}
+
+
 
 
 /***********************************************************************************************************************

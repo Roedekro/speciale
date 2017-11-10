@@ -59,8 +59,9 @@ void DevelopmentTester::test() {
     //BufferWriteReadAppendTest();
     //sortAndRemoveDuplicatesExternalBufferTest();
     //testLeafReadWriteAndSortRemove();
-    externalBufferedBTreeInsertDeleteQuery(); // <------ ExternalBufferedBTree Main test!
+    //externalBufferedBTreeInsertDeleteQuery(); // <------ ExternalBufferedBTree Main test!
     //testHandleDeletesExternalLeaf();
+    testNewLeafBufferOverflowMethod();
 }
 
 int DevelopmentTester::streamtestread(long n, int increment) {
@@ -1315,5 +1316,112 @@ void DevelopmentTester::testHandleDeletesExternalLeaf() {
     for(int i = 0; i < ret; i++) {
         cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
     }
+
+}
+
+void DevelopmentTester::testNewLeafBufferOverflowMethod() {
+
+    // Create new buffer to overflow
+    KeyValueTime** array = new KeyValueTime*[10];
+    cout << "Buffer will consist of\n";
+    for(int i = 1; i <= 10; i++) {
+        array[i-1] = new KeyValueTime(i,i,i+10);
+    }
+
+    array[3]->key = 14;
+    array[3]->value = -14;
+
+    for(int i = 1; i <= 10; i++) {
+        cout << array[i-1]->key << " " << array[i-1]->value << " " << array[i-1]->time << "\n";
+    }
+
+    int B = 96;
+    int M = 6144;
+    ExternalBufferedBTree* bTree = new ExternalBufferedBTree(B,M);
+
+    bTree->writeBuffer(42,array,10,1); // Buf42
+
+    // Create new leaf
+    array = new KeyValueTime*[5];
+    cout << "Leaf421 will consist of\n";
+    for(int i = 1; i <= 5; i++) {
+        array[i-1] = new KeyValueTime(i+10,i+10,i);
+        cout << i+10 << " " << i+10 << " " << i << "\n";
+    }
+
+    bTree->writeLeaf(421,array,5);
+
+    // Create new leaf
+    cout << "Leaf422 will consist of\n";
+    array = new KeyValueTime*[5];
+    for(int i = 1; i <= 5; i++) {
+        array[i-1] = new KeyValueTime(i+15,i+15,i+5);
+        cout << i+15 << " " << i+15 << " " << i+5 << "\n";
+    }
+
+
+    bTree->writeLeaf(422,array,5);
+
+    // Create node
+    vector<int>* keys = new vector<int>();
+    vector<int>* values = new vector<int>();
+    values->push_back(421);
+    values->push_back(422);
+    keys->push_back(15);
+    bTree->writeNode(42,1,1,10,keys,values);
+
+    // Write leaf info
+    vector<int>* leafs = new vector<int>();
+    leafs->push_back(5);
+    leafs->push_back(5);
+    bTree->writeLeafInfo(42,leafs,2);
+
+
+    keys = new vector<int>();
+    values = new vector<int>();
+    values->push_back(421);
+    values->push_back(422);
+    keys->push_back(15);
+    leafs = new vector<int>();
+    leafs->push_back(5);
+    leafs->push_back(5);
+    int nodeSize = 1;
+    int* ptr_nodeSize = &nodeSize;
+    bTree->handleLeafNodeBufferOverflow(42,ptr_nodeSize,keys,values,leafs);
+
+    cout << "---Keys\n";
+    for(int i = 0; i < nodeSize; i++) {
+        cout << (*keys)[i] << "\n";
+    }
+
+    cout << "---Values\n";
+    for(int i = 0; i < nodeSize+1; i++) {
+        cout << (*values)[i] << "\n";
+    }
+
+    array = new KeyValueTime*[8];
+    int ret = bTree->readLeaf(421,array);
+
+    cout << "---Leaf421\n";
+    for(int i = 0; i < ret; i++) {
+        cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
+    }
+
+    array = new KeyValueTime*[8];
+    ret = bTree->readLeaf(422,array);
+
+    cout << "---Leaf422\n";
+    for(int i = 0; i < ret; i++) {
+        cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
+    }
+
+    array = new KeyValueTime*[8];
+    ret = bTree->readLeaf(3,array);
+
+    cout << "---Leaf3\n";
+    for(int i = 0; i < ret; i++) {
+        cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
+    }
+
 
 }

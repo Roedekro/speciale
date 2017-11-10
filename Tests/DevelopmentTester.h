@@ -40,6 +40,7 @@ private:
     void testLeafReadWriteAndSortRemove();
     void externalBufferedBTreeInsertDeleteQuery();
     void testHandleDeletesExternalLeaf();
+    void testNewLeafBufferOverflowMethod();
 
 
 

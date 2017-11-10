@@ -67,6 +67,10 @@ public:
     int sortAndRemoveDuplicatesInternalArray(KeyValueTime** buffer, int bufferSize);
     int sortAndRemoveDuplicatesInternalArrayLeaf(KeyValueTime** buffer, int bufferSize);
     int handleDeletesLeafOriginallyEmptyExternal(int id);
+    void handleLeafNodeBufferOverflow(int id, int* nodeSize, std::vector<int>* keys, std::vector<int>* values,
+                                        std::vector<int>* leafs);
+    void handleRootEmptyLeafBufferOverflow(int id, int* nodeSize, std::vector<int>* keys, std::vector<int>* values,
+                                            std::vector<int>* leafs);
 
     /*
      * Utility Methods
