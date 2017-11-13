@@ -41,6 +41,7 @@ private:
     void externalBufferedBTreeInsertDeleteQuery();
     void testHandleDeletesExternalLeaf();
     void testNewLeafBufferOverflowMethod();
+    void handleEmptyRootLeafBufferOverflow();
 
 
 

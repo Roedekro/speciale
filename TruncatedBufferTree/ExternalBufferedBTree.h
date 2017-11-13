@@ -89,6 +89,7 @@ public:
     void printNode(int node);
     void printLeaf(int leaf);
     void cleanUpTree();
+    void cleanUpFromTo(int from, int to);
 
     /*
      * Deprecated methods, used in development / later replaced
