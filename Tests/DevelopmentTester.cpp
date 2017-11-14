@@ -1275,27 +1275,35 @@ void DevelopmentTester::externalBufferedBTreeInsertDeleteQuery() {
 
     //bTree->printTree();
 
-    cout << "============================================= Clean up\n";
+    //cout << "============================================= Clean up\n";
 
-    bTree->cleanUpTree();
+    //bTree->cleanUpTree();
 
 
-    /*
+
     cout << "============================================= DELETING\n";
 
-    for(int i = 1; i <= updates; i++) {
+    int spareTheseKVTs = 10;
+
+    for(int i = 1; i <= updates-spareTheseKVTs; i++) {
         bTree->update(new KeyValueTime(i,-i,0));
     }
 
     cout << "============================================= DONE DELETING\n";
 
-    //bTree->printTree();
+    bTree->printTree();
 
-    cout << "Cleaning up\n";
+    cout << "Flushing\n";
+    bTree->flushEntireTree();
+    cout << "Done Flushing\n";
+
+    //cout << "Cleaning up\n";*/
+
+    bTree->printTree();
 
     bTree->cleanUpTree();
 
-     */
+
 
     cout << "Done!\n";
 
