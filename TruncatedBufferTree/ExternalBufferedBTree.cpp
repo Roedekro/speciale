@@ -448,6 +448,10 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, vector<int> 
             }
         }*/
 
+        if(values->size() == 0) {
+            //values->push_back(0); // Let 0 demark no values at all.
+            nodeSize = -1;
+        }
 
         writeNode(id,height,nodeSize,0,keys,values);
         writeLeafInfo(id,leafs,nodeSize+1);
@@ -773,7 +777,9 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, vector<int> 
             cBufferSize = cBufferSize + appendedToChild[i];
             if(cBufferSize > maxExternalBufferSize) {
                 // Sort childs buffer
-                sortAndRemoveDuplicatesExternalBuffer((*values)[i],cBufferSize,appendedToChild[i]);
+                if(cBufferSize - appendedToChild[i] != 0 ) {
+                    sortAndRemoveDuplicatesExternalBuffer((*values)[i],cBufferSize,appendedToChild[i]);
+                }
                 // Flush
                 flush((*values)[i],cHeight,cNodeSize,cKeys,cValues);
                 // Child will update its info at end of flush
@@ -803,9 +809,14 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, vector<int> 
                     i++; // Skip next node, we know its size is correct.
                 }
             }
-            else if(cNodeSize == 0) {
-                // Check if its truly empty, or has a single child we can fuse
-                // TODO: Check if truly empty or has a single child we can fuse
+            else if(cNodeSize == -1) {
+                // Erase the node, it was empty.
+                if(nodeSize != 0) {
+                    keys->erase(keys->begin()+i);
+                }
+                values->erase(values->begin()+i);
+                nodeSize--;
+                i--;
             }
         }
 
@@ -820,7 +831,7 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, vector<int> 
             if(cNodeSize < size) {
                 // Fuse
                 // Guard
-                if(nodeSize == 1) {
+                if(nodeSize == 0) {
                     break;
                 }
                 int ret = fuseInternal(height,nodeSize,keys,values,i,ptr_cNodeSize,cKeys,cValues);
@@ -933,7 +944,13 @@ void ExternalBufferedBTree::forcedFlush(int id, int height, int nodeSize, int bu
             }
             cout << "---\n";*/
 
-            cout << "Writing node to disk\n";
+            cout << "Writing node " << id << " to disk\n";
+            cout << values->size() << "\n";
+
+            if(values->size() == 0) {
+                //values->push_back(0); // Let 0 demark no values at all.
+                nodeSize = -1;
+            }
 
             writeNode(id,height,nodeSize,0,keys,values);
             //cout << leafs->size() << " " << nodeSize+1 << "\n";
@@ -1210,9 +1227,6 @@ void ExternalBufferedBTree::forcedFlush(int id, int height, int nodeSize, int bu
                     //cout << "New childIndex " << childIndex << "\n";
                 }
                 // Append to childs buffer
-                if(key == 916) {
-                    cout << "916 in " << id << "\n";
-                }
                 appendStreams[childIndex]->write(&key);
                 appendStreams[childIndex]->write(&value);
                 appendStreams[childIndex]->write(&time);
@@ -1309,20 +1323,17 @@ void ExternalBufferedBTree::forcedFlush(int id, int height, int nodeSize, int bu
                     i++; // Skip next node, we know its size is correct.
                 }
             }
-            else if(cNodeSize == 0) {
+            else if(cNodeSize == -1) {
                 // Check if its truly empty, or has a single child we can fuse
-                // TODO: Check
-                if(cValues->size() == 0) {
-                    cout << "Should have removed node " << (*values)[i] << " with size " << cNodeSize << "\n";
-                    cout << i << " " << nodeSize << "\n";
-                    if(nodeSize != 0) {
-                        keys->erase(keys->begin()+i);
-                    }
-                    values->erase(values->begin()+i);
-                    nodeSize--;
-                    i--;
-                    cout << i << " " << nodeSize << "\n";
+                //cout << "Should have removed node " << (*values)[i] << " with size " << cNodeSize << "\n";
+                //cout << i << " " << nodeSize << "\n";
+                if(nodeSize != 0) {
+                    keys->erase(keys->begin()+i);
                 }
+                values->erase(values->begin()+i);
+                nodeSize--;
+                i--;
+                //cout << i << " " << nodeSize << "\n";
             }
         }
 
@@ -1339,7 +1350,7 @@ void ExternalBufferedBTree::forcedFlush(int id, int height, int nodeSize, int bu
                 if(cNodeSize < size) {
                     // Fuse
                     // Guard
-                    if(nodeSize == 1) {
+                    if(nodeSize == 0) {
                         break;
                     }
                     cout << "Fusing node " << (*values)[i] << "\n";
@@ -1537,6 +1548,24 @@ void ExternalBufferedBTree::flushEntireTree() {
         currentNumberOfNodes--;
         delete(keys);
         delete(values);
+
+        // Must recheck new root
+        bool recheck = true;
+        while(recheck) {
+            keys = new vector<int>();
+            values = new vector<int>();
+            readNode(root,ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
+            if(nodeSize == 0 && height > 1) {
+                cleanUpExternallyAfterNodeOrLeaf(root);
+                root = (*values)[0];
+                currentNumberOfNodes--;
+            }
+            else {
+                recheck = false;
+            }
+            delete(keys);
+            delete(values);
+        }
     }
     else {
         delete(keys);
