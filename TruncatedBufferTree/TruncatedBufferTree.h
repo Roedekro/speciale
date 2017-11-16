@@ -18,6 +18,8 @@ public:
     int leafSize;
     int maxBufferSize; // Max internal update size.
     int maxExternalBufferSize; // Max external buffer size.
+    int maxBucketSize;
+    long elementsInserted;
     int root;
     int rootBufferSize; // Also located in root, but keep track internally as well.
     int update_bufferSize; // Current amount of updates in our buffer.
@@ -37,8 +39,11 @@ public:
     /*
      * Tree Structural Methods
      */
-    void flush(int id, int height, int nodeSize, std::vector<int>* keys, std::vector<int>* values);
-    void flushLeafNode();
+    void flushNode(int id, int height, int nodeSize, std::vector<int>* keys, std::vector<int>* values);
+    void flushLeafNode(int id, int height, int nodeSize);
+    int splitInternal(int height, int nodeSize, std::vector<int>* keys, std::vector<int>* values, int childNumber,
+                      int cSize, std::vector<int>* cKeys, std::vector<int>* cValues);
+    int splitLeaf(int nodeSize, std::vector<int>* keys, std::vector<int>* values, int childNumber);
 
 
     /*
@@ -49,6 +54,7 @@ public:
     void appendBuffer(int id, KeyValue** buffer, int bSize, int type);
     void appendBufferNoDelete(int id, KeyValue** buffer, int bSize, int type);
     void sortInternalArray(KeyValue** buffer, int bufferSize);
+    int sortAndRemoveDuplicatesExternalBuffer(int id, int bufferSize, int sortedSize);
 
     /*
      * Utility Methods
@@ -58,6 +64,11 @@ public:
     void readNodeInfo(int id, int* height, int* nodeSize, int*bufferSize);
     void writeNodeInfo(int id, int height, int nodeSize, int bufferSize);
     std::string getBufferName(int id, int type);
+    std::string getListName(int id, int list);
+    std::string getFracListName(int id, int list);
+    void cleanUpExternallyAfterNodeOrLeaf(int id);
+    void cleanUpTree();
+    void cleanUpFromTo(int from, int to);
 
 };
 

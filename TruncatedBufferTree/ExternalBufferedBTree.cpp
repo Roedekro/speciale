@@ -787,6 +787,8 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, vector<int> 
             else {
                 // Just update bufferSize
                 writeNodeInfo((*values)[i],cHeight,cNodeSize,cBufferSize);
+                delete(cKeys);
+                delete(cValues);
             }
         }
 
@@ -817,6 +819,12 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, vector<int> 
                 values->erase(values->begin()+i);
                 nodeSize--;
                 i--;
+                delete(cKeys);
+                delete(cValues);
+            }
+            else {
+                delete(cKeys);
+                delete(cValues);
             }
         }
 
@@ -866,14 +874,18 @@ void ExternalBufferedBTree::flush(int id, int height, int nodeSize, vector<int> 
                     }
                 }
             }
+            else {
+                delete(cKeys);
+                delete(cValues);
+            }
         }
 
         // Write out parents info to disk
         writeNode(id,height,nodeSize,0,keys,values);
 
         // Clean up vectors
-        delete(cKeys);
-        delete(cValues);
+        //delete(cKeys);
+        //delete(cValues);
     }
 }
 
@@ -1334,6 +1346,12 @@ void ExternalBufferedBTree::forcedFlush(int id, int height, int nodeSize, int bu
                 nodeSize--;
                 i--;
                 //cout << i << " " << nodeSize << "\n";
+                delete(cKeys);
+                delete(cValues);
+            }
+            else {
+                delete(cKeys);
+                delete(cValues);
             }
         }
 
@@ -1386,6 +1404,10 @@ void ExternalBufferedBTree::forcedFlush(int id, int height, int nodeSize, int bu
                         }
                     }
                 }
+                else {
+                    delete(cKeys);
+                    delete(cValues);
+                }
             }
         }
 
@@ -1394,8 +1416,8 @@ void ExternalBufferedBTree::forcedFlush(int id, int height, int nodeSize, int bu
         writeNode(id,height,nodeSize,0,keys,values);
 
         // Clean up vectors
-        delete(cKeys);
-        delete(cValues);
+        //delete(cKeys);
+        //delete(cValues);
     }
 }
 
