@@ -19,6 +19,7 @@
 #include "../Btree/ModifiedBtree.h"
 #include "../BufferedBTree/BufferedBTree.h"
 #include "../TruncatedBufferTree/ExternalBufferedBTree.h"
+#include "../TruncatedBufferTree/TruncatedBufferTree.h"
 
 #include <ctime>
 #include <ratio>
@@ -29,6 +30,7 @@
 #include <sstream>
 #include <unistd.h>
 #include <string>
+#include <fcntl.h>
 
 using namespace std;
 
@@ -62,10 +64,12 @@ void DevelopmentTester::test() {
     //BufferWriteReadAppendTest();
     //sortAndRemoveDuplicatesExternalBufferTest();
     //testLeafReadWriteAndSortRemove();
-    externalBufferedBTreeInsertDeleteQuery(); // <------ ExternalBufferedBTree Main test!
     //testHandleDeletesExternalLeaf();
     //testNewLeafBufferOverflowMethod();
     //handleEmptyRootLeafBufferOverflow();
+    //externalBufferedBTreeInsertDeleteQuery(); // <------ ExternalBufferedBTree Main test!
+    //testMedianOfMedians();
+    testTruncatedInsertQueryDelete();
 }
 
 int DevelopmentTester::streamtestread(long n, int increment) {
@@ -1528,5 +1532,52 @@ void DevelopmentTester::handleEmptyRootLeafBufferOverflow() {
             cout << array[i]->key << " " << array[i]->value << " " << array[i]->time << "\n";
         }
     }
+
+}
+
+void DevelopmentTester::testMedianOfMedians() {
+
+    string temp = "tempfile";
+    OutputStream* os = new BufferedOutputStream(4096);
+    os->create(temp.c_str());
+    int tempInt;
+    for(int i = 1; i <= 10; i++) {
+        os->write(&i);
+        tempInt = -1 * i;
+        os->write(&tempInt);
+    }
+    os->close();
+    delete(os);
+
+    int offset = (10-2)*sizeof(int);
+
+    int* tempBuff = new int[4];
+    int filedesc = ::open(temp.c_str(), O_RDONLY, 0666);
+    int bytesRead = ::pread(filedesc, tempBuff, 4*sizeof(int),offset);
+    int median = tempBuff[0];
+    ::close(filedesc);
+
+    cout << median << "\n";
+    cout << tempBuff[3];
+}
+
+void DevelopmentTester::testTruncatedInsertQueryDelete() {
+
+    int B = 16;
+    int M = 512;
+    TruncatedBufferTree* tree = new TruncatedBufferTree(B,M,3);
+
+    int inserts = 319;
+    //inserts = 196;
+
+    KeyValue* kv;
+    for(int i = 1; i <= inserts; i++) {
+        kv = new KeyValue(i,i);
+        tree->insert(kv);
+    }
+
+    cout << "============================================= DONE INSERTING\n";
+
+    tree->printTree();
 
 }

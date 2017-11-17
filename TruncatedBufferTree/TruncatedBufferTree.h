@@ -69,6 +69,8 @@ public:
     void cleanUpExternallyAfterNodeOrLeaf(int id);
     void cleanUpTree();
     void cleanUpFromTo(int from, int to);
+    void printTree();
+    void printNode(int id);
 
 };
 

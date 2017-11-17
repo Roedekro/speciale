@@ -40,7 +40,6 @@ TruncatedBufferTree::TruncatedBufferTree(int B, int M, int delta) {
     // Nodes have M/B fanout
     size = M/(sizeof(int)*2*B*4); // Max size of a node is 4x size, contains int keys and int values.
     cout << "Size is " << size << "\n";
-    leafSize = B/(sizeof(KeyValue)*4); // Min leafSize, max 4x leafSize.
     // Internal update buffer, size O(B), consiting of KeyValueTimes.
     maxBufferSize = B/(sizeof(KeyValue));
     update_buffer = new KeyValue*[maxBufferSize];
@@ -48,7 +47,7 @@ TruncatedBufferTree::TruncatedBufferTree(int B, int M, int delta) {
     // External buffers consists of KeyValueTimes
     maxExternalBufferSize = M/(sizeof(KeyValue));
     iocounter = 0;
-    numberOfNodes = 2; // Root and single leaf
+    numberOfNodes = 1; // Root
     currentNumberOfNodes = 1; // Only counts actual nodes.
     root = 1;
     rootBufferSize = 0;
@@ -77,7 +76,6 @@ TruncatedBufferTree::TruncatedBufferTree(int B, int M, int delta) {
     delete(os);
 
     cout << "Tree will have between " << size << " and " << (4*size-1) << " fanout\n";
-    cout << "Tree will have between " << leafSize << " and " << 4*leafSize << " leaf size\n";
     cout << "Max insert buffer size is " << maxBufferSize << " and max external buffer size " << maxExternalBufferSize << "\n";
 
 }
@@ -103,6 +101,8 @@ void TruncatedBufferTree::insert(KeyValue *element) {
 
         // Did roots buffer overflow?
         if(rootBufferSize >= maxExternalBufferSize) {
+
+            cout << "Root buffer overflow\n";
 
             // TODO: Update maxBucketSize according to N which is elementsInserted.
             elementsInserted = elementsInserted;
@@ -134,7 +134,9 @@ void TruncatedBufferTree::insert(KeyValue *element) {
 
             // Check delta
             if(height == delta || height == 1) {
-                flushLeafNode(root,height,nodeSize,keys,values);
+                delete(keys);
+                delete(values);
+                flushLeafNode(root,height,nodeSize);
             }
             else {
                 flushNode(root,height,nodeSize,keys,values);
@@ -142,43 +144,66 @@ void TruncatedBufferTree::insert(KeyValue *element) {
 
             if(delta != 1) {
 
-                // TODO: Rebalance
-
                 // Read in node
+                keys = new vector<int>();
+                keys->reserve(size*4-1);
+                values = new vector<int>();
+                values->reserve(size*4);
+                readNode(root,ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
 
                 // Check if we need to rebalance
 
                 if(height == 1) {
 
+                    delete(keys);
+                    delete(values);
+
                     // Check size of leaf
+                    if (nodeSize > maxBucketSize) {
 
+                        cout << "Root was leaf, now creating new root node\n";
 
+                        numberOfNodes++;
+                        int newRoot = numberOfNodes;
+                        int newHeight = height+1;
+                        int newSize = 0;
+                        int newBufferSize = 0;
+                        vector<int>* newKeys = new vector<int>();
+                        vector<int>* newValues = new vector<int>();
+                        newValues->push_back(root);
+                        int ret = splitLeaf(newSize,newKeys,newValues,0);
+                        newSize++;
+                        root = newRoot;
+                        writeNode(root,2,newSize,0,newKeys,newValues);
+                    }
 
-                    // splitleaf
-
-
-                    // Clean up
                 }
                 else {
                     // Check size of node
+                    if (nodeSize > 4 * size - 1) {
 
-                    if(nodeSize > 4*size-1) {
+                        cout << "Root was internal, creating new root\n";
 
-                        // Create new root
-
-                        // Make old root child of new root
-
-                        // Split child (old root) of new root
-
-
-                        // Clean up
-
+                        numberOfNodes++;
+                        currentNumberOfNodes++;
+                        int newRoot = numberOfNodes;
+                        int newHeight = height+1;
+                        int newSize = 0;
+                        int newBufferSize = 0;
+                        vector<int>* newKeys = new vector<int>();
+                        vector<int>* newValues = new vector<int>();
+                        newValues->push_back(root);
+                        //cout << "Splitting old root\n";
+                        int ret = splitInternal(newHeight,newSize,newKeys,newValues,0,nodeSize,keys,values);
+                        //cout << "New root size " << ret << "\n";
+                        newSize++;
+                        root = newRoot;
+                    }
+                    else {
+                        delete(keys);
+                        delete(values);
                     }
                 }
-            }
-            else {
-                delete(keys);
-                delete(values);
             }
             rootBufferSize = 0;
         }
@@ -192,6 +217,21 @@ void TruncatedBufferTree::insert(KeyValue *element) {
 
 void TruncatedBufferTree::flushNode(int id, int height, int nodeSize, std::vector<int> *keys,
                                     std::vector<int> *values) {
+
+    cout << "Flushnode on node " << id << "\n";
+    cout << "Height " << height << "\n";
+    cout << "Nodesize " << nodeSize << "\n";
+    cout << "--- Keys\n";
+    for(int i = 0; i < nodeSize; i++) {
+        cout << (*keys)[i] << "\n";
+    }
+    cout << "--- Values\n";
+    for(int i = 0; i < nodeSize+1; i++) {
+        cout << (*values)[i] << "\n";
+    }
+    cout << "---\n";
+
+
 
     // Children are internal nodes.
     // Flush parents buffer to childrens buffers.
@@ -261,63 +301,92 @@ void TruncatedBufferTree::flushNode(int id, int height, int nodeSize, std::vecto
     //cout << "Flushing children of node " << id << "\n";
     // Update childrens bufferSizes and flush if required.
     for(int i = 0; i < nodeSize+1; i++) {
-        cKeys = new vector<int>();
-        cValues = new vector<int>();
-        // No reserve, in case of child being a leaf node.
-        readNode((*values)[i],ptr_cHeight,ptr_cNodeSize,ptr_cBufferSize,cKeys,cValues);
-        cBufferSize = cBufferSize + appendedToChild[i];
-        if(cBufferSize > maxExternalBufferSize) {
-            // Sort childs buffer
-            if(cBufferSize - appendedToChild[i] != 0 ) {
-                sortAndRemoveDuplicatesExternalBuffer((*values)[i],cBufferSize,appendedToChild[i]);
-            }
-            // Flush
-            if(height > 2) {
+        if(height > 2) {
+            cKeys = new vector<int>();
+            cKeys->reserve(4*size-1);
+            cValues = new vector<int>();
+            cValues->reserve(4*size);
+            // No reserve, in case of child being a leaf node.
+            readNode((*values)[i],ptr_cHeight,ptr_cNodeSize,ptr_cBufferSize,cKeys,cValues);
+            cBufferSize = cBufferSize + appendedToChild[i];
+            if(cBufferSize >= maxExternalBufferSize) {
+                // Sort childs buffer
+                if(cBufferSize - appendedToChild[i] != 0 ) {
+                    sortAndRemoveDuplicatesExternalBuffer((*values)[i],cBufferSize,appendedToChild[i]);
+                }
+                // Flush
                 flushNode((*values)[i],cHeight,cNodeSize,cKeys,cValues);
+                // Child will update its info at end of flush
             }
             else {
-                flushLeafNode((*values)[i],cHeight,cNodeSize);
-                delete(keys);
-                delete(values);
+                delete(cKeys);
+                delete(cValues);
+                // Just update bufferSize
+                writeNodeInfo((*values)[i],cHeight,cNodeSize,cBufferSize);
             }
-            // Child will update its info at end of flush
         }
         else {
-            delete(cKeys);
-            delete(cValues);
-            // Just update bufferSize
-            writeNodeInfo((*values)[i],cHeight,cNodeSize,cBufferSize);
+            readNodeInfo((*values)[i],ptr_cHeight,ptr_cNodeSize,ptr_cBufferSize);
+            cBufferSize = cBufferSize + appendedToChild[i];
+            if(cBufferSize >= maxExternalBufferSize) {
+                cout << "Flushing child " << (*values)[i] << " of node " << id << "\n";
+                // Sort childs buffer
+                if(cBufferSize - appendedToChild[i] != 0 ) {
+                    sortAndRemoveDuplicatesExternalBuffer((*values)[i],cBufferSize,appendedToChild[i]);
+                }
+                // Flush
+                flushLeafNode((*values)[i],cHeight,cNodeSize);
+                cout << "Flushing of child " << (*values)[i] << " of node " << id << " completed!\n";
+                // Child will update its info at end of flush
+            }
+            else {
+                // Just update bufferSize
+                writeNodeInfo((*values)[i],cHeight,cNodeSize,cBufferSize);
+            }
         }
     }
 
     //cout << "Splitting children of node " << id << "\n";
     // Run through the children and split
     for(int i = 0; i < nodeSize+1; i++) {
-        cKeys = new vector<int>();
-        cValues = new vector<int>();
-        // No reserve in case child is a leaf node
-        readNode((*values)[i],ptr_cHeight,ptr_cNodeSize,ptr_cBufferSize,cKeys,cValues);
-        if(cNodeSize > 4*size-1) {
-            // Split
-            int ret;
-            if(height > 2) {
-                ret = splitInternal(height,nodeSize,keys,values,i,cNodeSize,cKeys,cValues);
+        if(height > 2) {
+            cKeys = new vector<int>();
+            cKeys->reserve(4*size-1);
+            cValues = new vector<int>();
+            cValues->reserve(4*size);
+            // No reserve in case child is a leaf node
+            int child = (*values)[i];
+            readNode((*values)[i],ptr_cHeight,ptr_cNodeSize,ptr_cBufferSize,cKeys,cValues);
+            if(cNodeSize > 4*size-1) {
+                // Split
+                int ret = splitInternal(height,nodeSize,keys,values,i,cNodeSize,cKeys,cValues);
+                nodeSize++;
+                if(ret > 4*size-1) {
+                    i--; // Recurse upon this node
+                }
+                else {
+                    i++; // Skip next node, we know its size is correct.
+                }
             }
             else {
-                ret = splitLeaf(nodeSize,keys,values,i);
-            }
-            nodeSize++;
-            if(ret > 4*size-1) {
-                i--; // Recurse upon this node
-            }
-            else {
-                i++; // Skip next node, we know its size is correct.
+                // Clean up vectors
+                delete(cKeys);
+                delete(cValues);
             }
         }
         else {
-            // Clean up vectors
-            delete(cKeys);
-            delete(cValues);
+            readNodeInfo((*values)[i],ptr_cHeight,ptr_cNodeSize,ptr_cBufferSize);
+            if(cNodeSize > 4*size-1) {
+                // Split
+                int ret = splitLeaf(nodeSize,keys,values,i);
+                nodeSize++;
+                if(ret > 4*size-1) {
+                    i--; // Recurse upon this node
+                }
+                else {
+                    i++; // Skip next node, we know its size is correct.
+                }
+            }
         }
     }
 
@@ -375,6 +444,7 @@ void TruncatedBufferTree::flushLeafNode(int id, int height, int nodeSize) {
                 os->write(&value);
                 os->write(&bufCounter);
                 os->write(&zero);
+                bufCounter++;
             }
 
             // Cleanup
@@ -626,15 +696,15 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
 
     int numberOfLists = cSize;
 
+    // Find all medians of all the lists
     int* medians = new int[numberOfLists];
     int median = 0;
-    int offset = 0; // Calculate offset TODO: Calculate
+    int offset = (maxExternalBufferSize-2)*sizeof(int); // Divide by 2, but each KeyValue is 2 ints.
     int* tempBuff = new int[4];
     for(int i = 1; i <= numberOfLists; i++) {
 
         // Find median of list
         // Use pread to read with an offset
-
         string temp = getListName(childID,i);
         int filedesc = ::open(temp.c_str(), O_RDONLY, 0666);
         int bytesRead = ::pread(filedesc, tempBuff, 4*sizeof(int),offset);
@@ -649,22 +719,72 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
     // Sort medians
     sort(medians,medians+numberOfLists);
 
-    int medianOfMedians = medians[numberOfLists/2-1];
+    int middle = numberOfLists/2; // 1 over with even numbers, because of 0 indexation.
+    if(numberOfLists%2 == 0) {
+        middle--;
+    }
+
+    // Found median of medians that we can split all KeyValues around!
+    int medianOfMedians = medians[middle];
 
     // Clean up
     delete[] medians;
 
-    long counter1 = 0;
-    long counter2 = 0;
-
-    InputStream* is = new BufferedInputStream(streamBuffer);
+    InputStream* is;
     OutputStream* os1 = new BufferedOutputStream(streamBuffer);
     OutputStream* os2 = new BufferedOutputStream(streamBuffer);
 
+    string tempbuf1 = getBufferName(1,2);
+    string tempbuf2 = getBufferName(1,3);
+
+    // Remove, just in case.
+    if(FILE *file = fopen(tempbuf1.c_str(), "r")) {
+        fclose(file);
+        remove(tempbuf1.c_str());
+    }
+    if(FILE *file = fopen(tempbuf2.c_str(), "r")) {
+        fclose(file);
+        remove(tempbuf2.c_str());
+    }
+
+    os1->create(tempbuf1.c_str());
+    os2->create(tempbuf2.c_str());
+
     // Split all KeyValues according to medianOfMedians
+    // into the two temporary buffers
+    long counter1 = 0;
+    long counter2 = 0;
+    int key, val;
     for(int i = 1; i <= numberOfLists; i++) {
+        string tempString = getListName(childID,i);
+        is = new BufferedInputStream(streamBuffer);
+        is->open(tempString.c_str());
 
+        while(!is->endOfStream()) {
+            key = is->readNext();
+            val = is->readNext();
+            if(key <= medianOfMedians) {
+                os1->write(&key);
+                os1->write(&val);
+                counter1++;
+            }
+            else {
+                os2->write(&key);
+                os2->write(&val);
+                counter2++;
+            }
+        }
 
+        // Cleanup
+        is->close();
+        iocounter = iocounter + is->iocounter;
+        delete(is);
+
+        // Remove old file
+        if(FILE *file = fopen(tempString.c_str(), "r")) {
+            fclose(file);
+            remove(tempString.c_str());
+        }
     }
 
     // Clean up
@@ -676,32 +796,627 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
     iocounter = iocounter + os2->iocounter;
     delete(os2);
 
-    is->close();
-    iocounter = iocounter + is->iocounter;
-    delete(is);
-
-
+    // Now rebuild this nodes lists with tempbuf1
     InputStream* is1 = new BufferedInputStream(streamBuffer);
-    while(!is1->endOfStream()) {
-
-        // TODO: Output to first nodes leafs
+    is1->open(tempbuf1.c_str());
+    cSize = counter1 / maxExternalBufferSize;
+    int remainder = counter1 % maxExternalBufferSize;
+    if(remainder != 0) {
+        cSize++;
     }
+    OutputStream* osList;
+    // Iterate over all lists but the last one, special case.
+    for(int i = 1; i < cSize; i++) {
+        string tempString = getListName(childID,i);
+        osList = new BufferedOutputStream(streamBuffer);
+        osList->create(tempString.c_str());
+        int counter = 0;
+        if(i < cSize-1) {
+            // Read in elements O(M)
+            KeyValue** array = new KeyValue*[maxExternalBufferSize];
+            while(counter < maxExternalBufferSize) {
+                key = is1->readNext();
+                val = is1->readNext();
+                array[counter] = new KeyValue(key,val);
+                counter++;
+            }
+
+            // Sort the internal array
+            sortInternalArray(array,maxExternalBufferSize);
+
+            // Output elements to new list
+            for(int j = 0; j < maxExternalBufferSize; j++) {
+                key = array[j]->key;
+                val = array[j]->value;
+                osList->write(&key);
+                osList->write(&val);
+            }
+
+            // Clean up
+            osList->close();
+            iocounter = iocounter + osList->iocounter;
+            delete(osList);
+
+            for(int j = 0; j < maxExternalBufferSize; j++) {
+                delete(array[j]);
+            }
+            delete[] array;
+
+        }
+        else {
+            // Special case, second last list.
+            // Split the remaining elements into two.
+            int specialSize = (maxExternalBufferSize+remainder)/2;
+            KeyValue** array = new KeyValue*[specialSize];
+
+            while(counter < specialSize) {
+                key = is1->readNext();
+                val = is1->readNext();
+                array[counter] = new KeyValue(key,val);
+                counter++;
+            }
+
+            // Sort the internal array
+            sortInternalArray(array,specialSize);
+
+            // Output elements to new list
+            for(int j = 0; j < specialSize; j++) {
+                key = array[j]->key;
+                val = array[j]->value;
+                osList->write(&key);
+                osList->write(&val);
+            }
+
+            osList->close();
+            iocounter = iocounter + osList->iocounter;
+            delete(osList);
+
+            for(int j = 0; j < specialSize; j++) {
+                delete(array[j]);
+            }
+            delete[] array;
+
+            // Last list
+            string specialString = getListName(childID,i+1);
+            osList = new BufferedOutputStream(streamBuffer);
+            osList->create(specialString.c_str());
+            counter = 0;
+            int verySpecialSize = (maxExternalBufferSize+remainder)-specialSize;
+            array = new KeyValue*[verySpecialSize];
+
+            while(counter < verySpecialSize) {
+                key = is1->readNext();
+                val = is1->readNext();
+                array[counter] = new KeyValue(key,val);
+                counter++;
+            }
+
+            // Sort the internal array
+            sortInternalArray(array,verySpecialSize);
+
+            // Output elements to new list
+            for(int j = 0; j < verySpecialSize; j++) {
+                key = array[j]->key;
+                val = array[j]->value;
+                osList->write(&key);
+                osList->write(&val);
+            }
+
+            osList->close();
+            iocounter = iocounter + osList->iocounter;
+            delete(osList);
+
+            for(int j = 0; j < verySpecialSize; j++) {
+                delete(array[j]);
+            }
+            delete[] array;
+
+        }
+
+    }
+
+    // Clean up inputstream
     is1->close();
     iocounter = iocounter + is1->iocounter;
     delete(is1);
 
-    InputStream* is2 = new BufferedInputStream(streamBuffer);
-    while(!is2->endOfStream()) {
+    // ***** Rebuild this nodes fractional cascading
 
-        // TODO: Output to second nodes leafs
+    // Special case for list 1
+    is1 = new BufferedInputStream(streamBuffer);
+    string firstString = getListName(childID,1);
+    is1->open(firstString.c_str());
+
+    string firstFrac = getFracListName(childID,1);
+    if(FILE *file = fopen(firstFrac.c_str(), "r")) {
+        fclose(file);
+        remove(firstFrac.c_str());
     }
-    is2->close();
-    iocounter = iocounter + is2->iocounter;
-    delete(is2);
+    os1 = new BufferedOutputStream(streamBuffer);
+    os1->create(firstFrac.c_str());
+
+    int counter = 0;
+    int zero = 0;
+    while(!is1->endOfStream()) {
+        key = is1->readNext();
+        val = is1->readNext();
+        os1->write(&key);
+        os1->write(&val);
+        os1->write(&counter);
+        os1->write(&zero);
+        counter++;
+    }
+
+    os1->close();
+    iocounter = iocounter + os1->iocounter;
+    delete(os1);
+
+    is1->close();
+    iocounter = iocounter + is1->iocounter;
+    delete(is1);
+
+    // Remaining lists
+    InputStream* list;
+    InputStream* prevFrac;
+    OutputStream* newFrac;
+    for(int i = 2; i <= cSize; i++) {
+
+        string listName = getListName(childID,i);
+        list = new BufferedInputStream(streamBuffer);
+        list->open(listName.c_str());
+
+        string prevFracName = getFracListName(childID,i-1);
+        prevFrac = new BufferedInputStream(streamBuffer);
+        prevFrac->open(prevFracName.c_str());
+
+        string newFracName = getFracListName(childID,i);
+        if(FILE *file = fopen(newFracName.c_str(), "r")) {
+            fclose(file);
+            remove(newFracName.c_str());
+        }
+        newFrac = new BufferedOutputStream(streamBuffer);
+        newFrac->create(newFracName.c_str());
+
+        bool run = true;
+        int keyList = list->readNext();
+        int valueList = list->readNext();
+        int keyFrac = prevFrac->readNext();
+        int valueFrac = prevFrac->readNext();
+        prevFrac->readNext();
+        prevFrac->readNext();
+
+        int listCounter = 0;
+        int fracCounter = 0;
+
+        // Now merge the two lists
+        while(run) {
+
+            if(keyList < keyFrac) {
+                newFrac->write(&keyList);
+                newFrac->write(&valueList);
+                newFrac->write(&listCounter); // Place in original list
+                newFrac->write(&(fracCounter)); // Place if we searched list below
+                listCounter++;
+                if(!list->endOfStream()) {
+                    keyList = list->readNext();
+                    valueList = list->readNext();
+                }
+                else {
+                    if(fracCounter % 2 == 1) {
+                        newFrac->write(&keyFrac);
+                        newFrac->write(&valueFrac);
+                        newFrac->write(&listCounter);
+                        newFrac->write(&fracCounter);
+                    }
+                    fracCounter++;
+                    break;
+                }
+            }
+            else {
+                if(fracCounter % 2 == 1) {
+                    newFrac->write(&keyFrac);
+                    newFrac->write(&valueFrac);
+                    newFrac->write(&listCounter);
+                    newFrac->write(&fracCounter);
+                }
+                fracCounter++;
+                if(!prevFrac->endOfStream()) {
+                    keyFrac = prevFrac->readNext();
+                    valueFrac = prevFrac->readNext();
+                    prevFrac->readNext();
+                    prevFrac->readNext();
+                }
+                else {
+                    newFrac->write(&keyList);
+                    newFrac->write(&valueList);
+                    newFrac->write(&listCounter); // Place in original list
+                    newFrac->write(&(fracCounter)); // Place if we searched list below
+                    listCounter++;
+                    break;
+                }
+            }
+        }
+
+        // Finish writing out list
+        if(!list->endOfStream()) {
+            while(!list->endOfStream()) {
+                keyList = list->readNext();
+                valueList = list->readNext();
+                newFrac->write(&keyList);
+                newFrac->write(&valueList);
+                newFrac->write(&listCounter); // Place in original list
+                newFrac->write(&(fracCounter)); // Place if we searched list below
+                listCounter++;
+            }
+
+        }
+        else if(!prevFrac->endOfStream()) {
+            while(!prevFrac->endOfStream()) {
+                keyFrac = prevFrac->readNext();
+                valueFrac = prevFrac->readNext();
+                prevFrac->readNext();
+                prevFrac->readNext();
+                if(fracCounter % 2 == 1) {
+                    newFrac->write(&keyFrac);
+                    newFrac->write(&valueFrac);
+                    newFrac->write(&listCounter);
+                    newFrac->write(&fracCounter);
+                }
+                fracCounter++;
+            }
+        }
+
+        // Clean up
+        newFrac->close();
+        iocounter = iocounter + newFrac->iocounter;
+        delete(newFrac);
+
+        list->close();
+        iocounter = iocounter + list->iocounter;
+        delete(list);
+
+        prevFrac->close();
+        iocounter = iocounter + prevFrac->iocounter;
+        delete(prevFrac);
+    }
+
+
+    // Calculate newSize
+    int newSize = counter2 / maxExternalBufferSize;
+    remainder = counter2 % maxExternalBufferSize;
+    if(remainder != 0) {
+        newSize++;
+    }
+
+    numberOfNodes++;
+    int newNodeID = numberOfNodes;
+
+    // Build up new nodes lists with tempbuf2
+    is1 = new BufferedInputStream(streamBuffer);
+    is1->open(tempbuf2.c_str());
+    // Iterate over all lists but the last one, special case.
+    for(int i = 1; i < newSize; i++) {
+        string tempString = getListName(newNodeID,i);
+        if(FILE *file = fopen(tempString.c_str(), "r")) {
+            fclose(file);
+            remove(tempString.c_str());
+        }
+        osList = new BufferedOutputStream(streamBuffer);
+        osList->create(tempString.c_str());
+        int counter = 0;
+        if(i < cSize-1) {
+            // Read in elements O(M)
+            KeyValue** array = new KeyValue*[maxExternalBufferSize];
+            while(counter < maxExternalBufferSize) {
+                key = is1->readNext();
+                val = is1->readNext();
+                array[counter] = new KeyValue(key,val);
+                counter++;
+            }
+
+            // Sort the internal array
+            sortInternalArray(array,maxExternalBufferSize);
+
+            // Output elements to new list
+            for(int j = 0; j < maxExternalBufferSize; j++) {
+                key = array[j]->key;
+                val = array[j]->value;
+                osList->write(&key);
+                osList->write(&val);
+            }
+
+            // Clean up
+            osList->close();
+            iocounter = iocounter + osList->iocounter;
+            delete(osList);
+
+            for(int j = 0; j < maxExternalBufferSize; j++) {
+                delete(array[j]);
+            }
+            delete[] array;
+
+        }
+        else {
+            // Special case, second last list.
+            // Split the remaining elements into two.
+            int specialSize = (maxExternalBufferSize+remainder)/2;
+            KeyValue** array = new KeyValue*[specialSize];
+
+            while(counter < specialSize) {
+                key = is1->readNext();
+                val = is1->readNext();
+                array[counter] = new KeyValue(key,val);
+                counter++;
+            }
+
+            // Sort the internal array
+            sortInternalArray(array,specialSize);
+
+            // Output elements to new list
+            for(int j = 0; j < specialSize; j++) {
+                key = array[j]->key;
+                val = array[j]->value;
+                osList->write(&key);
+                osList->write(&val);
+            }
+
+            osList->close();
+            iocounter = iocounter + osList->iocounter;
+            delete(osList);
+
+            for(int j = 0; j < specialSize; j++) {
+                delete(array[j]);
+            }
+            delete[] array;
+
+            // Last list
+            string specialString = getListName(newNodeID,i+1);
+            osList = new BufferedOutputStream(streamBuffer);
+            osList->create(specialString.c_str());
+            counter = 0;
+            int verySpecialSize = (maxExternalBufferSize+remainder)-specialSize;
+            array = new KeyValue*[verySpecialSize];
+
+            while(counter < verySpecialSize) {
+                key = is1->readNext();
+                val = is1->readNext();
+                array[counter] = new KeyValue(key,val);
+                counter++;
+            }
+
+            // Sort the internal array
+            sortInternalArray(array,verySpecialSize);
+
+            // Output elements to new list
+            for(int j = 0; j < verySpecialSize; j++) {
+                key = array[j]->key;
+                val = array[j]->value;
+                osList->write(&key);
+                osList->write(&val);
+            }
+
+            osList->close();
+            iocounter = iocounter + osList->iocounter;
+            delete(osList);
+
+            for(int j = 0; j < verySpecialSize; j++) {
+                delete(array[j]);
+            }
+            delete[] array;
+
+        }
+
+    }
+
+    is1->close();
+    iocounter = iocounter + is1->iocounter;
+    delete(is1);
+
+    // Build up new nodes fractional cascading
+
+    // Special case for list 1
+    is1 = new BufferedInputStream(streamBuffer);
+    string first = getListName(newNodeID,1);
+    is1->open(first.c_str());
+
+    string firstF = getFracListName(newNodeID,1);
+    if(FILE *file = fopen(firstF.c_str(), "r")) {
+        fclose(file);
+        remove(firstF.c_str());
+    }
+    os1 = new BufferedOutputStream(streamBuffer);
+    os1->create(firstF.c_str());
+
+    counter = 0;
+    zero = 0;
+    while(!is1->endOfStream()) {
+        key = is1->readNext();
+        val = is1->readNext();
+        os1->write(&key);
+        os1->write(&val);
+        os1->write(&counter);
+        os1->write(&zero);
+        counter++;
+    }
+
+    os1->close();
+    iocounter = iocounter + os1->iocounter;
+    delete(os1);
+
+    is1->close();
+    iocounter = iocounter + is1->iocounter;
+    delete(is1);
+
+    for(int i = 2; i <= newSize; i++) {
+
+        string listName = getListName(newNodeID,i);
+        list = new BufferedInputStream(streamBuffer);
+        list->open(listName.c_str());
+
+        string prevFracName = getFracListName(newNodeID,i-1);
+        prevFrac = new BufferedInputStream(streamBuffer);
+        prevFrac->open(prevFracName.c_str());
+
+        string newFracName = getFracListName(newNodeID,i);
+        if(FILE *file = fopen(newFracName.c_str(), "r")) {
+            fclose(file);
+            remove(newFracName.c_str());
+        }
+        newFrac = new BufferedOutputStream(streamBuffer);
+        newFrac->create(newFracName.c_str());
+
+        bool run = true;
+        int keyList = list->readNext();
+        int valueList = list->readNext();
+        int keyFrac = prevFrac->readNext();
+        int valueFrac = prevFrac->readNext();
+        prevFrac->readNext();
+        prevFrac->readNext();
+
+        int listCounter = 0;
+        int fracCounter = 0;
+
+        // Now merge the two lists
+        while(run) {
+
+            if(keyList < keyFrac) {
+                newFrac->write(&keyList);
+                newFrac->write(&valueList);
+                newFrac->write(&listCounter); // Place in original list
+                newFrac->write(&(fracCounter)); // Place if we searched list below
+                listCounter++;
+                if(!list->endOfStream()) {
+                    keyList = list->readNext();
+                    valueList = list->readNext();
+                }
+                else {
+                    if(fracCounter % 2 == 1) {
+                        newFrac->write(&keyFrac);
+                        newFrac->write(&valueFrac);
+                        newFrac->write(&listCounter);
+                        newFrac->write(&fracCounter);
+                    }
+                    fracCounter++;
+                    break;
+                }
+            }
+            else {
+                if(fracCounter % 2 == 1) {
+                    newFrac->write(&keyFrac);
+                    newFrac->write(&valueFrac);
+                    newFrac->write(&listCounter);
+                    newFrac->write(&fracCounter);
+                }
+                fracCounter++;
+                if(!prevFrac->endOfStream()) {
+                    keyFrac = prevFrac->readNext();
+                    valueFrac = prevFrac->readNext();
+                    prevFrac->readNext();
+                    prevFrac->readNext();
+                }
+                else {
+                    newFrac->write(&keyList);
+                    newFrac->write(&valueList);
+                    newFrac->write(&listCounter); // Place in original list
+                    newFrac->write(&(fracCounter)); // Place if we searched list below
+                    listCounter++;
+                    break;
+                }
+            }
+        }
+
+        // Finish writing out list
+        if(!list->endOfStream()) {
+            while(!list->endOfStream()) {
+                keyList = list->readNext();
+                valueList = list->readNext();
+                newFrac->write(&keyList);
+                newFrac->write(&valueList);
+                newFrac->write(&listCounter); // Place in original list
+                newFrac->write(&(fracCounter)); // Place if we searched list below
+                listCounter++;
+            }
+
+        }
+        else if(!prevFrac->endOfStream()) {
+            while(!prevFrac->endOfStream()) {
+                keyFrac = prevFrac->readNext();
+                valueFrac = prevFrac->readNext();
+                prevFrac->readNext();
+                prevFrac->readNext();
+                if(fracCounter % 2 == 1) {
+                    newFrac->write(&keyFrac);
+                    newFrac->write(&valueFrac);
+                    newFrac->write(&listCounter);
+                    newFrac->write(&fracCounter);
+                }
+                fracCounter++;
+            }
+        }
+
+        // Clean up
+        newFrac->close();
+        iocounter = iocounter + newFrac->iocounter;
+        delete(newFrac);
+
+        list->close();
+        iocounter = iocounter + list->iocounter;
+        delete(list);
+
+        prevFrac->close();
+        iocounter = iocounter + prevFrac->iocounter;
+        delete(prevFrac);
+    }
+
+
+    // Clean up tempbuf1 and tempbuf2
+    if(FILE *file = fopen(tempbuf1.c_str(), "r")) {
+        fclose(file);
+        remove(tempbuf1.c_str());
+    }
+    if(FILE *file = fopen(tempbuf2.c_str(), "r")) {
+        fclose(file);
+        remove(tempbuf2.c_str());
+    }
+
+    // Write out new child
+    writeNodeInfo(newNodeID,1,newSize,0);
+
+    // Add node to parent
+    keys->push_back(0);
+    for(int i = nodeSize; i > childNumber; i--) {
+        (*keys)[i] = (*keys)[i-1];
+    }
+    (*keys)[childNumber] = medianOfMedians;
+
+    values->push_back(0);
+    for(int i = nodeSize+1; i > childNumber; i--) {
+        (*values)[i] = (*values)[i-1];
+    }
+    (*values)[childNumber+1] = newNodeID;
+
+
+    // Write out old child
+    writeNodeInfo(childID,1,cSize,0);
+
+    cout << "=== Finishing up SplitLeaf\n";
+    cout << nodeSize << "\n";
+    cout << cSize << "\n";
+    cout << newSize << "\n";
+    cout << "--- Keys\n";
+    for(int i = 0; i < nodeSize+1; i++) {
+        cout << (*keys)[i] << "\n";
+    }
+    cout << "--- Values\n";
+    for(int i = 0; i < nodeSize+2; i++) {
+        cout << (*values)[i] << "\n";
+    }
 
 
 
+    cout << "=== Finished SplitLeaf\n";
 
+    return cSize;
 
 }
 
@@ -799,7 +1514,24 @@ void TruncatedBufferTree::sortInternalArray(KeyValue** buffer, int bufferSize) {
 }
 
 int TruncatedBufferTree::readBuffer(int id, KeyValue **buffer, int type) {
-    // TODO
+
+    InputStream* is = new BufferedInputStream(streamBuffer);
+    string name = getBufferName(id,type);
+    is->open(name.c_str());
+    int newKey,newValue;
+    int i = 0;
+    while(!is->endOfStream()) {
+        newKey = is->readNext();
+        newValue = is->readNext();
+        buffer[i] = new KeyValue(newKey,newValue);
+        i++;
+    }
+    is->close();
+    iocounter = iocounter + is->iocounter;
+    delete(is);
+    return i;
+
+
 }
 
 void TruncatedBufferTree::writeBuffer(int id, KeyValue **buffer, int bSize, int type) {
@@ -938,4 +1670,113 @@ std::string TruncatedBufferTree::getFracListName(int id, int list) {
     name += "List";
     name += to_string(list);
     return name;
+}
+
+void TruncatedBufferTree::printTree() {
+    printNode(root);
+}
+
+void TruncatedBufferTree::printNode(int id) {
+
+    cout << "===== Node " << id << "\n";
+
+    int height,nodeSize,bufferSize;
+    int* ptr_height = &height;
+    int* ptr_nodeSize = &nodeSize;
+    int* ptr_bufferSize = &bufferSize;
+    readNodeInfo(id,ptr_height,ptr_nodeSize,ptr_bufferSize);
+
+    cout << "Height " << height << "\n";
+    cout << "Nodesize " << nodeSize << "\n";
+
+    if(height > 1) {
+
+        vector<int>* keys = new vector<int>();
+        vector<int>* values = new vector<int>();
+        readNode(id,ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
+
+        cout << "--- Keys\n";
+        for(int i = 0; i < nodeSize; i++) {
+            cout << (*keys)[i] << "\n";
+        }
+        cout << "--- Values\n";
+        for(int i = 0; i < nodeSize+1; i++) {
+            cout << (*values)[i] << "\n";
+        }
+
+        cout << "--- Buffer\n";
+        if(bufferSize > 0) {
+            KeyValue** buffer = new KeyValue*[bufferSize];
+            readBuffer(id,buffer,1);
+            for(int i = 0; i < bufferSize; i++) {
+                cout << buffer[i]->key << " " << buffer[i]->value <<"\n";
+            }
+
+            // Clean up
+            for(int i = 0; i < bufferSize; i++) {
+                delete(buffer[i]);
+            }
+            delete[] buffer;
+        }
+
+        delete(keys);
+
+        if(nodeSize > 0 || (*values)[0] != 0) {
+            for(int i = 0; i < nodeSize+1; i++) {
+                printNode((*values)[i]);
+            }
+        }
+        delete(values);
+    }
+    else {
+
+        cout << "--- Buffer\n";
+        if(bufferSize > 0) {
+            KeyValue** buffer = new KeyValue*[bufferSize];
+            readBuffer(id,buffer,1);
+            for(int i = 0; i < bufferSize; i++) {
+                cout << buffer[i]->key << " " << buffer[i]->value <<"\n";
+            }
+
+            // Clean up
+            for(int i = 0; i < bufferSize; i++) {
+                delete(buffer[i]);
+            }
+            delete[] buffer;
+        }
+
+        cout << "--- Lists\n";
+        for(int i = 1; i <= nodeSize; i++) {
+            cout << "--- List " << i << "\n";
+            InputStream* is1 = new BufferedInputStream(streamBuffer);
+            string temp = getListName(id,i);
+            is1->open(temp.c_str());
+            int key,value;
+            while(!is1->endOfStream()) {
+                key = is1->readNext();
+                value = is1->readNext();
+                cout << key << " " << value << "\n";
+            }
+            is1->close();
+            delete(is1);
+        }
+
+        cout << "--- Fracs\n";
+        for(int i = 1; i <= nodeSize; i++) {
+            cout << "--- Frac " << i << "\n";
+            InputStream* is1 = new BufferedInputStream(streamBuffer);
+            string temp = getFracListName(id,i);
+            is1->open(temp.c_str());
+            int key,value,pointer1,pointer2;
+            while(!is1->endOfStream()) {
+                key = is1->readNext();
+                value = is1->readNext();
+                pointer1 = is1->readNext();
+                pointer2 = is1->readNext();
+                cout << key << " " << value << " " << pointer1 << " " << pointer2 << "\n";
+            }
+            is1->close();
+            delete(is1);
+        }
+    }
 }

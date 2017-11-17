@@ -42,6 +42,8 @@ private:
     void testHandleDeletesExternalLeaf();
     void testNewLeafBufferOverflowMethod();
     void handleEmptyRootLeafBufferOverflow();
+    void testMedianOfMedians();
+    void testTruncatedInsertQueryDelete();
 
 
 
