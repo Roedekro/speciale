@@ -58,7 +58,8 @@ TruncatedBufferTree::TruncatedBufferTree(int B, int M, int delta, int N) {
     // Remember that its denoted in nodeSize, that is each value
     // is multiplied with M to get actual size.
     //maxBucketSize = 2;
-    maxBucketSize = (int) N / ( pow(size*4,delta) / 2); // Divided by 2 because nodes might only be half full after a split
+    maxBucketSize = (int) N / ( pow(size*4,delta)); // Optimal bucket size (elements)
+    maxBucketSize = maxBucketSize/(maxExternalBufferSize*2); // Because it might only be half filled out
     cout << "Max Bucket Size should be " << maxBucketSize << "\n";
     if (maxBucketSize < 2) {
         maxBucketSize = 2;
@@ -340,7 +341,7 @@ int TruncatedBufferTree::query(int element) {
 
 
 
-
+    return -1;
 
 
 
@@ -837,6 +838,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
 
     cout << "Splitting leaf " << childID << "\n";
 
+    cout << "Calculating median of medians\n";
     // Find all medians of all the lists
     int* medians = new int[numberOfLists];
     int median = 0;
@@ -850,9 +852,11 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
         int filedesc = ::open(temp.c_str(), O_RDONLY, 0666);
         int bytesRead = ::pread(filedesc, tempBuff, 4*sizeof(int),offset);
         median = tempBuff[0];
-        ::close(filedesc);
+        int error = ::close(filedesc);
+        if(error != 0) {
+            cout << "ERROR closing file " << temp << "\n";
+        }
         iocounter++;
-
         medians[i-1] = median;
     }
     delete[] tempBuff;
@@ -891,6 +895,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
     os1->create(tempbuf1.c_str());
     os2->create(tempbuf2.c_str());
 
+    cout << "Splitting KeyValues along median of medians\n";
     // Split all KeyValues according to medianOfMedians
     // into the two temporary buffers
     long counter1 = 0;
@@ -946,6 +951,9 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
         cSize++;
     }
     OutputStream* osList;
+
+    cout << "Creating new lists, " << cSize << "\n";
+
     // Iterate over all lists but the last one, special case.
     for(int i = 1; i < cSize; i++) {
         string tempString = getListName(childID,i);
@@ -1057,11 +1065,20 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
         }
 
     }
-
     // Clean up inputstream
     is1->close();
     iocounter = iocounter + is1->iocounter;
     delete(is1);
+
+    // If cSize == 1 then the above for loop did no execute
+    if(cSize == 1) {
+        string tempString = getListName(childID,1);
+        int result = rename( tempbuf1.c_str(), tempString.c_str());
+        if (result != 0) {
+            cout << "Tried renaming " << tempbuf1 << " to " << tempString << "\n";
+            perror("Error renaming file");
+        }
+    }
 
     // ***** Rebuild this nodes fractional cascading
 
@@ -1071,6 +1088,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
     is1->open(firstString.c_str());
 
     string firstFrac = getFracListName(childID,1);
+    cout << "Building frac " << firstFrac << "\n";
     if(FILE *file = fopen(firstFrac.c_str(), "r")) {
         fclose(file);
         remove(firstFrac.c_str());
@@ -1113,6 +1131,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
         prevFrac->open(prevFracName.c_str());
 
         string newFracName = getFracListName(childID,i);
+        cout << "Building frac " << newFracName << "\n";
         if(FILE *file = fopen(newFracName.c_str(), "r")) {
             fclose(file);
             remove(newFracName.c_str());
@@ -1357,6 +1376,15 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
     iocounter = iocounter + is1->iocounter;
     delete(is1);
 
+    // If newSize == 1 then the above for loop did no execute
+    if(newSize == 1) {
+        string tempString = getListName(newNodeID,1);
+        int result = rename( tempbuf2.c_str(), tempString.c_str());
+        if (result != 0) {
+            cout << "Tried renaming " << tempbuf2 << " to " << tempString << "\n";
+            perror("Error renaming file");
+        }
+    }
     // Build up new nodes fractional cascading
 
     // Special case for list 1
@@ -1365,6 +1393,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
     is1->open(first.c_str());
 
     string firstF = getFracListName(newNodeID,1);
+    cout << "Building frac " << firstF << "\n";
     if(FILE *file = fopen(firstF.c_str(), "r")) {
         fclose(file);
         remove(firstF.c_str());
@@ -1403,6 +1432,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
         prevFrac->open(prevFracName.c_str());
 
         string newFracName = getFracListName(newNodeID,i);
+        cout << "Building frac " << newFracName << "\n";
         if(FILE *file = fopen(newFracName.c_str(), "r")) {
             fclose(file);
             remove(newFracName.c_str());
@@ -1523,6 +1553,9 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
         fclose(file);
         remove(tempbuf2.c_str());
     }
+
+    cout << "Wrote " << counter1 << " elements to original child\n";
+    cout << "wrote " << counter2 << " elements to new child\n";
 
     // Write out new child
     writeNodeInfo(newNodeID,cHeight,newSize,0);
@@ -1935,9 +1968,9 @@ void TruncatedBufferTree::cleanUpTree() {
         cleanUpExternallyAfterNodeOrLeaf(i);
     }
 
-    for(int i = 1; i <= numberOfNodes; i++) {
+    /*for(int i = 1; i <= numberOfNodes; i++) {
         cleanUpExternallyAfterNodeOrLeaf(i);
-    }
+    }*/
 }
 
 void TruncatedBufferTree::cleanUpExternallyAfterNodeOrLeaf(int id) {

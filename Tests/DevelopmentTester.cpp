@@ -1592,7 +1592,7 @@ void DevelopmentTester::testTruncatedInsertQueryDelete() {
     cout << "============================================= TEST STARTING\n";
 
     int inserts = 319;
-    inserts = 512;
+    inserts = 5120;
 
 
     int B = 16;
@@ -1619,7 +1619,7 @@ void DevelopmentTester::testTruncatedInsertQueryDelete() {
 
     cout << "============================================= QUERIES\n";
 
-
+    cout << tree->query(1) << "\n";
 
 
     cout << "============================================= CLEANING UP\n";
