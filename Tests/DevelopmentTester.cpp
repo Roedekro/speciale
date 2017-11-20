@@ -31,6 +31,10 @@
 #include <unistd.h>
 #include <string>
 #include <fcntl.h>
+#include <math.h>
+#include <unistd.h>
+#include <algorithm>
+#include <fcntl.h>
 
 using namespace std;
 
@@ -1563,12 +1567,41 @@ void DevelopmentTester::testMedianOfMedians() {
 
 void DevelopmentTester::testTruncatedInsertQueryDelete() {
 
-    int B = 16;
-    int M = 512;
-    TruncatedBufferTree* tree = new TruncatedBufferTree(B,M,3);
+    int testB = 131072; // 128KB
+    int testM = 8388608; // 8 MB
+    int testN = 2000000000;
+    int testDelta = 2;
+    int size = testM/(sizeof(int)*2*testB*4);
+    cout << "Test size would be " << size << "\n";
+    int testBucket = ( testN / (pow(size*4,testDelta) / 2 ) );
+    cout << "Test number of lists pr. bucket will be " << testBucket << "\n";
+    int bucketSize = testM/sizeof(KeyValue);
+    cout << "And elements pr. bucket will be " << bucketSize << "\n";
+
+    long testTreeSize = (pow(size*4,testDelta) * testBucket * bucketSize);
+    cout << "Test tree would have size of " << testTreeSize << "\n";
+    long totalDivBuckets = testN/(testBucket*bucketSize);
+    cout << totalDivBuckets << "\n";
+    double log1 = log(testN/(testBucket*bucketSize));
+    double log2 = log(size*4);
+    cout << log1 << " " << log2 << "\n";
+    double h = (log1  /   log2 );
+    cout << "Height of test tree would be " << h << "\n";
+
+
+    cout << "============================================= TEST STARTING\n";
 
     int inserts = 319;
-    //inserts = 196;
+    inserts = 512;
+
+
+    int B = 16;
+    int M = 64;
+    // Want size of 2. Size = M/B*4 -> M = 2*4*B
+    int delta = 1;
+    delta = 4;
+    TruncatedBufferTree* tree = new TruncatedBufferTree(B,M,delta,inserts);
+
 
     KeyValue* kv;
     for(int i = 1; i <= inserts; i++) {
@@ -1578,6 +1611,18 @@ void DevelopmentTester::testTruncatedInsertQueryDelete() {
 
     cout << "============================================= DONE INSERTING\n";
 
-    tree->printTree();
+    //tree->printTree();
 
+    cout << "Number of nodes is " << tree->numberOfNodes << "\n";
+    cout << "Root is " << tree->root << "\n";
+
+
+    cout << "============================================= QUERIES\n";
+
+
+
+
+    cout << "============================================= CLEANING UP\n";
+
+    tree->cleanUpTree();
 }

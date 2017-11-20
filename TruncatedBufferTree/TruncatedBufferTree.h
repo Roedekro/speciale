@@ -13,13 +13,14 @@ public:
     int streamBuffer; // Buffersize on streams, fixed to count IOs.
     int B;
     int M;
+    int N;
     int delta;
     int size; // Nodes, up to 4x size.
     int leafSize;
     int maxBufferSize; // Max internal update size.
     int maxExternalBufferSize; // Max external buffer size.
     int maxBucketSize;
-    long elementsInserted;
+    //long elementsInserted;
     int root;
     int rootBufferSize; // Also located in root, but keep track internally as well.
     int update_bufferSize; // Current amount of updates in our buffer.
@@ -31,7 +32,7 @@ public:
     /*
      * General Methods
      */
-    TruncatedBufferTree(int B, int M, int delta);
+    TruncatedBufferTree(int B, int M, int delta, int N);
     ~TruncatedBufferTree();
     void insert(KeyValue* element);
     int query(int element);

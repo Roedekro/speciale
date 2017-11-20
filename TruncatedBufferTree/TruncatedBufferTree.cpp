@@ -31,14 +31,16 @@
 
 using namespace std;
 
-TruncatedBufferTree::TruncatedBufferTree(int B, int M, int delta) {
+TruncatedBufferTree::TruncatedBufferTree(int B, int M, int delta, int N) {
 
     streamBuffer = 4096;
     this->B = B;
     this->M = M;
     this->delta = delta;
+    this->N = N;
     // Nodes have M/B fanout
-    size = M/(sizeof(int)*2*B*4); // Max size of a node is 4x size, contains int keys and int values.
+    //size = M/(sizeof(int)*2*B*4); // Max size of a node is 4x size, contains int keys and int values.
+    size = M/(B*4);
     cout << "Size is " << size << "\n";
     // Internal update buffer, size O(B), consiting of KeyValueTimes.
     maxBufferSize = B/(sizeof(KeyValue));
@@ -55,8 +57,15 @@ TruncatedBufferTree::TruncatedBufferTree(int B, int M, int delta) {
     // TODO: Initiate maxBucketSize to something meaningfull
     // Remember that its denoted in nodeSize, that is each value
     // is multiplied with M to get actual size.
-    maxBucketSize = 2;
-    elementsInserted = 0;
+    //maxBucketSize = 2;
+    maxBucketSize = (int) N / ( pow(size*4,delta) / 2); // Divided by 2 because nodes might only be half full after a split
+    cout << "Max Bucket Size should be " << maxBucketSize << "\n";
+    if (maxBucketSize < 2) {
+        maxBucketSize = 2;
+    }
+    if(delta == 1) {
+        maxBucketSize = 2100000000; // Close to 2^31, never gonna happen.
+    }
 
     // Manually write out an empty root
     OutputStream* os = new BufferedOutputStream(streamBuffer);
@@ -77,6 +86,8 @@ TruncatedBufferTree::TruncatedBufferTree(int B, int M, int delta) {
 
     cout << "Tree will have between " << size << " and " << (4*size-1) << " fanout\n";
     cout << "Max insert buffer size is " << maxBufferSize << " and max external buffer size " << maxExternalBufferSize << "\n";
+    cout << "Max bucket size will be " << maxBucketSize << "\n";
+    cout << "Total space will be " << ( pow(size*4,delta) * maxBucketSize * maxExternalBufferSize ) << "\n";
 
 }
 
@@ -88,7 +99,6 @@ void TruncatedBufferTree::insert(KeyValue *element) {
 
     update_buffer[update_bufferSize] = element;
     update_bufferSize++;
-    elementsInserted++;
 
     if(update_bufferSize >= maxBufferSize) {
 
@@ -103,10 +113,6 @@ void TruncatedBufferTree::insert(KeyValue *element) {
         if(rootBufferSize >= maxExternalBufferSize) {
 
             cout << "Root buffer overflow\n";
-
-            // TODO: Update maxBucketSize according to N which is elementsInserted.
-            elementsInserted = elementsInserted;
-            maxBucketSize = 2;
 
             // Sort root buffer, since we write B at a time without duplicates
             // we will enter this if statement at size O(M).
@@ -133,7 +139,7 @@ void TruncatedBufferTree::insert(KeyValue *element) {
             readNode(root,ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
 
             // Check delta
-            if(height == delta || height == 1) {
+            if(delta == 1 || height == 1) {
                 delete(keys);
                 delete(values);
                 flushLeafNode(root,height,nodeSize);
@@ -161,7 +167,7 @@ void TruncatedBufferTree::insert(KeyValue *element) {
                     // Check size of leaf
                     if (nodeSize > maxBucketSize) {
 
-                        cout << "Root was leaf, now creating new root node\n";
+                        cout << "========== Root was leaf, now creating new root node\n";
 
                         numberOfNodes++;
                         int newRoot = numberOfNodes;
@@ -174,7 +180,7 @@ void TruncatedBufferTree::insert(KeyValue *element) {
                         int ret = splitLeaf(newSize,newKeys,newValues,0);
                         newSize++;
                         root = newRoot;
-                        writeNode(root,2,newSize,0,newKeys,newValues);
+                        writeNode(root,newHeight,newSize,0,newKeys,newValues);
                     }
 
                 }
@@ -182,7 +188,8 @@ void TruncatedBufferTree::insert(KeyValue *element) {
                     // Check size of node
                     if (nodeSize > 4 * size - 1) {
 
-                        cout << "Root was internal, creating new root\n";
+                        cout << "========== Root was internal, creating new root of height " << height+1 << "\n";
+                        cout << "Old size was " << nodeSize << "\n";
 
                         numberOfNodes++;
                         currentNumberOfNodes++;
@@ -193,11 +200,21 @@ void TruncatedBufferTree::insert(KeyValue *element) {
                         vector<int>* newKeys = new vector<int>();
                         vector<int>* newValues = new vector<int>();
                         newValues->push_back(root);
-                        //cout << "Splitting old root\n";
+                        cout << "Splitting old root\n";
                         int ret = splitInternal(newHeight,newSize,newKeys,newValues,0,nodeSize,keys,values);
-                        //cout << "New root size " << ret << "\n";
+                        cout << "New root id " << newRoot << " of size " << ret << "\n";
                         newSize++;
                         root = newRoot;
+                        cout << "--- Keys\n";
+                        for(int i = 0; i < newSize; i++) {
+                            cout << (*newKeys)[i] << "\n";
+                        }
+                        cout << "--- Values\n";
+                        for(int i = 0; i < newSize+1; i++) {
+                            cout << (*newValues)[i] << "\n";
+                        }
+                        cout << "--- Done\n";
+                        writeNode(root,newHeight,newSize,0,newKeys,newValues);
                     }
                     else {
                         delete(keys);
@@ -209,6 +226,124 @@ void TruncatedBufferTree::insert(KeyValue *element) {
         }
         update_bufferSize = 0;
     }
+}
+
+int TruncatedBufferTree::query(int element) {
+
+    // Scan input buffer
+    // Scan roots buffer using rootbuffersize, since its buffer isnt updated
+    // Follow the tree downwards until we reach a leaf, scanning buffers along the way
+    // Scan bucket in leaf using fractional cascading
+
+    if(update_bufferSize != 0) {
+        for(int i = 0; i < update_bufferSize; i++) {
+            if(update_buffer[i]->key == element) {
+                cout << "Found element in update buffer\n";
+                return update_buffer[i]->value;
+            }
+        }
+    }
+
+    int ret = 0;
+    if(rootBufferSize != 0) {
+        KeyValue** rootBuffer = new KeyValue*[rootBufferSize];
+        readBuffer(root,rootBuffer,1);
+        for(int i = 0; i < rootBufferSize; i++) {
+            if(rootBuffer[i]->key == element) {
+                cout << "Found element in root buffer\n";
+                ret = rootBuffer[i]->value;
+            }
+            delete(rootBuffer[i]);
+        }
+        delete[] rootBuffer;
+    }
+    if(ret != 0) {
+        return ret;
+    }
+
+    int height, nodeSize, bufferSize;
+    int* ptr_height = &height;
+    int* ptr_nodeSize = &nodeSize;
+    int* ptr_bufferSize = &bufferSize;
+    height = 10000;
+    int node = root;
+    vector<int>* keys;
+    vector<int>* values;
+
+    if(delta != 1) {
+        while(height != 1) {
+
+            keys = new vector<int>();
+            keys->reserve(size*4-1);
+            values = new vector<int>();
+            values->reserve(size*4);
+            readNode(node,ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
+
+            if(bufferSize != 0) {
+                KeyValue** buffer = new KeyValue*[bufferSize];
+                readBuffer(node,buffer,1);
+                for(int i = 0; i < bufferSize; i++) {
+                    if(buffer[i]->key == element) {
+                        cout << "Found element in buffer of node " << node << "\n";
+                        ret = buffer[i]->value;
+                    }
+                    delete(buffer[i]);
+                }
+                delete[] buffer;
+            }
+
+            if(ret != 0) {
+                delete(keys);
+                delete(values);
+                return ret;
+            }
+
+            if(height != 1) {
+                int s = nodeSize;
+                while(s > 0 && element <= (*keys)[s-1]) {
+                    s--;
+                }
+                node = (*values)[s];
+            }
+
+            // Clean up
+            delete(keys);
+            delete(values);
+        }
+    }
+    else {
+        // Read in root info
+        readNodeInfo(root,ptr_height,ptr_nodeSize,ptr_bufferSize);
+    }
+
+    // We are now in a leaf without having found the element in the
+    // buffers on the traversal down in the tree.
+
+    // Perform binary search on the topmost fractional list O(log_2 M/B).
+
+
+
+
+
+
+
+
+
+    // If we did not find
+    int s = nodeSize;
+    while(s > 0) {
+
+
+
+        s--;
+    }
+
+
+
+
+
+
+
 }
 
 /***********************************************************************************************************************
@@ -376,7 +511,7 @@ void TruncatedBufferTree::flushNode(int id, int height, int nodeSize, std::vecto
         }
         else {
             readNodeInfo((*values)[i],ptr_cHeight,ptr_cNodeSize,ptr_cBufferSize);
-            if(cNodeSize > 4*size-1) {
+            if(cNodeSize > maxBucketSize) {
                 // Split
                 int ret = splitLeaf(nodeSize,keys,values,i);
                 nodeSize++;
@@ -404,6 +539,8 @@ void TruncatedBufferTree::flushNode(int id, int height, int nodeSize, std::vecto
  */
 void TruncatedBufferTree::flushLeafNode(int id, int height, int nodeSize) {
 
+    cout << "Flushing leafnode " << id << " of height " << height << " and size " << nodeSize << "\n";
+
     nodeSize++;
 
     if(nodeSize > maxBucketSize) {
@@ -416,6 +553,7 @@ void TruncatedBufferTree::flushLeafNode(int id, int height, int nodeSize) {
             cout << "Tried renaming " << name1 << " to " << name2 << "\n";
             perror("Error renaming file");
         }
+        cout << "Inserted1 list into node " << id << " named " << name2 << "\n";
     }
     else {
         if(nodeSize == 1) {
@@ -468,6 +606,7 @@ void TruncatedBufferTree::flushLeafNode(int id, int height, int nodeSize) {
                 cout << "Tried renaming " << name1 << " to " << name2 << "\n";
                 perror("Error renaming file");
             }
+            cout << "Inserted2 list into node " << id << " named " << name2 << "\n";
         }
         else {
             // Write out list and build up fractional structure
@@ -606,7 +745,7 @@ void TruncatedBufferTree::flushLeafNode(int id, int height, int nodeSize) {
                 cout << "Tried renaming " << name1 << " to " << name2 << "\n";
                 perror("Error renaming file");
             }
-
+            cout << "Inserted3 list into node " << id << " named " << name2 << "\n";
         }
     }
 
@@ -695,6 +834,8 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
     readNodeInfo(childID,ptr_cHeight,ptr_cSize,ptr_cBuffer);
 
     int numberOfLists = cSize;
+
+    cout << "Splitting leaf " << childID << "\n";
 
     // Find all medians of all the lists
     int* medians = new int[numberOfLists];
@@ -808,6 +949,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
     // Iterate over all lists but the last one, special case.
     for(int i = 1; i < cSize; i++) {
         string tempString = getListName(childID,i);
+        cout << "Writing out " + tempString << "\n";
         osList = new BufferedOutputStream(streamBuffer);
         osList->create(tempString.c_str());
         int counter = 0;
@@ -878,6 +1020,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
 
             // Last list
             string specialString = getListName(childID,i+1);
+            cout << "Writing out " + specialString << "\n";
             osList = new BufferedOutputStream(streamBuffer);
             osList->create(specialString.c_str());
             counter = 0;
@@ -1097,6 +1240,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
     // Iterate over all lists but the last one, special case.
     for(int i = 1; i < newSize; i++) {
         string tempString = getListName(newNodeID,i);
+        cout << "Writing out " + tempString << "\n";
         if(FILE *file = fopen(tempString.c_str(), "r")) {
             fclose(file);
             remove(tempString.c_str());
@@ -1104,7 +1248,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
         osList = new BufferedOutputStream(streamBuffer);
         osList->create(tempString.c_str());
         int counter = 0;
-        if(i < cSize-1) {
+        if(i < newSize-1) {
             // Read in elements O(M)
             KeyValue** array = new KeyValue*[maxExternalBufferSize];
             while(counter < maxExternalBufferSize) {
@@ -1171,6 +1315,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
 
             // Last list
             string specialString = getListName(newNodeID,i+1);
+            cout << "Writing out " + specialString << "\n";
             osList = new BufferedOutputStream(streamBuffer);
             osList->create(specialString.c_str());
             counter = 0;
@@ -1380,7 +1525,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
     }
 
     // Write out new child
-    writeNodeInfo(newNodeID,1,newSize,0);
+    writeNodeInfo(newNodeID,cHeight,newSize,0);
 
     // Add node to parent
     keys->push_back(0);
@@ -1397,10 +1542,11 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
 
 
     // Write out old child
-    writeNodeInfo(childID,1,cSize,0);
+    writeNodeInfo(childID,cHeight,cSize,0);
 
-    cout << "=== Finishing up SplitLeaf\n";
+    cout << "=== Finishing up SplitLeaf of child " << childID << "\n";
     cout << nodeSize << "\n";
+    cout << cHeight << "\n";
     cout << cSize << "\n";
     cout << newSize << "\n";
     cout << "--- Keys\n";
@@ -1411,9 +1557,6 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
     for(int i = 0; i < nodeSize+2; i++) {
         cout << (*values)[i] << "\n";
     }
-
-
-
     cout << "=== Finished SplitLeaf\n";
 
     return cSize;
@@ -1673,6 +1816,10 @@ std::string TruncatedBufferTree::getFracListName(int id, int list) {
 }
 
 void TruncatedBufferTree::printTree() {
+    cout << "Printing tree\n";
+    cout << "Root is " << root << "\n";
+    cout << "Input bufffersize " << update_bufferSize << "\n";
+    cout << "Root buffersize " << rootBufferSize << "\n";
     printNode(root);
 }
 
@@ -1688,6 +1835,7 @@ void TruncatedBufferTree::printNode(int id) {
 
     cout << "Height " << height << "\n";
     cout << "Nodesize " << nodeSize << "\n";
+    cout << "BufferSize " << bufferSize << "\n";
 
     if(height > 1) {
 
@@ -1777,6 +1925,47 @@ void TruncatedBufferTree::printNode(int id) {
             }
             is1->close();
             delete(is1);
+        }
+    }
+}
+
+void TruncatedBufferTree::cleanUpTree() {
+
+    for(int i = 1; i <= numberOfNodes; i++) {
+        cleanUpExternallyAfterNodeOrLeaf(i);
+    }
+
+    for(int i = 1; i <= numberOfNodes; i++) {
+        cleanUpExternallyAfterNodeOrLeaf(i);
+    }
+}
+
+void TruncatedBufferTree::cleanUpExternallyAfterNodeOrLeaf(int id) {
+
+    string name = "B";
+    name += to_string(id);
+    if(FILE *file = fopen(name.c_str(), "r")) {
+        fclose(file);
+        remove(name.c_str());
+    }
+
+    string buf = getBufferName(id,1);
+    if(FILE *file = fopen(buf.c_str(), "r")) {
+        fclose(file);
+        remove(buf.c_str());
+    }
+
+
+    for(int i = 1; i <= maxBucketSize+1; i++) {
+        string list = getListName(id,i);
+        if(FILE *file = fopen(list.c_str(), "r")) {
+            fclose(file);
+            remove(list.c_str());
+        }
+        string frac = getFracListName(id,i);
+        if(FILE *file = fopen(frac.c_str(), "r")) {
+            fclose(file);
+            remove(frac.c_str());
         }
     }
 }
