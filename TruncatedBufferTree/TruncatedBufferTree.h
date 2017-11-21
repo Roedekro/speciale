@@ -7,6 +7,8 @@
 
 
 #include "../Btree/KeyValue.h"
+#include <vector>
+#include <string>
 
 class TruncatedBufferTree {
 public:

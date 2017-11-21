@@ -28,6 +28,7 @@
 #include "../Streams/BufferedOutputStream.h"
 #include "../Streams/InputStream.h"
 #include "../Streams/BufferedInputStream.h"
+#include <sys/stat.h>
 
 using namespace std;
 
@@ -58,8 +59,18 @@ TruncatedBufferTree::TruncatedBufferTree(int B, int M, int delta, int N) {
     // Remember that its denoted in nodeSize, that is each value
     // is multiplied with M to get actual size.
     //maxBucketSize = 2;
-    maxBucketSize = (int) N / ( pow(size*4,delta)); // Optimal bucket size (elements)
-    maxBucketSize = maxBucketSize/(maxExternalBufferSize*2); // Because it might only be half filled out
+
+
+
+    //maxBucketSize = (int) N / ( pow(size*4,delta)); // Optimal bucket size (elements)
+    //maxBucketSize = maxBucketSize/(maxExternalBufferSize*2); // Because it might only be half filled out
+
+    maxBucketSize = (int) N / ( pow(size*4,delta)); // Elements in bucket
+    maxBucketSize = maxBucketSize/maxExternalBufferSize; // lists in bucket
+    maxBucketSize = maxBucketSize * pow(2,delta+1); // Because all nodes wont be completely filled.
+
+
+
     cout << "Max Bucket Size should be " << maxBucketSize << "\n";
     if (maxBucketSize < 2) {
         maxBucketSize = 2;
@@ -321,26 +332,138 @@ int TruncatedBufferTree::query(int element) {
     // buffers on the traversal down in the tree.
 
     // Perform binary search on the topmost fractional list O(log_2 M/B).
+    // TESTED BINARY SEARCH AND IT WORKS!
+
+    // Get file size
+    string firstFracName = getFracListName(node,nodeSize);
+    struct stat stat_buf;
+    int rc = stat(firstFracName.c_str(), &stat_buf);
+    long fileSize = stat_buf.st_size;
+    // Convert to number of elements, each element consisting of 4 integers
+    fileSize = fileSize / (sizeof(int)*4);
+
+    int left = 0;
+    int right = fileSize-1; // Will fit in int
+    int middle;
+
+    int* tempBuff = new int[4];
+
+    //cout << "Binary search in node " << node << "\n";
+
+    while(left <= right) {
+
+        middle = (left+right)/2;
+
+        // Fetch element at position middle
+        int filedesc = ::open(firstFracName.c_str(), O_RDONLY, 0666);
+        ::pread(filedesc, tempBuff, 4*sizeof(int),middle*4*sizeof(int));
+        ::close(filedesc);
+
+        if(tempBuff[0] < element) {
+            left = middle+1;
+        }
+        else if(tempBuff[0] > element) {
+            right = middle-1;
+        }
+        else {
+            break;
+        }
+
+    }
+
+    // Can end up in a situation where we find predecessor
+    // Move one forward
+    if(tempBuff[0] < element) {
+        int filedesc = ::open(firstFracName.c_str(), O_RDONLY, 0666);
+        ::pread(filedesc, tempBuff, 4*sizeof(int),(middle+1)*4*sizeof(int));
+        ::close(filedesc);
+    }
+
+    //cout << "Binary search tempbuff " << tempBuff[0] << " " << tempBuff[1] << " " << tempBuff[2] << " " << tempBuff[3] << "\n";
 
 
+    // We now either found element or its predecessor or successor
+    // Pointing to elements position in the array below
 
+    if(tempBuff[0] == element) {
+        ret = tempBuff[1];
+        delete[] tempBuff;
+        //cout << "Found element during binary search\n";
+        return ret;
+    }
 
+    int pointer = tempBuff[3];
+    pointer = pointer-1;
+    if(pointer == -1) {
+        pointer++;
+    }
+    delete[] tempBuff;
 
+    tempBuff = new int[8]; // Space for two entries
 
+    // In fractional cascading the pointer will always point
+    // to the correct position, or the successor to the
+    // correct position. We therefore need to read
+    // in two elements at a time.
 
-
-
-    // If we did not find
-    int s = nodeSize;
+    // Search for element in the lists below current
+    int s = nodeSize-1;
     while(s > 0) {
 
+        string tempFrac = getFracListName(node,s);
+        int filedesc = ::open(tempFrac.c_str(), O_RDONLY, 0666);
+        ::pread(filedesc, tempBuff, 8*sizeof(int),pointer*4*sizeof(int));
+        ::close(filedesc);
 
+        //cout << "Pointer is " << pointer << "\n";
+
+        // Compare to the first element
+        if(tempBuff[0] < element) {
+
+            if(tempBuff[4] == element) {
+                ret = tempBuff[5];
+                delete[] tempBuff;
+                /*cout << "Found1 element in list " << s << "\n";
+                cout << pointer << "\n";
+                cout << tempBuff[0] << " " << tempBuff[1] << " " << tempBuff[2] << " " << tempBuff[3] << "\n";
+                cout << tempBuff[4] << " " << tempBuff[5] << " " << tempBuff[6] << " " << tempBuff[7] << "\n";*/
+                return ret;
+            }
+            else {
+                // Follow the second pointer
+                pointer = tempBuff[7];
+                pointer--;
+                if(pointer == -1) {
+                    pointer++;
+                }
+            }
+
+        }
+        else if(tempBuff[0] > element) {
+            // Follow the first pointer
+            pointer = tempBuff[3];
+            pointer--;
+            if(pointer == -1) {
+                pointer++;
+            }
+        }
+        else {
+            // Must have found the element
+            ret = tempBuff[1];
+            delete[] tempBuff;
+            //cout << "Found2 element in list " << s << "\n";
+            return ret;
+        }
 
         s--;
     }
 
+    /*int filedesc = ::open(temp.c_str(), O_RDONLY, 0666);
+    int bytesRead = ::pread(filedesc, tempBuff, 4*sizeof(int),offset);
+    median = tempBuff[0];
+    int error = ::close(filedesc);*/
 
-
+    cout << "Could not find " << element << " in node " << node << "\n";
     return -1;
 
 
@@ -997,6 +1120,9 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
             // Special case, second last list.
             // Split the remaining elements into two.
             int specialSize = (maxExternalBufferSize+remainder)/2;
+            if(remainder == 0) {
+                specialSize = maxExternalBufferSize;
+            }
             KeyValue** array = new KeyValue*[specialSize];
 
             while(counter < specialSize) {
@@ -1033,6 +1159,9 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
             osList->create(specialString.c_str());
             counter = 0;
             int verySpecialSize = (maxExternalBufferSize+remainder)-specialSize;
+            if(remainder == 0) {
+                verySpecialSize = maxExternalBufferSize;
+            }
             array = new KeyValue*[verySpecialSize];
 
             while(counter < verySpecialSize) {

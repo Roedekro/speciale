@@ -44,6 +44,8 @@ private:
     void handleEmptyRootLeafBufferOverflow();
     void testMedianOfMedians();
     void testTruncatedInsertQueryDelete();
+    void testBinarySearchFracList();
+    void readDiskstatsTest();
 
 
 

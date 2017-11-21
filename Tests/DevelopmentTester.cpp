@@ -35,6 +35,8 @@
 #include <unistd.h>
 #include <algorithm>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <fstream>
 
 using namespace std;
 
@@ -73,7 +75,9 @@ void DevelopmentTester::test() {
     //handleEmptyRootLeafBufferOverflow();
     //externalBufferedBTreeInsertDeleteQuery(); // <------ ExternalBufferedBTree Main test!
     //testMedianOfMedians();
-    testTruncatedInsertQueryDelete();
+    //testTruncatedInsertQueryDelete(); // Main Truncated Buffer Tree!
+    //testBinarySearchFracList();
+    readDiskstatsTest();
 }
 
 int DevelopmentTester::streamtestread(long n, int increment) {
@@ -1592,7 +1596,7 @@ void DevelopmentTester::testTruncatedInsertQueryDelete() {
     cout << "============================================= TEST STARTING\n";
 
     int inserts = 319;
-    inserts = 5120;
+    inserts = 10240;
 
 
     int B = 16;
@@ -1616,13 +1620,140 @@ void DevelopmentTester::testTruncatedInsertQueryDelete() {
     cout << "Number of nodes is " << tree->numberOfNodes << "\n";
     cout << "Root is " << tree->root << "\n";
 
+    cout << "============================================= Printing\n";
+
+    //tree->printTree();
 
     cout << "============================================= QUERIES\n";
 
-    cout << tree->query(1) << "\n";
+    //cout << tree->query(3) << "\n";
+
+    int ret = 0;
+    for(int i = 1; i <= inserts; i++) {
+        ret = tree->query(i);
+        if(ret != i) {
+            cout << "Error " << i << " " << ret << "\n";
+        }
+    }
 
 
     cout << "============================================= CLEANING UP\n";
 
+    int height,nodeSize,bufferSize;
+    int* ptr_height = &height;
+    int* ptr_nodeSize = &nodeSize;
+    int* ptr_bufferSize = &bufferSize;
+    tree->readNodeInfo(tree->root,ptr_height,ptr_nodeSize,ptr_bufferSize);
+
+    cout << "Height maxed out at " << height << "\n";
+
+    //tree->printTree();
+
     tree->cleanUpTree();
+}
+
+void DevelopmentTester::testBinarySearchFracList() {
+
+    // Write out temp file
+    BufferedOutputStream* os = new BufferedOutputStream(4096);
+    string testFile = "testFile";
+    os->create(testFile.c_str());
+
+    int element = 3;
+
+    int elements = 11;
+    int key, value, pointer1, pointer2;
+    for(int i = 1; i <= elements; i++) {
+
+        key = i;
+        value = i+5;
+        pointer1 = i+1;
+        pointer2 = i+2;
+
+        os->write(&key);
+        os->write(&value);
+        os->write(&pointer1);
+        os->write(&pointer2);
+    }
+
+    os->close();
+    delete(os);
+
+
+    struct stat stat_buf;
+    int rc = stat(testFile.c_str(), &stat_buf);
+    long fileSize = stat_buf.st_size;
+    // Convert to number of elements, each element consisting of 4 integers
+    fileSize = fileSize / (sizeof(int)*4);
+
+    cout << "Filesize is " << fileSize << "\n";
+
+    for(int i = 1; i <= elements; i++) {
+
+        element = i;
+
+        int left = 0;
+        int right = fileSize-1; // Will fit in int
+        int middle;
+
+        int* tempBuff = new int[4];
+
+        while(left <= right) {
+
+            middle = (left+right)/2;
+
+            // Fetch element at position middle
+            int filedesc = ::open(testFile.c_str(), O_RDONLY, 0666);
+            ::pread(filedesc, tempBuff, 4*sizeof(int),middle*4*sizeof(int));
+            ::close(filedesc);
+
+            if(tempBuff[0] < element) {
+                left = middle+1;
+            }
+            else if(tempBuff[0] > element) {
+                right = middle-1;
+            }
+            else {
+                break;
+            }
+
+        }
+
+        cout << "Found " << tempBuff[0] << " " << tempBuff[1] << " " << tempBuff[2] << " " << tempBuff[3] << "\n";
+
+        delete[] tempBuff;
+
+    }
+}
+
+void DevelopmentTester::readDiskstatsTest() {
+
+    // /proc/diskstats
+
+    string diskstats = "/proc/diskstats";
+
+    if(FILE *file = fopen(diskstats.c_str(), "r")) {
+        fclose(file);
+        cout << diskstats << " exists\n";
+    }
+
+    std::ifstream file(diskstats);
+    std::string str;
+    while (std::getline(file, str))
+    {
+        cout << str << "\n";
+
+        string type =str.substr(3,4);
+        if(atoi(type.c_str()) == 8) {
+            cout << type << "\n";
+        }
+
+
+        string::size_type pos;
+        pos=str.find(' ',0);
+        string second=str.substr(pos+1);
+        str=str.substr(0,pos);
+
+    }
+    file.close();
 }
