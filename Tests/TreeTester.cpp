@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <fstream>
 //#include <papi.h>
 
 using namespace std;
@@ -68,6 +69,8 @@ void TreeTester::truncatedBufferTree(int B, int M, int delta, int N, int runs) {
 
 void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
 
+    int numberOfQueries = 10000;
+
     int numberOfDeltas = 4;
     long* insertTime = new long[numberOfDeltas];
     long* insertIO = new long[numberOfDeltas];
@@ -77,16 +80,79 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
 
     for(int i = 1; i <= numberOfDeltas; i++) {
 
+        cout << "Delta = " << i << "\n";
+
         int delta = i;
 
+        long diskReads1 = 0;
+        long diskReads2 = 0;
+        long diskReads3 = 0;
+        long diskWrites1 = 0;
+        long diskWrites2 = 0;
+        long diskWrites3 = 0;
+        long temp = 0;
+
         for(int r = 0; r < runs; r++) {
+
+            cout << "Run " << r+1 << "\n";
 
             srand (time(NULL));
 
             using namespace std::chrono;
 
+            // GET DISK STATS
+            sleep(1);
+            string diskstats = "/proc/diskstats";
+
+            cout << "Diskread1 ";
+            diskReads1 = 0;
+            diskWrites1 = 0;
+            std::string str;
+            std::ifstream file1(diskstats);
+            while (std::getline(file1, str))
+            {
+                /*1 - major number
+                2 - minor mumber
+                3 - device name
+                4 - reads completed successfully
+                5 - reads merged
+                6 - sectors read
+                7 - time spent reading (ms)
+                8 - writes completed
+                9 - writes merged
+                10 - sectors written
+                11 - time spent writing (ms)
+                12 - I/Os currently in progress
+                13 - time spent doing I/Os (ms)
+                14 - weighted time spent doing I/Os (ms)*/
+
+                istringstream iss(str);
+
+                string s;
+                iss >> s;
+                if(s.compare("8") == 0) { // If major number = 8.
+                    iss >> s;
+                    iss >> s; // Device name
+                    iss >> s;
+                    iss >> s;
+                    iss >> s; // Sectors read
+                    cout << s << " ";
+                    diskReads1 = diskReads1 + stoi(s);
+                    iss >> s;
+                    iss >> s;
+                    iss >> s;
+                    iss >> s; // Sectors written
+                    diskWrites1 = diskWrites1 + stoi(s);
+                }
+            }
+            file1.close();
+            cout << "\n";
+
             TruncatedBufferTree* tree = new TruncatedBufferTree(B,M,delta,N);
 
+            cout << "Inserting\n";
+
+            // Insert N elements
             high_resolution_clock::time_point t1 = high_resolution_clock::now();
             int modulus = 2*N;
             int number;
@@ -97,15 +163,96 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
             high_resolution_clock::time_point t2 = high_resolution_clock::now();
             insertTime[i-1] = insertTime[i-1] + chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
+            // Write out diskstats again
+            sleep(1);
+            cout << "Diskread2 ";
+            diskReads2 = 0;
+            diskWrites2 = 0;
+            std::ifstream file2(diskstats);
+            while (std::getline(file2, str))
+            {
+
+                istringstream iss(str);
+                string s;
+                iss >> s;
+                if(s.compare("8") == 0) { // If major number = 8.
+                    iss >> s;
+                    iss >> s; // Device name
+                    iss >> s;
+                    iss >> s;
+                    iss >> s; // Sectors read
+                    cout << s << " ";
+                    diskReads2 = diskReads2 + stoi(s);
+                    iss >> s;
+                    iss >> s;
+                    iss >> s;
+                    iss >> s; // Sectors written
+                    diskWrites2 = diskWrites2 + stoi(s);
+                }
+            }
+            file2.close();
+            cout << "\n";
+
+            cout << "Insert diskreads = " << (diskReads2-diskReads1) << "\n";
+            cout << diskReads2 << " " << diskReads1 << "\n";
+            cout << "Insert diskwrites = " << (diskWrites2 - diskWrites1) << "\n";
+            cout << diskWrites2 << " " << diskWrites1 << "\n";
+
+            temp = (diskReads2-diskReads1) + (diskWrites2 - diskWrites1);
+            insertIO[i-1] = insertIO[i-1] + temp;
+
+            cout << "Query\n";
+            // Query N/100 elements
             t1 = high_resolution_clock::now();
-            for(int i = 1; i <= N/100; i++) {
+            for(int i = 1; i <= numberOfQueries; i++) {
                 number = rand() % modulus +1;
                 tree->query(number);
             }
             t2 = high_resolution_clock::now();
             queryTime[i-1] = queryTime[i-1] + chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
+            cout << "Query Done\n";
 
+            // Write out diskstats a final time
+            sleep(1);
+            cout << "Diskread3 ";
+            diskReads3 = 0;
+            diskWrites3 = 0;
+            std::ifstream file3(diskstats);
+            while (std::getline(file3, str))
+            {
+
+                istringstream iss(str);
+                string s;
+                iss >> s;
+                if(s.compare("8") == 0) { // If major number = 8.
+                    iss >> s;
+                    iss >> s; // Device name
+                    iss >> s;
+                    iss >> s;
+                    iss >> s; // Sectors read
+                    cout << s << " ";
+                    diskReads3 = diskReads3 + stoi(s);
+                    iss >> s;
+                    iss >> s;
+                    iss >> s;
+                    iss >> s; // Sectors written
+                    diskWrites3 =  diskWrites3 + stoi(s);
+                }
+            }
+            file3.close();
+            cout << "\n";
+
+            cout << "Query diskreads = " << (diskReads3-diskReads2) << "\n";
+            cout << diskReads3 << " " << diskReads2 << "\n";
+            cout << "Query diskwrites = " << (diskWrites3 - diskWrites2) << "\n";
+            cout << diskWrites3 << " " << diskWrites2 << "\n";
+
+            temp = (diskReads3-diskReads2) + (diskWrites3 - diskWrites2);
+            queryIO[i-1] = queryIO[i-1] + temp;
+
+            cout << "Cleaning up\n";
+            // Get tree height
             int height,nodeSize,bufferSize;
             int* ptr_height = &height;
             int* ptr_nodeSize = &nodeSize;
@@ -115,6 +262,8 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
 
             tree->cleanUpTree();
             delete(tree);
+
+            cout << "Done!\n";
         }
 
         for(int j = 0; j < numberOfDeltas; j++) {

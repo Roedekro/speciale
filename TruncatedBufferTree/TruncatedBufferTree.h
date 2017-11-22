@@ -57,7 +57,7 @@ public:
     void appendBuffer(int id, KeyValue** buffer, int bSize, int type);
     void appendBufferNoDelete(int id, KeyValue** buffer, int bSize, int type);
     void sortInternalArray(KeyValue** buffer, int bufferSize);
-    int sortAndRemoveDuplicatesExternalBuffer(int id, int bufferSize, int sortedSize);
+    int sortExternalBuffer(int id, int bufferSize, int sortedSize);
 
     /*
      * Utility Methods

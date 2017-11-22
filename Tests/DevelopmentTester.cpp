@@ -75,9 +75,9 @@ void DevelopmentTester::test() {
     //handleEmptyRootLeafBufferOverflow();
     //externalBufferedBTreeInsertDeleteQuery(); // <------ ExternalBufferedBTree Main test!
     //testMedianOfMedians();
-    //testTruncatedInsertQueryDelete(); // Main Truncated Buffer Tree!
+    testTruncatedInsertQueryDelete(); // Main Truncated Buffer Tree!
     //testBinarySearchFracList();
-    readDiskstatsTest();
+    //readDiskstatsTest();
 }
 
 int DevelopmentTester::streamtestread(long n, int increment) {
@@ -1743,7 +1743,50 @@ void DevelopmentTester::readDiskstatsTest() {
     {
         cout << str << "\n";
 
-        string type =str.substr(3,4);
+        /*1 - major number
+        2 - minor mumber
+        3 - device name
+        4 - reads completed successfully
+        5 - reads merged
+        6 - sectors read
+        7 - time spent reading (ms)
+        8 - writes completed
+        9 - writes merged
+        10 - sectors written
+        11 - time spent writing (ms)
+        12 - I/Os currently in progress
+        13 - time spent doing I/Os (ms)
+        14 - weighted time spent doing I/Os (ms)*/
+
+        istringstream iss(str);
+
+        string s;
+        iss >> s;
+        if(s.compare("8") == 0) { // If major number = 8.
+            iss >> s;
+            iss >> s;
+            cout << s << " "; // Device name
+            iss >> s;
+            iss >> s;
+            iss >> s;
+            cout << s << " "; // Sectors read
+            iss >> s;
+            iss >> s;
+            iss >> s;
+            iss >> s;
+            cout << s << "\n"; // Sectors written
+        }
+
+
+        /* Works
+        while(iss) {
+            string subs;
+            iss >> subs;
+            cout << "Substring: " << subs << endl;
+        }*/
+
+
+        /*string type =str.substr(3,4);
         if(atoi(type.c_str()) == 8) {
             cout << type << "\n";
         }
@@ -1752,7 +1795,7 @@ void DevelopmentTester::readDiskstatsTest() {
         string::size_type pos;
         pos=str.find(' ',0);
         string second=str.substr(pos+1);
-        str=str.substr(0,pos);
+        str=str.substr(0,pos);*/
 
     }
     file.close();
