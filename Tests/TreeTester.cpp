@@ -69,7 +69,7 @@ void TreeTester::truncatedBufferTree(int B, int M, int delta, int N, int runs) {
 
 void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
 
-    int numberOfQueries = 10000;
+    int numberOfQueries = 100000;
 
     int numberOfDeltas = 4;
     long* insertTime = new long[numberOfDeltas];
@@ -80,7 +80,7 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
 
     for(int i = 1; i <= numberOfDeltas; i++) {
 
-        cout << "Delta = " << i << "\n";
+        //cout << "Delta = " << i << "\n";
 
         int delta = i;
 
@@ -94,17 +94,17 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
 
         for(int r = 0; r < runs; r++) {
 
-            cout << "Run " << r+1 << "\n";
+            //cout << "Run " << r+1 << "\n";
 
             srand (time(NULL));
 
             using namespace std::chrono;
 
             // GET DISK STATS
-            sleep(1);
+            sleep(10);
             string diskstats = "/proc/diskstats";
 
-            cout << "Diskread1 ";
+            //cout << "Diskread1 ";
             diskReads1 = 0;
             diskWrites1 = 0;
             std::string str;
@@ -136,7 +136,7 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
                     iss >> s;
                     iss >> s;
                     iss >> s; // Sectors read
-                    cout << s << " ";
+                    //cout << s << " ";
                     diskReads1 = diskReads1 + stoi(s);
                     iss >> s;
                     iss >> s;
@@ -146,11 +146,11 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
                 }
             }
             file1.close();
-            cout << "\n";
+            //cout << "\n";
 
             TruncatedBufferTree* tree = new TruncatedBufferTree(B,M,delta,N);
 
-            cout << "Inserting\n";
+            //cout << "Inserting\n";
 
             // Insert N elements
             high_resolution_clock::time_point t1 = high_resolution_clock::now();
@@ -164,8 +164,8 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
             insertTime[i-1] = insertTime[i-1] + chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
             // Write out diskstats again
-            sleep(1);
-            cout << "Diskread2 ";
+            sleep(10);
+            //cout << "Diskread2 ";
             diskReads2 = 0;
             diskWrites2 = 0;
             std::ifstream file2(diskstats);
@@ -181,7 +181,7 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
                     iss >> s;
                     iss >> s;
                     iss >> s; // Sectors read
-                    cout << s << " ";
+                    //cout << s << " ";
                     diskReads2 = diskReads2 + stoi(s);
                     iss >> s;
                     iss >> s;
@@ -191,17 +191,17 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
                 }
             }
             file2.close();
-            cout << "\n";
+            //cout << "\n";
 
-            cout << "Insert diskreads = " << (diskReads2-diskReads1) << "\n";
-            cout << diskReads2 << " " << diskReads1 << "\n";
-            cout << "Insert diskwrites = " << (diskWrites2 - diskWrites1) << "\n";
-            cout << diskWrites2 << " " << diskWrites1 << "\n";
+            //cout << "Insert diskreads = " << (diskReads2-diskReads1) << "\n";
+            //cout << diskReads2 << " " << diskReads1 << "\n";
+            //cout << "Insert diskwrites = " << (diskWrites2 - diskWrites1) << "\n";
+            //cout << diskWrites2 << " " << diskWrites1 << "\n";
 
             temp = (diskReads2-diskReads1) + (diskWrites2 - diskWrites1);
             insertIO[i-1] = insertIO[i-1] + temp;
 
-            cout << "Query\n";
+            //cout << "Query\n";
             // Query N/100 elements
             t1 = high_resolution_clock::now();
             for(int i = 1; i <= numberOfQueries; i++) {
@@ -211,11 +211,11 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
             t2 = high_resolution_clock::now();
             queryTime[i-1] = queryTime[i-1] + chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
-            cout << "Query Done\n";
+            //cout << "Query Done\n";
 
             // Write out diskstats a final time
-            sleep(1);
-            cout << "Diskread3 ";
+            sleep(10);
+            //cout << "Diskread3 ";
             diskReads3 = 0;
             diskWrites3 = 0;
             std::ifstream file3(diskstats);
@@ -231,7 +231,7 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
                     iss >> s;
                     iss >> s;
                     iss >> s; // Sectors read
-                    cout << s << " ";
+                    //cout << s << " ";
                     diskReads3 = diskReads3 + stoi(s);
                     iss >> s;
                     iss >> s;
@@ -241,17 +241,17 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
                 }
             }
             file3.close();
-            cout << "\n";
+            //cout << "\n";
 
-            cout << "Query diskreads = " << (diskReads3-diskReads2) << "\n";
-            cout << diskReads3 << " " << diskReads2 << "\n";
-            cout << "Query diskwrites = " << (diskWrites3 - diskWrites2) << "\n";
-            cout << diskWrites3 << " " << diskWrites2 << "\n";
+            //cout << "Query diskreads = " << (diskReads3-diskReads2) << "\n";
+            //cout << diskReads3 << " " << diskReads2 << "\n";
+            //cout << "Query diskwrites = " << (diskWrites3 - diskWrites2) << "\n";
+            //cout << diskWrites3 << " " << diskWrites2 << "\n";
 
             temp = (diskReads3-diskReads2) + (diskWrites3 - diskWrites2);
             queryIO[i-1] = queryIO[i-1] + temp;
 
-            cout << "Cleaning up\n";
+            //cout << "Cleaning up\n";
             // Get tree height
             int height,nodeSize,bufferSize;
             int* ptr_height = &height;
@@ -263,7 +263,7 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
             tree->cleanUpTree();
             delete(tree);
 
-            cout << "Done!\n";
+            //cout << "Done!\n";
         }
 
         for(int j = 0; j < numberOfDeltas; j++) {

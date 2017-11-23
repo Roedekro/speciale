@@ -14,10 +14,16 @@ void test() {
     dev->test();
     delete(dev);*/
 
-    TreeTester* test = new TreeTester();
+    /*TreeTester* test = new TreeTester();
     // B = 128KB, M = 8MB, N = 100mil, runs = 2
     //test->truncatedDeltaTest(131072,8388608,10000000,2);
     test->truncatedDeltaTest(1024,8196,1000000,2);
+    delete(test);*/
+
+    TreeTester* test = new TreeTester();
+    // B = 128KB, M = 8MB, N = 100mil, runs = 1
+    // 100k queries.
+    test->truncatedDeltaTest(131072,8388608,100000000,1);
     delete(test);
 }
 
