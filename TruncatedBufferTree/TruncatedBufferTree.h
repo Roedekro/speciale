@@ -26,7 +26,7 @@ public:
     int root;
     int rootBufferSize; // Also located in root, but keep track internally as well.
     int update_bufferSize; // Current amount of updates in our buffer.
-    KeyValue** update_buffer; // Buffer of size O(B) updates.
+    KeyValue* update_buffer; // Buffer of size O(B) updates.
     long iocounter;
     int numberOfNodes; // Total nodes in lifetime, used to avoid duplicates.
     int currentNumberOfNodes; // Current number of nodes in the tree.
@@ -36,7 +36,7 @@ public:
      */
     TruncatedBufferTree(int B, int M, int delta, int N);
     ~TruncatedBufferTree();
-    void insert(KeyValue* element);
+    void insert(KeyValue element);
     int query(int element);
 
     /*
@@ -52,11 +52,11 @@ public:
     /*
      * Buffer Handling Methods
      */
-    int readBuffer(int id, KeyValue** buffer, int type); // Returns buffer size
-    void writeBuffer(int id, KeyValue** buffer, int bSize, int type);
-    void appendBuffer(int id, KeyValue** buffer, int bSize, int type);
-    void appendBufferNoDelete(int id, KeyValue** buffer, int bSize, int type);
-    void sortInternalArray(KeyValue** buffer, int bufferSize);
+    int readBuffer(int id, KeyValue* buffer, int type); // Returns buffer size
+    void writeBuffer(int id, KeyValue* buffer, int bSize, int type);
+    void appendBuffer(int id, KeyValue* buffer, int bSize, int type);
+    void appendBufferNoDelete(int id, KeyValue* buffer, int bSize, int type);
+    void sortInternalArray(KeyValue* buffer, int bufferSize);
     int sortExternalBuffer(int id, int bufferSize, int sortedSize);
 
     /*

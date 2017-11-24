@@ -69,7 +69,7 @@ void TreeTester::truncatedBufferTree(int B, int M, int delta, int N, int runs) {
 
 void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
 
-    int numberOfQueries = 100000;
+    int numberOfQueries = 10000;
 
     int numberOfDeltas = 4;
     long* insertTime = new long[numberOfDeltas];

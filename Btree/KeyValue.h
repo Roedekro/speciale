@@ -13,6 +13,7 @@ struct KeyValue {
         key = k;
         value = v;
     }
+    KeyValue(){}
 };
 
 #endif //SPECIALE_KEYVALUE_H

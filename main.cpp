@@ -5,6 +5,7 @@
 #include <iostream>
 #include "Tests/DevelopmentTester.h"
 #include "Tests/TreeTester.h"
+#include "Btree/KeyValue.h"
 
 using namespace std;
 
@@ -23,8 +24,29 @@ void test() {
     TreeTester* test = new TreeTester();
     // B = 128KB, M = 8MB, N = 100mil, runs = 1
     // 100k queries.
-    test->truncatedDeltaTest(131072,8388608,100000000,1);
+    test->truncatedDeltaTest(131072,8388608,100000000,10);
     delete(test);
+
+    /*cout << sizeof(KeyValue) << "\n";
+    KeyValue* ptr;
+    cout << sizeof(ptr) << "\n";
+
+    KeyValue** array = new KeyValue*[4];
+    array[0] = new KeyValue(1,1);
+    array[1] = new KeyValue(1,1);
+    array[2] = new KeyValue(1,1);
+    array[3] = new KeyValue(1,1);
+
+    cout << sizeof(array) << "\n";
+    cout << sizeof(*array) << "\n";
+
+    cout << "---\n";
+    for(int i = 0; i < 4; i++) {
+        int k = sizeof(array[i]) + sizeof(*(array[i]));
+        cout << k << "\n";
+    }*/
+
+
 }
 
 

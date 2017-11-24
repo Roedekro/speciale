@@ -29,6 +29,7 @@
 #include "../Streams/InputStream.h"
 #include "../Streams/BufferedInputStream.h"
 #include <sys/stat.h>
+#include <sys/resource.h>
 
 using namespace std;
 
@@ -46,10 +47,11 @@ TruncatedBufferTree::TruncatedBufferTree(int B, int M, int delta, int N) {
     //cout << "Size is " << size << "\n";
     // Internal update buffer, size O(B), consiting of KeyValueTimes.
     maxBufferSize = B/(sizeof(KeyValue));
-    update_buffer = new KeyValue*[maxBufferSize];
+    update_buffer = new KeyValue[maxBufferSize];
     update_bufferSize = 0;
     // External buffers consists of KeyValueTimes
     maxExternalBufferSize = M/(sizeof(KeyValue));
+
     iocounter = 0;
     numberOfNodes = 1; // Root
     currentNumberOfNodes = 1; // Only counts actual nodes.
@@ -101,7 +103,7 @@ TruncatedBufferTree::~TruncatedBufferTree() {
 
 }
 
-void TruncatedBufferTree::insert(KeyValue *element) {
+void TruncatedBufferTree::insert(KeyValue element) {
 
     update_buffer[update_bufferSize] = element;
     update_bufferSize++;
@@ -124,9 +126,23 @@ void TruncatedBufferTree::insert(KeyValue *element) {
             // we will enter this if statement at size O(M).
             // just sort internally.
 
+
+            struct rusage r_usage;
+            getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory before read buffer " << r_usage.ru_maxrss << "\n";
+
             // Load in array
-            KeyValue** rootBuffer = new KeyValue*[rootBufferSize];
+            KeyValue* rootBuffer = new KeyValue[rootBufferSize];
+
+            getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory after allocating buffer " << r_usage.ru_maxrss << "\n";
+
             int rsize = readBuffer(root,rootBuffer,1);
+
+
+            getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory after read buffer " << r_usage.ru_maxrss << "\n";
+
             /* Always matches
             if(rsize != rootBufferSize) {
                 cout << "Error rootbuffer size in update doesnt match actual buffer size\n";
@@ -248,25 +264,25 @@ int TruncatedBufferTree::query(int element) {
 
     if(update_bufferSize != 0) {
         for(int i = 0; i < update_bufferSize; i++) {
-            if(update_buffer[i]->key == element) {
+            if(update_buffer[i].key == element) {
                 //cout << "Found element in update buffer\n";
-                return update_buffer[i]->value;
+                return update_buffer[i].value;
             }
         }
     }
 
     int ret = 0;
     if(rootBufferSize != 0) {
-        KeyValue** rootBuffer = new KeyValue*[rootBufferSize];
+        KeyValue* rootBuffer = new KeyValue[rootBufferSize];
         int bsize = readBuffer(root,rootBuffer,1);
         /*if(bsize != rootBufferSize) {
             cout << "!!! Error rootbuffersize not equal to actual buffer size\n";
             cout << bsize << " " << rootBufferSize << "\n";
         }*/
         for(int i = 0; i < rootBufferSize; i++) {
-            if(rootBuffer[i]->key == element) {
+            if(rootBuffer[i].key == element) {
                 //cout << "Found element in root buffer\n";
-                ret = rootBuffer[i]->value;
+                ret = rootBuffer[i].value;
             }
         }
         for(int i = 0; i < rootBufferSize; i++) {
@@ -685,7 +701,9 @@ void TruncatedBufferTree::flushLeafNode(int id, int height, int nodeSize) {
 
     nodeSize++;
 
-    if(nodeSize > maxBucketSize) {
+    // If delta == 1 we will never split
+    // If we are about to split the node, dont bother building up frac list.
+    if(nodeSize > maxBucketSize && delta != 1) {
         // Only write out list
         string name1 = getBufferName(id,1); // Buf<id>
         string name2 = getListName(id,nodeSize); // Node<id>List<nodeSize>
@@ -1772,17 +1790,29 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
  * Appends buffer of size bSize to the buffer of node id.
  * Will clean up and delete elements after output.
  */
-void TruncatedBufferTree::appendBuffer(int id, KeyValue **buffer, int bSize, int type) {
+void TruncatedBufferTree::appendBuffer(int id, KeyValue *buffer, int bSize, int type) {
 
     // Name
     string name = getBufferName(id,type);
-    ////cout << "Append Buffer name = " << name << "\n";
+    // Open file
+    BufferedOutputStream* os = new BufferedOutputStream(streamBuffer);
+    os->open(name.c_str());
 
-    /*//cout << "Appending Buffer size " << bSize << "\n";
+    // Append buffer
     for(int i = 0; i < bSize; i++) {
-        //cout << buffer[i]->key << " " << buffer[i]->value << " " << buffer[i]->time << "\n";
-    }*/
+        os->write(&(buffer[i].key));
+        os->write(&(buffer[i].value));
+    }
 
+    // Cleanup
+    os->close();
+    iocounter = iocounter + os->iocounter;
+    delete(os);
+    delete[] buffer;
+
+    /*
+    // Name
+    string name = getBufferName(id,type);
     // Open file
     BufferedOutputStream* os = new BufferedOutputStream(streamBuffer);
     os->open(name.c_str());
@@ -1801,6 +1831,7 @@ void TruncatedBufferTree::appendBuffer(int id, KeyValue **buffer, int bSize, int
         delete(buffer[i]);
     }
     delete[] buffer;
+     */
 
 }
 
@@ -1808,16 +1839,29 @@ void TruncatedBufferTree::appendBuffer(int id, KeyValue **buffer, int bSize, int
  * As above, but will not delete the buffer given, only its elements.
  * This is usefull for preserving the input buffer.
  */
-void TruncatedBufferTree::appendBufferNoDelete(int id, KeyValue **buffer, int bSize, int type) {
+void TruncatedBufferTree::appendBufferNoDelete(int id, KeyValue *buffer, int bSize, int type) {
 
     // Name
     string name = getBufferName(id,type);
-    ////cout << "Append Buffer name = " << name << "\n";
 
-    /*//cout << "Appending Buffer size " << bSize << "\n";
+    // Open file
+    BufferedOutputStream* os = new BufferedOutputStream(streamBuffer);
+    os->open(name.c_str());
+
+    // Append buffer
     for(int i = 0; i < bSize; i++) {
-        //cout << buffer[i]->key << " " << buffer[i]->value << " " << buffer[i]->time << "\n";
-    }*/
+        os->write(&(buffer[i].key));
+        os->write(&(buffer[i].value));
+    }
+
+    // Cleanup
+    os->close();
+    iocounter = iocounter + os->iocounter;
+    delete(os);
+
+    /*
+    // Name
+    string name = getBufferName(id,type);
 
     // Open file
     BufferedOutputStream* os = new BufferedOutputStream(streamBuffer);
@@ -1835,7 +1879,7 @@ void TruncatedBufferTree::appendBufferNoDelete(int id, KeyValue **buffer, int bS
     delete(os);
     for(int i = 0; i < bSize; i++) {
         delete(buffer[i]);
-    }
+    }*/
 
     // No delete of buffer
 }
@@ -1844,18 +1888,46 @@ void TruncatedBufferTree::appendBufferNoDelete(int id, KeyValue **buffer, int bS
 /*
  * Sorts an array of KeyValues by key.
  */
-void TruncatedBufferTree::sortInternalArray(KeyValue** buffer, int bufferSize) {
+void TruncatedBufferTree::sortInternalArray(KeyValue* buffer, int bufferSize) {
 
+    struct rusage r_usage;
+    getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory before sort " << r_usage.ru_maxrss << "\n";
 
-    std::sort(buffer, buffer+bufferSize,[](KeyValue * a, KeyValue * b) -> bool
+    std::sort(buffer, buffer+bufferSize,[](KeyValue a, KeyValue b) -> bool
+    {
+        return a.key < b.key;
+    } );
+
+    /*std::sort(buffer, buffer+bufferSize,[](KeyValue * a, KeyValue * b) -> bool
     {
         return a->key < b->key;
-    } );
+    } );*/
+
+    struct rusage r_usage2;
+    getrusage(RUSAGE_SELF,&r_usage2);
+    cout << "Memory after sort " << r_usage2.ru_maxrss << "\n";
 }
 
-int TruncatedBufferTree::readBuffer(int id, KeyValue **buffer, int type) {
+int TruncatedBufferTree::readBuffer(int id, KeyValue *buffer, int type) {
 
     InputStream* is = new BufferedInputStream(streamBuffer);
+    string name = getBufferName(id,type);
+    is->open(name.c_str());
+    int newKey,newValue;
+    int i = 0;
+    while(!is->endOfStream()) {
+        newKey = is->readNext();
+        newValue = is->readNext();
+        buffer[i] = KeyValue(newKey,newValue);
+        i++;
+    }
+    is->close();
+    iocounter = iocounter + is->iocounter;
+    delete(is);
+    return i;
+
+    /*InputStream* is = new BufferedInputStream(streamBuffer);
     string name = getBufferName(id,type);
     is->open(name.c_str());
     int newKey,newValue;
@@ -1869,14 +1941,32 @@ int TruncatedBufferTree::readBuffer(int id, KeyValue **buffer, int type) {
     is->close();
     iocounter = iocounter + is->iocounter;
     delete(is);
-    return i;
+    return i;*/
 
 
 }
 
-void TruncatedBufferTree::writeBuffer(int id, KeyValue **buffer, int bSize, int type) {
+void TruncatedBufferTree::writeBuffer(int id, KeyValue *buffer, int bSize, int type) {
 
     string name = getBufferName(id,type);
+    if(FILE *file = fopen(name.c_str(), "r")) {
+        fclose(file);
+        remove(name.c_str());
+    }
+    BufferedOutputStream* os = new BufferedOutputStream(streamBuffer);
+    os->create(name.c_str());
+
+    for(int i = 0; i < bSize; i++) {
+        os->write(&(buffer[i].key));
+        os->write(&(buffer[i].value));
+    }
+
+    os->close();
+    iocounter = iocounter + os->iocounter;
+    delete(os);
+    delete[] buffer;
+
+    /*string name = getBufferName(id,type);
     if(FILE *file = fopen(name.c_str(), "r")) {
         fclose(file);
         remove(name.c_str());
@@ -1897,7 +1987,7 @@ void TruncatedBufferTree::writeBuffer(int id, KeyValue **buffer, int bSize, int 
         delete(buffer[i]);
     }
 
-    delete[] buffer;
+    delete[] buffer;*/
 
 }
 
@@ -1909,6 +1999,101 @@ void TruncatedBufferTree::writeBuffer(int id, KeyValue **buffer, int bSize, int 
 int TruncatedBufferTree::sortExternalBuffer(int id, int bufferSize, int sortedSize) {
 
     int unsortedSize = bufferSize - sortedSize;
+    KeyValue* keyvalues = new KeyValue[unsortedSize];
+
+    string name1 = getBufferName(id,1);
+    string name2 = getBufferName(id,2); // Tempbuff1
+    if(FILE *file = fopen(name2.c_str(), "r")) {
+        fclose(file);
+        remove(name2.c_str());
+    }
+
+    InputStream* is = new BufferedInputStream(streamBuffer);
+    is->open(name1.c_str());
+
+    int key,value;
+    for(int i = 0; i < unsortedSize; i++) {
+        key = is->readNext();
+        value = is->readNext();
+        keyvalues[i] = KeyValue(key,value);
+    }
+
+    sortInternalArray(keyvalues,unsortedSize);
+
+    BufferedOutputStream* os = new BufferedOutputStream(streamBuffer);
+    os->create(name2.c_str());
+
+    int indexArray = 0;
+    int indexBuffer = 0;
+    int key1,value1,key2,value2;
+    key1 = keyvalues[indexArray].key;
+    value1 = keyvalues[indexArray].value;
+    key2 = is->readNext();
+    value2 = is->readNext();
+    for(int i = 0; i < bufferSize; i++) {
+
+        if(indexArray >= unsortedSize) {
+            os->write(&key2);
+            os->write(&value2);
+            indexBuffer++;
+            if(indexBuffer < sortedSize) {
+                key2 = is->readNext();
+                value2 = is->readNext();
+            }
+        }
+        else if(indexBuffer >= sortedSize) {
+            os->write(&key1);
+            os->write(&value1);
+            indexArray++;
+            if(indexArray < unsortedSize) {
+                key1 = keyvalues[indexArray].key;
+                value1 = keyvalues[indexArray].value;
+            }
+        }
+        else {
+
+            if(key1 < key2) {
+                os->write(&key1);
+                os->write(&value1);
+                indexArray++;
+                if(indexArray < unsortedSize) {
+                    key1 = keyvalues[indexArray].key;
+                    value1 = keyvalues[indexArray].value;
+                }
+            }
+            else {
+                os->write(&key2);
+                os->write(&value2);
+                indexBuffer++;
+                if(indexBuffer < sortedSize) {
+                    key2 = is->readNext();
+                    value2 = is->readNext();
+                }
+            }
+        }
+    }
+
+    os->close();
+    iocounter = iocounter + os->iocounter;
+    delete(os);
+
+    is->close();
+    iocounter = iocounter + is->iocounter;
+    delete(is);
+
+    for(int i = 0; i < unsortedSize; i++) {
+        delete(keyvalues[i]);
+    }
+    delete[] keyvalues;
+
+    int result = rename( name2.c_str(), name1.c_str());
+    if (result != 0) {
+        cout << "Tried renaming " << name2 << " to " << name1 << "\n";
+        perror("Error renaming file");
+    }
+
+
+    /*int unsortedSize = bufferSize - sortedSize;
     KeyValue** keyvalues = new KeyValue*[unsortedSize];
 
     string name1 = getBufferName(id,1);
@@ -2000,7 +2185,7 @@ int TruncatedBufferTree::sortExternalBuffer(int id, int bufferSize, int sortedSi
     if (result != 0) {
         cout << "Tried renaming " << name2 << " to " << name1 << "\n";
         perror("Error renaming file");
-    }
+    }*/
 
 
 
