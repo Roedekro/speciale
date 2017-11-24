@@ -158,7 +158,7 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
             int number;
             for(int i = 1; i <= N; i++) {
                 number = rand() % modulus +1;
-                tree->insert(new KeyValue(number,number));
+                tree->insert(KeyValue(number,number));
             }
             high_resolution_clock::time_point t2 = high_resolution_clock::now();
             insertTime[i-1] = insertTime[i-1] + chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();

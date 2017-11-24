@@ -127,21 +127,21 @@ void TruncatedBufferTree::insert(KeyValue element) {
             // just sort internally.
 
 
-            struct rusage r_usage;
+            /*struct rusage r_usage;
             getrusage(RUSAGE_SELF,&r_usage);
-            cout << "Memory before read buffer " << r_usage.ru_maxrss << "\n";
+            cout << "Memory before read buffer " << r_usage.ru_maxrss << "\n";*/
 
             // Load in array
             KeyValue* rootBuffer = new KeyValue[rootBufferSize];
 
-            getrusage(RUSAGE_SELF,&r_usage);
-            cout << "Memory after allocating buffer " << r_usage.ru_maxrss << "\n";
+            /*getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory after allocating buffer " << r_usage.ru_maxrss << "\n";*/
 
             int rsize = readBuffer(root,rootBuffer,1);
 
 
-            getrusage(RUSAGE_SELF,&r_usage);
-            cout << "Memory after read buffer " << r_usage.ru_maxrss << "\n";
+            /*getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory after read buffer " << r_usage.ru_maxrss << "\n";*/
 
             /* Always matches
             if(rsize != rootBufferSize) {
@@ -285,9 +285,6 @@ int TruncatedBufferTree::query(int element) {
                 ret = rootBuffer[i].value;
             }
         }
-        for(int i = 0; i < rootBufferSize; i++) {
-            delete(rootBuffer[i]);
-        }
         delete[] rootBuffer;
     }
     if(ret != 0) {
@@ -314,7 +311,7 @@ int TruncatedBufferTree::query(int element) {
 
             ret = 0;
             if(bufferSize != 0 && node != root) {
-                KeyValue** buffer = new KeyValue*[bufferSize];
+                KeyValue* buffer = new KeyValue[bufferSize];
                 int bsize = readBuffer(node,buffer,1);
                 /*if(bsize != bufferSize) {
                     cout << "!!! Error buffersize not equal to actual buffer size\n";
@@ -322,13 +319,10 @@ int TruncatedBufferTree::query(int element) {
                     cout << node << " " << height << " " << nodeSize << "\n";
                 }*/
                 for(int i = 0; i < bufferSize; i++) {
-                    if(buffer[i]->key == element) {
+                    if(buffer[i].key == element) {
                         //cout << "Found element in buffer of node " << node << "\n";
-                        ret = buffer[i]->value;
+                        ret = buffer[i].value;
                     }
-                }
-                for(int i = 0; i < bufferSize; i++) {
-                    delete(buffer[i]);
                 }
                 delete[] buffer;
             }
@@ -1128,11 +1122,11 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
         int counter = 0;
         if(i < cSize-1) {
             // Read in elements O(M)
-            KeyValue** array = new KeyValue*[maxExternalBufferSize];
+            KeyValue* array = new KeyValue[maxExternalBufferSize];
             while(counter < maxExternalBufferSize) {
                 key = is1->readNext();
                 val = is1->readNext();
-                array[counter] = new KeyValue(key,val);
+                array[counter] = KeyValue(key,val);
                 counter++;
             }
 
@@ -1141,8 +1135,8 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
 
             // Output elements to new list
             for(int j = 0; j < maxExternalBufferSize; j++) {
-                key = array[j]->key;
-                val = array[j]->value;
+                key = array[j].key;
+                val = array[j].value;
                 osList->write(&key);
                 osList->write(&val);
             }
@@ -1152,9 +1146,6 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
             iocounter = iocounter + osList->iocounter;
             delete(osList);
 
-            for(int j = 0; j < maxExternalBufferSize; j++) {
-                delete(array[j]);
-            }
             delete[] array;
 
         }
@@ -1165,12 +1156,12 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
             if(remainder == 0) {
                 specialSize = maxExternalBufferSize;
             }
-            KeyValue** array = new KeyValue*[specialSize];
+            KeyValue* array = new KeyValue[specialSize];
 
             while(counter < specialSize) {
                 key = is1->readNext();
                 val = is1->readNext();
-                array[counter] = new KeyValue(key,val);
+                array[counter] = KeyValue(key,val);
                 counter++;
             }
 
@@ -1179,8 +1170,8 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
 
             // Output elements to new list
             for(int j = 0; j < specialSize; j++) {
-                key = array[j]->key;
-                val = array[j]->value;
+                key = array[j].key;
+                val = array[j].value;
                 osList->write(&key);
                 osList->write(&val);
             }
@@ -1189,9 +1180,6 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
             iocounter = iocounter + osList->iocounter;
             delete(osList);
 
-            for(int j = 0; j < specialSize; j++) {
-                delete(array[j]);
-            }
             delete[] array;
 
             // Last list
@@ -1204,12 +1192,12 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
             if(remainder == 0) {
                 verySpecialSize = maxExternalBufferSize;
             }
-            array = new KeyValue*[verySpecialSize];
+            array = new KeyValue[verySpecialSize];
 
             while(counter < verySpecialSize) {
                 key = is1->readNext();
                 val = is1->readNext();
-                array[counter] = new KeyValue(key,val);
+                array[counter] = KeyValue(key,val);
                 counter++;
             }
 
@@ -1218,8 +1206,8 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
 
             // Output elements to new list
             for(int j = 0; j < verySpecialSize; j++) {
-                key = array[j]->key;
-                val = array[j]->value;
+                key = array[j].key;
+                val = array[j].value;
                 osList->write(&key);
                 osList->write(&val);
             }
@@ -1228,9 +1216,6 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
             iocounter = iocounter + osList->iocounter;
             delete(osList);
 
-            for(int j = 0; j < verySpecialSize; j++) {
-                delete(array[j]);
-            }
             delete[] array;
 
         }
@@ -1440,11 +1425,11 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
         int counter = 0;
         if(i < newSize-1) {
             // Read in elements O(M)
-            KeyValue** array = new KeyValue*[maxExternalBufferSize];
+            KeyValue* array = new KeyValue[maxExternalBufferSize];
             while(counter < maxExternalBufferSize) {
                 key = is1->readNext();
                 val = is1->readNext();
-                array[counter] = new KeyValue(key,val);
+                array[counter] = KeyValue(key,val);
                 counter++;
             }
 
@@ -1453,8 +1438,8 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
 
             // Output elements to new list
             for(int j = 0; j < maxExternalBufferSize; j++) {
-                key = array[j]->key;
-                val = array[j]->value;
+                key = array[j].key;
+                val = array[j].value;
                 osList->write(&key);
                 osList->write(&val);
             }
@@ -1464,9 +1449,6 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
             iocounter = iocounter + osList->iocounter;
             delete(osList);
 
-            for(int j = 0; j < maxExternalBufferSize; j++) {
-                delete(array[j]);
-            }
             delete[] array;
 
         }
@@ -1474,12 +1456,12 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
             // Special case, second last list.
             // Split the remaining elements into two.
             int specialSize = (maxExternalBufferSize+remainder)/2;
-            KeyValue** array = new KeyValue*[specialSize];
+            KeyValue* array = new KeyValue[specialSize];
 
             while(counter < specialSize) {
                 key = is1->readNext();
                 val = is1->readNext();
-                array[counter] = new KeyValue(key,val);
+                array[counter] = KeyValue(key,val);
                 counter++;
             }
 
@@ -1488,8 +1470,8 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
 
             // Output elements to new list
             for(int j = 0; j < specialSize; j++) {
-                key = array[j]->key;
-                val = array[j]->value;
+                key = array[j].key;
+                val = array[j].value;
                 osList->write(&key);
                 osList->write(&val);
             }
@@ -1498,9 +1480,6 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
             iocounter = iocounter + osList->iocounter;
             delete(osList);
 
-            for(int j = 0; j < specialSize; j++) {
-                delete(array[j]);
-            }
             delete[] array;
 
             // Last list
@@ -1510,12 +1489,12 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
             osList->create(specialString.c_str());
             counter = 0;
             int verySpecialSize = (maxExternalBufferSize+remainder)-specialSize;
-            array = new KeyValue*[verySpecialSize];
+            array = new KeyValue[verySpecialSize];
 
             while(counter < verySpecialSize) {
                 key = is1->readNext();
                 val = is1->readNext();
-                array[counter] = new KeyValue(key,val);
+                array[counter] = KeyValue(key,val);
                 counter++;
             }
 
@@ -1524,8 +1503,8 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
 
             // Output elements to new list
             for(int j = 0; j < verySpecialSize; j++) {
-                key = array[j]->key;
-                val = array[j]->value;
+                key = array[j].key;
+                val = array[j].value;
                 osList->write(&key);
                 osList->write(&val);
             }
@@ -1534,9 +1513,6 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
             iocounter = iocounter + osList->iocounter;
             delete(osList);
 
-            for(int j = 0; j < verySpecialSize; j++) {
-                delete(array[j]);
-            }
             delete[] array;
 
         }
@@ -1890,9 +1866,9 @@ void TruncatedBufferTree::appendBufferNoDelete(int id, KeyValue *buffer, int bSi
  */
 void TruncatedBufferTree::sortInternalArray(KeyValue* buffer, int bufferSize) {
 
-    struct rusage r_usage;
+    /*struct rusage r_usage;
     getrusage(RUSAGE_SELF,&r_usage);
-    cout << "Memory before sort " << r_usage.ru_maxrss << "\n";
+    cout << "Memory before sort " << r_usage.ru_maxrss << "\n";*/
 
     std::sort(buffer, buffer+bufferSize,[](KeyValue a, KeyValue b) -> bool
     {
@@ -1904,9 +1880,9 @@ void TruncatedBufferTree::sortInternalArray(KeyValue* buffer, int bufferSize) {
         return a->key < b->key;
     } );*/
 
-    struct rusage r_usage2;
+    /*struct rusage r_usage2;
     getrusage(RUSAGE_SELF,&r_usage2);
-    cout << "Memory after sort " << r_usage2.ru_maxrss << "\n";
+    cout << "Memory after sort " << r_usage2.ru_maxrss << "\n";*/
 }
 
 int TruncatedBufferTree::readBuffer(int id, KeyValue *buffer, int type) {
@@ -2081,9 +2057,6 @@ int TruncatedBufferTree::sortExternalBuffer(int id, int bufferSize, int sortedSi
     iocounter = iocounter + is->iocounter;
     delete(is);
 
-    for(int i = 0; i < unsortedSize; i++) {
-        delete(keyvalues[i]);
-    }
     delete[] keyvalues;
 
     int result = rename( name2.c_str(), name1.c_str());
@@ -2362,16 +2335,13 @@ void TruncatedBufferTree::printNode(int id) {
 
         //cout << "--- Buffer\n";
         if(bufferSize > 0) {
-            KeyValue** buffer = new KeyValue*[bufferSize];
+            KeyValue* buffer = new KeyValue[bufferSize];
             readBuffer(id,buffer,1);
             for(int i = 0; i < bufferSize; i++) {
                 //cout << buffer[i]->key << " " << buffer[i]->value <<"\n";
             }
 
             // Clean up
-            for(int i = 0; i < bufferSize; i++) {
-                delete(buffer[i]);
-            }
             delete[] buffer;
         }
 
@@ -2388,16 +2358,13 @@ void TruncatedBufferTree::printNode(int id) {
 
         //cout << "--- Buffer\n";
         if(bufferSize > 0) {
-            KeyValue** buffer = new KeyValue*[bufferSize];
+            KeyValue* buffer = new KeyValue[bufferSize];
             readBuffer(id,buffer,1);
             for(int i = 0; i < bufferSize; i++) {
                 //cout << buffer[i]->key << " " << buffer[i]->value <<"\n";
             }
 
             // Clean up
-            for(int i = 0; i < bufferSize; i++) {
-                delete(buffer[i]);
-            }
             delete[] buffer;
         }
 

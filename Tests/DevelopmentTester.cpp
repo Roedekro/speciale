@@ -1607,9 +1607,9 @@ void DevelopmentTester::testTruncatedInsertQueryDelete() {
     TruncatedBufferTree* tree = new TruncatedBufferTree(B,M,delta,inserts);
 
 
-    KeyValue* kv;
+    KeyValue kv;
     for(int i = 1; i <= inserts; i++) {
-        kv = new KeyValue(i,i);
+        kv = KeyValue(i,i);
         tree->insert(kv);
     }
 

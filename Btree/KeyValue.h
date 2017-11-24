@@ -14,6 +14,7 @@ struct KeyValue {
         value = v;
     }
     KeyValue(){}
+    ~KeyValue(){}
 };
 
 #endif //SPECIALE_KEYVALUE_H
