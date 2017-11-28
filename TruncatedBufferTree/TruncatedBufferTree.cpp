@@ -61,16 +61,29 @@ TruncatedBufferTree::TruncatedBufferTree(int B, int M, int delta, int N) {
     //maxBucketSize = (int) N / ( pow(size*4,delta)); // Optimal bucket size (elements)
     //maxBucketSize = maxBucketSize/(maxExternalBufferSize*2); // Because it might only be half filled out
 
-    maxBucketSize = (int) N / ( pow(size*4,delta)); // Elements in bucket
+    /*maxBucketSize = (int) N / ( pow(size*4,delta)); // Elements in bucket
     maxBucketSize = maxBucketSize/maxExternalBufferSize; // lists in bucket
-    maxBucketSize = maxBucketSize * pow(2,delta+1); // Because all nodes wont be completely filled.
+    maxBucketSize = maxBucketSize * pow(2,delta+1); // Because all nodes wont be completely filled.*/
 
-
+    if(delta != 1) {
+        maxBucketSize = (int) N / ( pow(size*2,delta-1)); // Nodes might only be half full, delta is cutoff thus -1.
+        maxBucketSize = (int) maxBucketSize/maxExternalBufferSize;
+    }
+    else {
+        // Whatever
+        maxBucketSize = 10;
+    }
 
     //cout << "Max Bucket Size should be " << maxBucketSize << "\n";
     if (maxBucketSize < 2) {
         maxBucketSize = 2;
     }
+
+    /*cout << "Size = " << size << "\n";
+    cout << "MaxExternalBufferSize = " << maxExternalBufferSize << "\n";
+    cout << "MaxBucketSize = " << maxBucketSize << "\n";*/
+
+    // Was a hack, now being handled properly.
     /*if(delta == 1) {
         maxBucketSize = 2100000000; // Close to 2^31, never gonna happen.
     }*/
@@ -195,6 +208,7 @@ void TruncatedBufferTree::insert(KeyValue element) {
                     if (nodeSize > maxBucketSize) {
 
                         //cout << "========== Root was leaf, now creating new root node\n";
+                        //cout << "Old size was " << nodeSize << "\n";
 
                         numberOfNodes++;
                         int newRoot = numberOfNodes;

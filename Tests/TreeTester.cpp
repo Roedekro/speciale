@@ -72,10 +72,10 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
     int numberOfQueries = 10000;
 
     int numberOfDeltas = 4;
-    long* insertTime = new long[numberOfDeltas];
-    long* insertIO = new long[numberOfDeltas];
-    long* queryTime = new long[numberOfDeltas];
-    long* queryIO = new long[numberOfDeltas];
+    long* insertTime = new long[numberOfDeltas]();
+    long* insertIO = new long[numberOfDeltas]();
+    long* queryTime = new long[numberOfDeltas]();
+    long* queryIO = new long[numberOfDeltas]();
     int* heights = new int[numberOfDeltas];
 
     for(int i = 1; i <= numberOfDeltas; i++) {
@@ -137,12 +137,12 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
                     iss >> s;
                     iss >> s; // Sectors read
                     //cout << s << " ";
-                    diskReads1 = diskReads1 + stoi(s);
+                    diskReads1 = diskReads1 + stol(s);
                     iss >> s;
                     iss >> s;
                     iss >> s;
                     iss >> s; // Sectors written
-                    diskWrites1 = diskWrites1 + stoi(s);
+                    diskWrites1 = diskWrites1 + stol(s);
                 }
             }
             file1.close();
@@ -153,10 +153,10 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
             //cout << "Inserting\n";
 
             // Insert N elements
-            high_resolution_clock::time_point t1 = high_resolution_clock::now();
             int modulus = 2*N;
             int number;
-            for(int i = 1; i <= N; i++) {
+            high_resolution_clock::time_point t1 = high_resolution_clock::now();
+            for(int j = 1; j <= N; j++) {
                 number = rand() % modulus +1;
                 tree->insert(KeyValue(number,number));
             }
@@ -182,12 +182,12 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
                     iss >> s;
                     iss >> s; // Sectors read
                     //cout << s << " ";
-                    diskReads2 = diskReads2 + stoi(s);
+                    diskReads2 = diskReads2 + stol(s);
                     iss >> s;
                     iss >> s;
                     iss >> s;
                     iss >> s; // Sectors written
-                    diskWrites2 = diskWrites2 + stoi(s);
+                    diskWrites2 = diskWrites2 + stol(s);
                 }
             }
             file2.close();
@@ -204,7 +204,7 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
             //cout << "Query\n";
             // Query N/100 elements
             t1 = high_resolution_clock::now();
-            for(int i = 1; i <= numberOfQueries; i++) {
+            for(int j = 1; j <= numberOfQueries; j++) {
                 number = rand() % modulus +1;
                 tree->query(number);
             }
@@ -232,12 +232,12 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
                     iss >> s;
                     iss >> s; // Sectors read
                     //cout << s << " ";
-                    diskReads3 = diskReads3 + stoi(s);
+                    diskReads3 = diskReads3 + stol(s);
                     iss >> s;
                     iss >> s;
                     iss >> s;
                     iss >> s; // Sectors written
-                    diskWrites3 =  diskWrites3 + stoi(s);
+                    diskWrites3 =  diskWrites3 + stol(s);
                 }
             }
             file3.close();
@@ -258,7 +258,9 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
             int* ptr_nodeSize = &nodeSize;
             int* ptr_bufferSize = &bufferSize;
             tree->readNodeInfo(tree->root,ptr_height,ptr_nodeSize,ptr_bufferSize);
-            heights[i-1] = height;
+            if(height > heights[i-1]) {
+                heights[i-1] = height;
+            }
 
             tree->cleanUpTree();
             delete(tree);
@@ -266,13 +268,15 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
             //cout << "Done!\n";
         }
 
-        for(int j = 0; j < numberOfDeltas; j++) {
-            insertTime[j] = insertTime[j]/runs;
-            insertIO[j] = insertIO[j]/runs;
-            queryTime[j] = queryTime[j]/runs;
-            queryIO[j] = queryIO[j]/runs;
-        }
+        cout << "Temp data Delta=" << i << " " << insertTime[i-1] << " " << insertIO[i-1] << " " << queryTime[i-1] << " " << queryIO[i-1] << " " << heights[i-1] << "\n";
+    }
 
+    // Divide by runs
+    for(int j = 0; j < numberOfDeltas; j++) {
+        insertTime[j] = insertTime[j]/runs;
+        insertIO[j] = insertIO[j]/runs;
+        queryTime[j] = queryTime[j]/runs;
+        queryIO[j] = queryIO[j]/runs;
     }
 
     // Write out results

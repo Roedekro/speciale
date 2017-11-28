@@ -21,6 +21,14 @@ void test() {
     test->truncatedDeltaTest(1024,8196,1000000,2);
     delete(test);*/
 
+    /*TreeTester* test = new TreeTester();
+    // B = 128KB, M = 8MB, N = 100mil, runs = 2
+    //test->truncatedDeltaTest(131072,8388608,10000000,2);
+    test->truncatedDeltaTest(1024,8196,100000,2);
+    delete(test);*/
+
+
+    // Actual delta test
     TreeTester* test = new TreeTester();
     // B = 128KB, M = 8MB, N = 100mil, runs = 1
     // 100k queries.
