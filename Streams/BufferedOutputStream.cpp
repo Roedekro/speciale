@@ -20,13 +20,13 @@ BufferedOutputStream::~BufferedOutputStream() {
 }
 
 void BufferedOutputStream::create(const char* s) {
-    filedesc = ::open(s, O_CREAT|O_RDWR, 0666);
+    filedesc = ::open(s, O_CREAT|O_RDWR, 0777);
     name = s;
 }
 
 // Will append rather than overwrite.
 void BufferedOutputStream::open(const char* s) {
-    filedesc = ::open(s, O_CREAT|O_RDWR|O_APPEND, 0666);
+    filedesc = ::open(s, O_CREAT|O_RDWR|O_APPEND, 0777);
     //filedesc = ::open(s, O_RDWR|O_APPEND);
     name = s;
 }
@@ -53,6 +53,6 @@ void BufferedOutputStream::close() {
     int tmp = ::close(filedesc);
     if(tmp == -1) std::cout << "Error closing file in BufferedOutputStream " << name << "\n";
     delete [] buffer;
-    chmod(name, 0666); // To be sure we have access later
+    chmod(name, 0777); // To be sure we have access later
     index = 0;
 }

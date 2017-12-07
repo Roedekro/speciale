@@ -392,7 +392,7 @@ int TruncatedBufferTree::query(int element) {
         middle = (left+right)/2;
 
         // Fetch element at position middle
-        int filedesc = ::open(firstFracName.c_str(), O_RDONLY, 0666);
+        int filedesc = ::open(firstFracName.c_str(), O_RDONLY, 0777);
         ::pread(filedesc, tempBuff, 4*sizeof(int),middle*4*sizeof(int));
         ::close(filedesc);
 
@@ -411,7 +411,7 @@ int TruncatedBufferTree::query(int element) {
     // Can end up in a situation where we find predecessor
     // Move one forward
     if(tempBuff[0] < element) {
-        int filedesc = ::open(firstFracName.c_str(), O_RDONLY, 0666);
+        int filedesc = ::open(firstFracName.c_str(), O_RDONLY, 0777);
         ::pread(filedesc, tempBuff, 4*sizeof(int),(middle+1)*4*sizeof(int));
         ::close(filedesc);
     }
@@ -448,7 +448,7 @@ int TruncatedBufferTree::query(int element) {
     while(s > 0) {
 
         string tempFrac = getFracListName(node,s);
-        int filedesc = ::open(tempFrac.c_str(), O_RDONLY, 0666);
+        int filedesc = ::open(tempFrac.c_str(), O_RDONLY, 0777);
         ::pread(filedesc, tempBuff, 8*sizeof(int),pointer*4*sizeof(int));
         ::close(filedesc);
 
@@ -495,7 +495,7 @@ int TruncatedBufferTree::query(int element) {
         s--;
     }
 
-    /*int filedesc = ::open(temp.c_str(), O_RDONLY, 0666);
+    /*int filedesc = ::open(temp.c_str(), O_RDONLY, 0777);
     int bytesRead = ::pread(filedesc, tempBuff, 4*sizeof(int),offset);
     median = tempBuff[0];
     int error = ::close(filedesc);*/
@@ -1022,7 +1022,7 @@ int TruncatedBufferTree::splitLeaf(int nodeSize, std::vector<int> *keys, std::ve
         // Find median of list
         // Use pread to read with an offset
         string temp = getListName(childID,i);
-        int filedesc = ::open(temp.c_str(), O_RDONLY, 0666);
+        int filedesc = ::open(temp.c_str(), O_RDONLY, 0777);
         int bytesRead = ::pread(filedesc, tempBuff, 4*sizeof(int),offset);
         median = tempBuff[0];
         int error = ::close(filedesc);

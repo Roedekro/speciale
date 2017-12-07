@@ -29,11 +29,11 @@ void test() {
 
 
     // Actual delta test
-    TreeTester* test = new TreeTester();
-    // B = 128KB, M = 8MB, N = 100mil, runs = 1
-    // 100k queries.
-    test->truncatedDeltaTest(131072,8388608,100000000,10);
-    delete(test);
+    /*TreeTester* test = new TreeTester();
+    // B = 128KB, M = 8MB, N = 800mil, runs = 10
+    // 10k queries.
+    test->truncatedDeltaTest(131072,8388608,800000000,10);
+    delete(test);*/
 
     /*cout << sizeof(KeyValue) << "\n";
     KeyValue* ptr;
@@ -53,6 +53,8 @@ void test() {
         int k = sizeof(array[i]) + sizeof(*(array[i]));
         cout << k << "\n";
     }*/
+
+    //cout << RAND_MAX;
 
 
 }
@@ -83,8 +85,8 @@ int main(int argc, char* argv[]) {
     else if(test == 5) {
         // Truncated delta test
         TreeTester* test = new TreeTester();
-        // B, M, N, runs
-        test->truncatedDeltaTest(atoi(argv[2]),atoi(argv[3]),atoi(argv[4]),atoi(argv[5]));
+        // int B, int M, int delta, int N, int runs
+        test->truncatedBufferTree(131072,8388608,4,atoi(argv[2]),10);
         delete(test);
     }
 
