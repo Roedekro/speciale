@@ -11,6 +11,9 @@ using namespace std;
 
 void test() {
 
+    /*TreeTester* treeTester = new TreeTester();
+    treeTester->modifiedBTreeTest(32,256,10000,2);*/
+
     /*DevelopmentTester* dev = new DevelopmentTester();
     dev->test();
     delete(dev);*/
@@ -83,10 +86,17 @@ int main(int argc, char* argv[]) {
         //streamtestwrite2(atol(argv[2]),atoi(argv[3]));
     }
     else if(test == 5) {
-        // Truncated delta test
+        // Truncated delta test - Insert and Query
         TreeTester* test = new TreeTester();
         // int B, int M, int delta, int N, int runs
         test->truncatedBufferTree(131072,8388608,4,atoi(argv[2]),10);
+        delete(test);
+    }
+    else if(test == 6) {
+        // Modified BTree test - Insert and Query
+        TreeTester* test = new TreeTester();
+        // int B, int M, int N, int runs
+        test->modifiedBTreeTest(131072,8388608,atoi(argv[2]),10);
         delete(test);
     }
 

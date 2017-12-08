@@ -12,6 +12,7 @@ public:
     ~TreeTester();
     void truncatedBufferTree(int B, int M, int delta, int N, int runs);
     void truncatedDeltaTest(int B, int M, int N, int runs);
+    void modifiedBTreeTest(int B, int M, int N, int runs);
 
 };
 

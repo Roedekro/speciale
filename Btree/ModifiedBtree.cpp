@@ -46,14 +46,14 @@ ModifiedBtree::ModifiedBtree(int B, int M) {
     if(internalHeight - (log(maxInternalNodes) / log(2*size)) != 0) {
         //
         internalHeight++;
-        cout << "Increased height\n";
+        //cout << "Increased height\n";
     }
     minInternalNodes = (int) pow(2*size,internalHeight-1);
     iocounter = 0;
-    cout << "Created root " << root->id << "\n";
-    cout << "Tree will have size = " << size << " resulting in #keys = " << 2*size-1 << " with int size = " << sizeof(int) << "\n";
-    cout << "Max internal nodes = " << maxInternalNodes << " with internal node size = " << internalNodeSize << "\n";
-    cout << "Internal height is " << internalHeight << " and min internal nodes is " << minInternalNodes << "\n";
+    //cout << "Created root " << root->id << "\n";
+    //cout << "Tree will have size = " << size << " resulting in #keys = " << 2*size-1 << " with int size = " << sizeof(int) << "\n";
+    //cout << "Max internal nodes = " << maxInternalNodes << " with internal node size = " << internalNodeSize << "\n";
+    //cout << "Internal height is " << internalHeight << " and min internal nodes is " << minInternalNodes << "\n";
 }
 
 ModifiedBtree::~ModifiedBtree() {
@@ -68,8 +68,8 @@ ModifiedBtree::~ModifiedBtree() {
  */
 void ModifiedBtree::externalize() {
 
-    cout << "Externalizing #internalNodes " << internalNodeCounter << " maxInternalNodes " << maxInternalNodes << "\n";
-    cout << "#nodes in tree " << currentNumberOfNodes << " External node height is " << externalNodeHeight << "\n";
+    //cout << "Externalizing #internalNodes " << internalNodeCounter << " maxInternalNodes " << maxInternalNodes << "\n";
+    //cout << "#nodes in tree " << currentNumberOfNodes << " External node height is " << externalNodeHeight << "\n";
 
     if(externalNodeHeight == -1) {
         // Special case, first time we externalize
@@ -83,7 +83,7 @@ void ModifiedBtree::externalize() {
     // and externalize the children of the nodes at this level.
     recursiveExternalize(root);
 
-    cout << "Externalization completed, new #internalNodes " << internalNodeCounter << " external node height " << externalNodeHeight << "\n";
+    //cout << "Externalization completed, new #internalNodes " << internalNodeCounter << " external node height " << externalNodeHeight << "\n";
 }
 
 void ModifiedBtree::recursiveExternalize(ModifiedInternalNode *node) {
@@ -104,7 +104,7 @@ void ModifiedBtree::recursiveExternalize(ModifiedInternalNode *node) {
         for(int i = 0; i < node->nodeSize+1; i++) {
             child = node->children[i];
             writeNode(child->id,child->height,child->nodeSize,child->keys,child->values);
-            //cout << "Externalized node " << child->id << " from parent " << node->id << "\n";
+            ////cout << "Externalized node " << child->id << " from parent " << node->id << "\n";
             node->values[i] = child->id;
             delete(child);
             internalNodeCounter--;
@@ -145,7 +145,7 @@ void ModifiedBtree::insert(KeyValue *element) {
 
 void ModifiedBtree::insertIntoNonFullInternal(KeyValue *element, ModifiedInternalNode *node) {
 
-    //cout << "Insert Non Full Internal " << element->key << " Node ID = " << node->id << "\n";
+    ////cout << "Insert Non Full Internal " << element->key << " Node ID = " << node->id << "\n";
 
     int i = node->nodeSize;
     if(node->height == 1) {
@@ -159,7 +159,7 @@ void ModifiedBtree::insertIntoNonFullInternal(KeyValue *element, ModifiedInterna
         if(node->keys[j] == element->key) {
             // Special case, just update value
             node->values[j] = element->value;
-            //cout << "Node = " <<  node->id << " Updated key = " << element->key << " to value = " << element->value << "\n";
+            ////cout << "Node = " <<  node->id << " Updated key = " << element->key << " to value = " << element->value << "\n";
             return;
         }
         else {
@@ -172,7 +172,7 @@ void ModifiedBtree::insertIntoNonFullInternal(KeyValue *element, ModifiedInterna
             node->keys[i] = element->key;
             node->values[i] = element->value;
             (node->nodeSize)++;
-            //cout << "Node = " <<  node->id << " Inserted key = " << element->key << " with value = " << element->value << "\n";
+            ////cout << "Node = " <<  node->id << " Inserted key = " << element->key << " with value = " << element->value << "\n";
             return;
         }
 
@@ -229,13 +229,13 @@ void ModifiedBtree::insertIntoNonFullInternal(KeyValue *element, ModifiedInterna
                 splitChildBorder(node,i,ptr_cSize, cKeys, cValues,
                                  newKeys, newValues);
 
-                //cout << "Split children new sizes " << cSize << " " << newSize << "\n";
+                ////cout << "Split children new sizes " << cSize << " " << newSize << "\n";
 
                 // Check which of the two children we need to recurse upon.
                 if(element->key > node->keys[i]) {
 
                     // Write out old child
-                    //cout << "Writing out old child " << child << " with size " << cSize << "\n";
+                    ////cout << "Writing out old child " << child << " with size " << cSize << "\n";
                     writeNode(child,cHeight,cSize,cKeys,cValues);
 
                     // Switch child to new child.
@@ -278,7 +278,7 @@ void ModifiedBtree::insertIntoNonFull(KeyValue* element, int id, int height, int
             // Special case, just update value
             values[j] = element->value;
             writeNode(id,height,nodeSize,keys,values);
-            //cout << "Node = " <<  id << " Updated key = " << element->key << " to value = " << element->value << "\n";
+            ////cout << "Node = " <<  id << " Updated key = " << element->key << " to value = " << element->value << "\n";
             return;
         }
         else {
@@ -292,7 +292,7 @@ void ModifiedBtree::insertIntoNonFull(KeyValue* element, int id, int height, int
             values[i] = element->value;
             nodeSize++;
             writeNode(id,height,nodeSize,keys,values);
-            //cout << "Node = " <<  id << " Inserted key = " << element->key << " with value = " << element->value << "\n";
+            ////cout << "Node = " <<  id << " Inserted key = " << element->key << " with value = " << element->value << "\n";
             return;
         }
     }
@@ -328,13 +328,13 @@ void ModifiedBtree::insertIntoNonFull(KeyValue* element, int id, int height, int
                        newKeys, newValues);
             nodeSize++;
 
-            //cout << "Split children new sizes " << cSize << " " << newSize << "\n";
+            ////cout << "Split children new sizes " << cSize << " " << newSize << "\n";
 
             // Check which of the two children we need to recurse upon.
             if(element->key > keys[i]) {
 
                 // Write out old child
-                //cout << "Writing out old child " << child << " with size " << cSize << "\n";
+                ////cout << "Writing out old child " << child << " with size " << cSize << "\n";
                 writeNode(child,cHeight,cSize,cKeys,cValues);
 
                 // Switch child to new child.
@@ -367,8 +367,8 @@ void ModifiedBtree::insertIntoNonFull(KeyValue* element, int id, int height, int
  */
 void ModifiedBtree::splitChildInternal(ModifiedInternalNode* parent, ModifiedInternalNode *child, int childNumber) {
 
-    //cout << "Split Internal Child on parent " << parent->id << " child " << child->id << " childnumber " << childNumber <<"\n";
-    //cout << parent->nodeSize << " " << externalNodeHeight << " " << child->height << "\n";
+    ////cout << "Split Internal Child on parent " << parent->id << " child " << child->id << " childnumber " << childNumber <<"\n";
+    ////cout << parent->nodeSize << " " << externalNodeHeight << " " << child->height << "\n";
 
     numberOfNodes++;
     currentNumberOfNodes++;
@@ -598,7 +598,7 @@ int ModifiedBtree::query(int element) {
         // Go down in tree until we hit the leaf
         while(height != 1) {
 
-            //cout << "---Inside node " << currentNode << "\n";
+            ////cout << "---Inside node " << currentNode << "\n";
 
             // Find position
             int i = nodeSize;
@@ -607,12 +607,12 @@ int ModifiedBtree::query(int element) {
             }
             currentNode = values[i];
 
-            //cout << "Found node " << currentNode << " in place " << i << "\n";
+            ////cout << "Found node " << currentNode << " in place " << i << "\n";
 
             readNode(currentNode,ptr_height,ptr_nodeSize,keys,values);
         }
 
-        //cout << "Searching leaf, node " << currentNode << "\n";
+        ////cout << "Searching leaf, node " << currentNode << "\n";
 
         // In leaf
         int j = 0;
@@ -640,7 +640,7 @@ void ModifiedBtree::internalize() {
         return;
     }
     else if(externalNodeHeight > 0) {
-        cout << "Internalize, #internalNodes = " << internalNodeCounter << "\n";
+        //cout << "Internalize, #internalNodes = " << internalNodeCounter << "\n";
         externalNodeHeight--;
         recursiveInternalize(root);
     }
@@ -656,11 +656,11 @@ void ModifiedBtree::recursiveInternalize(ModifiedInternalNode *node) {
     }
     else {
         // Children are external, internalize them
-        cout << "=Internalizing children of node " << node->id << "\n";
+        //cout << "=Internalizing children of node " << node->id << "\n";
         node->children = new ModifiedInternalNode*[2*size];
         for(int i = 0; i < node->nodeSize+1; i++) {
             int id = node->values[i];
-            cout << "Internalizing node " << id << "\n";
+            //cout << "Internalizing node " << id << "\n";
             ModifiedInternalNode* child = new ModifiedInternalNode(id,0,size,true);
             int* ptr_height = &(child->height);
             int* ptr_nodeSize = &(child->nodeSize);
@@ -677,11 +677,11 @@ void ModifiedBtree::deleteElement(int element) {
     // Root always in internal memory
     // Perform check to see if we need to shrink the tree.
     if(root->height != 1 && root->nodeSize == 0) {
-        cout << "Deleting root " << root->id << "\n";
+        //cout << "Deleting root " << root->id << "\n";
         ModifiedInternalNode* oldRoot = root;
         if(root->height == externalNodeHeight+1) {
             // Special case
-            cout << "Special case " << root->id << " " << root->values[0] << "\n";
+            //cout << "Special case " << root->id << " " << root->values[0] << "\n";
             // Special case where root is the only node in internal memory,
             // and we must internalize its child
             int child = root->values[0];
@@ -692,7 +692,7 @@ void ModifiedBtree::deleteElement(int element) {
             readNode(root->id,ptr_height,ptr_nodeSize,root->keys,root->values);
             root->height = height;
             root->nodeSize = nodeSize;
-            cout << root->id << " " << root->height << " " << root->nodeSize << "\n";
+            //cout << root->id << " " << root->height << " " << root->nodeSize << "\n";
             delete[] oldRoot->keys;
             delete[] oldRoot->values;
             delete(oldRoot);
@@ -706,7 +706,7 @@ void ModifiedBtree::deleteElement(int element) {
         }
         internalNodeCounter--;
         currentNumberOfNodes--;
-        cout << "New root is node " << root->id << "\n";
+        //cout << "New root is node " << root->id << "\n";
         deleteElement(element);
     }
     else {
@@ -720,9 +720,9 @@ void ModifiedBtree::deleteElement(int element) {
 
 void ModifiedBtree::deleteNonSparseInternal(int element, ModifiedInternalNode *node) {
 
-    cout << "Delete Non Sparse Internal " << node->id << "\n";
+    //cout << "Delete Non Sparse Internal " << node->id << "\n";
     if(node->height == 1) {
-        cout << "Found internal leaf\n";
+        //cout << "Found internal leaf\n";
         // Leaf
         // Find key position
         int i = 0;
@@ -737,17 +737,17 @@ void ModifiedBtree::deleteNonSparseInternal(int element, ModifiedInternalNode *n
                 node->values[i] = node->values[i+1];
                 i++;
             }
-            //cout << "Deleted key = " << element << " from node " << id << "\n";
+            ////cout << "Deleted key = " << element << " from node " << id << "\n";
             return;
         }
         else {
             // Key was not present
-            //cout << "Key not present in node " << id << "\n";
+            ////cout << "Key not present in node " << id << "\n";
             return;
         }
     }
     else if(node->height > externalNodeHeight+1){
-        cout << "Internal child\n";
+        //cout << "Internal child\n";
         // Children are internal
         int i = node->nodeSize;
         while(i > 0 && element <= node->keys[i-1]) {
@@ -778,7 +778,7 @@ void ModifiedBtree::deleteNonSparseInternal(int element, ModifiedInternalNode *n
         }
         int child = node->values[i];
 
-        cout << "External child " << child << " " << i << " " << element << " " << node->nodeSize << "\n";
+        //cout << "External child " << child << " " << i << " " << element << " " << node->nodeSize << "\n";
 
         // Load in child
         int cHeight, cSize;
@@ -792,7 +792,7 @@ void ModifiedBtree::deleteNonSparseInternal(int element, ModifiedInternalNode *n
         if(cSize == size-1) {
 
             cWrite = true;
-            cout << "!!!!!!\n";
+            //cout << "!!!!!!\n";
             // Fuse child to ensure place for deletion
             fuseChildBorder(node,i,ptr_cSize,cKeys,cValues);
 
@@ -814,7 +814,7 @@ void ModifiedBtree::deleteNonSparseInternal(int element, ModifiedInternalNode *n
  */
 void ModifiedBtree::deleteNonSparse(int element, int id, int height, int nodeSize, int *keys, int *values, bool write) {
 
-    cout << "Delete on node " << id << " height " << height << " of size " << nodeSize << "\n";
+    //cout << "Delete on node " << id << " height " << height << " of size " << nodeSize << "\n";
 
     if(height == 1) {
         // Leaf, delete
@@ -833,7 +833,7 @@ void ModifiedBtree::deleteNonSparse(int element, int id, int height, int nodeSiz
                 i++;
             }
             writeNode(id,height,nodeSize,keys,values);
-            //cout << "Deleted key = " << element << " from node " << id << "\n";
+            ////cout << "Deleted key = " << element << " from node " << id << "\n";
             return;
         }
         else {
@@ -841,7 +841,7 @@ void ModifiedBtree::deleteNonSparse(int element, int id, int height, int nodeSiz
             if(write) {
                 writeNode(id,height,nodeSize,keys,values);
             }
-            //cout << "Key not present in node " << id << "\n";
+            ////cout << "Key not present in node " << id << "\n";
             return;
         }
     }
@@ -899,7 +899,7 @@ void ModifiedBtree::fuseChildInternal(ModifiedInternalNode *parent, ModifiedInte
      * We prefer case a over case b, since it allows for faster consecutive deletes.
      */
 
-    cout << "Fuse child internal " << child->id << "\n";
+    //cout << "Fuse child internal " << child->id << "\n";
 
     // Check case and placement
     ModifiedInternalNode* sibling;
@@ -1179,7 +1179,7 @@ void ModifiedBtree::fuseChildBorder(ModifiedInternalNode *parent, int childNumbe
      * We prefer case a over case b, since it allows for faster consecutive deletes.
      */
 
-    cout << "Fuse child border " << parent->values[childNumber] << "\n";
+    //cout << "Fuse child border " << parent->values[childNumber] << "\n";
 
     int siblingID;
     int siblingHeight, siblingSize;
@@ -1225,7 +1225,7 @@ void ModifiedBtree::fuseChildBorder(ModifiedInternalNode *parent, int childNumbe
         }
     }
 
-    //cout << "CaseA = " << caseA << " leftSibling = " << leftSibling << " siblingSize = " << siblingSize << "\n";
+    ////cout << "CaseA = " << caseA << " leftSibling = " << leftSibling << " siblingSize = " << siblingSize << "\n";
 
     // Perform the necessary adjustments
     if(caseA) {
@@ -1461,7 +1461,7 @@ void ModifiedBtree::fuseChild(int height, int* nodeSize, int *keys, int *values,
         }
     }
 
-    //cout << "CaseA = " << caseA << " leftSibling = " << leftSibling << " siblingSize = " << siblingSize << "\n";
+    ////cout << "CaseA = " << caseA << " leftSibling = " << leftSibling << " siblingSize = " << siblingSize << "\n";
 
     // Perform the necessary adjustments
     if(caseA) {
@@ -1506,23 +1506,23 @@ void ModifiedBtree::fuseChild(int height, int* nodeSize, int *keys, int *values,
             }
             (*nodeSize)--;
 
-            /*cout << "===Printing out child\n";
-            cout << height-1 << "\n";
-            cout << *childSize << "\n";
+            /*//cout << "===Printing out child\n";
+            //cout << height-1 << "\n";
+            //cout << *childSize << "\n";
             for(int j = 0; j < *childSize; j++) {
-                cout << cKeys[j] << "\n";
+                //cout << cKeys[j] << "\n";
             }
             for(int j = 0; j < *childSize; j++) {
-                cout << cValues[j] << "\n";
+                //cout << cValues[j] << "\n";
             }
-            cout << "===Printing out sibling\n";
-            cout << height-1 << "\n";
-            cout << siblingSize << "\n";
+            //cout << "===Printing out sibling\n";
+            //cout << height-1 << "\n";
+            //cout << siblingSize << "\n";
             for(int j = 0; j < siblingSize; j++) {
-                cout << siblingKeys[j] << "\n";
+                //cout << siblingKeys[j] << "\n";
             }
             for(int j = 0; j < siblingSize; j++) {
-                cout << siblingValues[j] << "\n";
+                //cout << siblingValues[j] << "\n";
             }*/
 
             // Dont delete and reassign, copy over and delete instead
@@ -1734,32 +1734,32 @@ void ModifiedBtree::readNode(int id, int* height, int* nodeSize, int *keys, int 
 
 void ModifiedBtree::printTree(ModifiedInternalNode *node) {
 
-    cout << "=== I " << node->id << "\n";
-    cout << node->height << "\n";
-    cout << node->nodeSize << "\n";
-    cout << "---\n";
+    //cout << "=== I " << node->id << "\n";
+    //cout << node->height << "\n";
+    //cout << node->nodeSize << "\n";
+    //cout << "---\n";
     for(int i = 0; i < node->nodeSize; i++) {
-        cout << node->keys[i] << "\n";
+        //cout << node->keys[i] << "\n";
     }
     if(node->height > 1 && node->height != externalNodeHeight+1) {
-        cout << "---C\n";
+        //cout << "---C\n";
         for(int i = 0; i < node->nodeSize+1; i++) {
-            cout << node->children[i]->id << "\n";
+            //cout << node->children[i]->id << "\n";
         }
         for(int i = 0; i < node->nodeSize+1; i++) {
             printTree(node->children[i]);
         }
     }
     else if( node->height == 1 && externalNodeHeight <= 0) {
-        cout << "---V1\n";
+        //cout << "---V1\n";
         for(int i = 0; i < node->nodeSize; i++) {
-            cout << node->values[i] << "\n";
+            //cout << node->values[i] << "\n";
         }
     }
     else {
-        cout << "---V\n";
+        //cout << "---V\n";
         for(int i = 0; i < node->nodeSize+1; i++) {
-            cout << node->values[i] << "\n";
+            //cout << node->values[i] << "\n";
         }
         for(int i = 0; i < node->nodeSize+1; i++) {
             printExternal(node->values[i]);
@@ -1777,22 +1777,22 @@ void ModifiedBtree::printExternal(int node) {
     int* values = new int[size*2];
     readNode(node,ptr_height,ptr_nodeSize,keys,values);
 
-    cout << "=== E " << node << "\n";
-    cout << height << "\n";
-    cout << nodeSize << "\n";
-    cout << "---\n";
+    //cout << "=== E " << node << "\n";
+    //cout << height << "\n";
+    //cout << nodeSize << "\n";
+    //cout << "---\n";
     for(int i = 0; i < nodeSize; i++) {
-        cout << keys[i] << "\n";
+        //cout << keys[i] << "\n";
     }
-    cout << "---\n";
+    //cout << "---\n";
     if(height == 1) {
         for(int i = 0; i < nodeSize; i++) {
-            cout << values[i] << "\n";
+            //cout << values[i] << "\n";
         }
     }
     else {
         for(int i = 0; i < nodeSize+1; i++) {
-            cout << values[i] << "\n";
+            //cout << values[i] << "\n";
         }
         for(int i = 0; i < nodeSize+1; i++) {
             printExternal(values[i]);
