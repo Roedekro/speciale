@@ -20,6 +20,7 @@
 #include "../BufferedBTree/BufferedBTree.h"
 #include "../TruncatedBufferTree/ExternalBufferedBTree.h"
 #include "../TruncatedBufferTree/TruncatedBufferTree.h"
+#include "../Btree/ModifiedBuilder.h"
 
 #include <ctime>
 #include <ratio>
@@ -75,9 +76,10 @@ void DevelopmentTester::test() {
     //handleEmptyRootLeafBufferOverflow();
     //externalBufferedBTreeInsertDeleteQuery(); // <------ ExternalBufferedBTree Main test!
     //testMedianOfMedians();
-    testTruncatedInsertQueryDelete(); // Main Truncated Buffer Tree!
+    //testTruncatedInsertQueryDelete(); // Main Truncated Buffer Tree!
     //testBinarySearchFracList();
     //readDiskstatsTest();
+    buildModifiedBTreeTest();
 }
 
 int DevelopmentTester::streamtestread(long n, int increment) {
@@ -1799,4 +1801,18 @@ void DevelopmentTester::readDiskstatsTest() {
 
     }
     file.close();
+}
+
+void DevelopmentTester::buildModifiedBTreeTest() {
+
+    int B = 32;
+    int M = 1024;
+    int N = 2048;
+
+    ModifiedBuilder* builder = new ModifiedBuilder();
+    int root = builder->build(N,B,M);
+    ModifiedBtree* tree = new ModifiedBtree(B,M,root);
+    cout << "Printing!\n";
+    tree->printTree(tree->root);
+    tree->cleanup();
 }

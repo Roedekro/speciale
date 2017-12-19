@@ -11,6 +11,10 @@
 //
 // NOTE: Each node will use 2*B space.
 //
+// Delete (and minimum size) not implemented correctly atm.
+// It should always fuse, and size needs to be corrected.
+// This way we get better amortized performance.
+//
 
 #include "ModifiedBtree.h"
 #include "../Streams/OutputStream.h"
@@ -31,8 +35,8 @@ ModifiedBtree::ModifiedBtree(int B, int M) {
     // Create root
     this->B = B;
     this->M = M;
-    size = ((B/sizeof(int))-2)/2; // #values. Max #keys will be 2*size-1. Min = size.
-    // Result is that one node can fill out 2*B.
+    //size = ((B/sizeof(int))-2)/2; // #values. Max #keys will be 2*size-1. Min = size.
+    size = (B/sizeof(int)); // #values. size = #elements in B. Max #keys will be 2*size-1. Min = 1/2 size.
     numberOfNodes = 1;
     currentNumberOfNodes = 1;
     root = new ModifiedInternalNode(numberOfNodes,1,size,true);
@@ -54,6 +58,50 @@ ModifiedBtree::ModifiedBtree(int B, int M) {
     //cout << "Tree will have size = " << size << " resulting in #keys = " << 2*size-1 << " with int size = " << sizeof(int) << "\n";
     //cout << "Max internal nodes = " << maxInternalNodes << " with internal node size = " << internalNodeSize << "\n";
     //cout << "Internal height is " << internalHeight << " and min internal nodes is " << minInternalNodes << "\n";
+}
+
+ModifiedBtree::ModifiedBtree(int B, int M, int exRoot) {
+    this->B = B;
+    this->M = M;
+    size = (B/sizeof(int)); // #values. size = #elements in B. Max #keys will be 2*size-1. Min = 1/2 size.
+    numberOfNodes = exRoot;
+    currentNumberOfNodes = exRoot;
+    int internalNodeSize = ((3*sizeof(int)) + ((size*2-1)*sizeof(int)) + (size*2*sizeof(ModifiedInternalNode*)));
+    maxInternalNodes = M/internalNodeSize;
+    int internalHeight = (int) (log(maxInternalNodes) / log(2*size));
+    if(internalHeight - (log(maxInternalNodes) / log(2*size)) != 0) {
+        //
+        internalHeight++;
+        //cout << "Increased height\n";
+    }
+    minInternalNodes = (int) pow(2*size,internalHeight-1);
+
+    int nodeSize,height;
+    int * ptr_nodeSize = &nodeSize;
+    int* ptr_height = &height;
+    int* keys = new int[size*2];
+    int* values = new int[size*2];
+
+    // Create internal root
+    readNode(exRoot,ptr_height,ptr_nodeSize,keys,values);
+    root = new ModifiedInternalNode(numberOfNodes,height,size,true);
+    root->nodeSize = nodeSize;
+    delete[] root->keys;
+    root->keys = keys;
+    delete[] root->values;
+    root->values = values;
+
+    internalNodeCounter=1;
+    // Set external node height to just below root
+    externalNodeHeight = height-1;
+
+    //cout << "Internalizing\n";
+    //cout << numberOfNodes << " " << internalNodeCounter << " " << minInternalNodes << " " << maxInternalNodes << " " << externalNodeHeight << "\n";
+    // Call internalize until we reach internalHeight
+    while(internalNodeCounter < minInternalNodes) {
+        //cout << internalNodeCounter << "\n";
+        internalize();
+    }
 }
 
 ModifiedBtree::~ModifiedBtree() {
@@ -156,6 +204,7 @@ void ModifiedBtree::insertIntoNonFullInternal(KeyValue *element, ModifiedInterna
         while(j < node->nodeSize && node->keys[j] != element->key) {
             j++;
         }
+        /* No update
         if(node->keys[j] == element->key) {
             // Special case, just update value
             node->values[j] = element->value;
@@ -174,8 +223,18 @@ void ModifiedBtree::insertIntoNonFullInternal(KeyValue *element, ModifiedInterna
             (node->nodeSize)++;
             ////cout << "Node = " <<  node->id << " Inserted key = " << element->key << " with value = " << element->value << "\n";
             return;
+        }*/
+        // Move keys and values back, insert new pair
+        while(i > 0 && element->key < node->keys[i-1]) {
+            node->keys[i] = node->keys[i-1];
+            node->values[i] = node->values[i-1];
+            i--;
         }
-
+        node->keys[i] = element->key;
+        node->values[i] = element->value;
+        (node->nodeSize)++;
+        ////cout << "Node = " <<  node->id << " Inserted key = " << element->key << " with value = " << element->value << "\n";
+        return;
 
     }
     else {
@@ -274,6 +333,7 @@ void ModifiedBtree::insertIntoNonFull(KeyValue* element, int id, int height, int
         while(j < nodeSize && keys[j] != element->key) {
             j++;
         }
+        /* No update
         if(keys[j] == element->key) {
             // Special case, just update value
             values[j] = element->value;
@@ -294,7 +354,20 @@ void ModifiedBtree::insertIntoNonFull(KeyValue* element, int id, int height, int
             writeNode(id,height,nodeSize,keys,values);
             ////cout << "Node = " <<  id << " Inserted key = " << element->key << " with value = " << element->value << "\n";
             return;
+        }*/
+        // Move keys and values back, insert new pair
+        while(i > 0 && element->key < keys[i-1]) {
+            keys[i] = keys[i-1];
+            values[i] = values[i-1];
+            i--;
         }
+        keys[i] = element->key;
+        values[i] = element->value;
+        nodeSize++;
+        writeNode(id,height,nodeSize,keys,values);
+        ////cout << "Node = " <<  id << " Inserted key = " << element->key << " with value = " << element->value << "\n";
+        return;
+
     }
     else {
         // Internal node
@@ -637,6 +710,7 @@ void ModifiedBtree::internalize() {
 
     if(currentNumberOfNodes == internalNodeCounter) {
         // Do nothing, no external nodes to internalize
+        //cout << "Do nothing\n";
         return;
     }
     else if(externalNodeHeight > 0) {
@@ -1734,32 +1808,32 @@ void ModifiedBtree::readNode(int id, int* height, int* nodeSize, int *keys, int 
 
 void ModifiedBtree::printTree(ModifiedInternalNode *node) {
 
-    //cout << "=== I " << node->id << "\n";
-    //cout << node->height << "\n";
-    //cout << node->nodeSize << "\n";
-    //cout << "---\n";
+    cout << "=== I " << node->id << "\n";
+    cout << node->height << "\n";
+    cout << node->nodeSize << "\n";
+    cout << "---\n";
     for(int i = 0; i < node->nodeSize; i++) {
-        //cout << node->keys[i] << "\n";
+        cout << node->keys[i] << "\n";
     }
     if(node->height > 1 && node->height != externalNodeHeight+1) {
-        //cout << "---C\n";
+        cout << "---C\n";
         for(int i = 0; i < node->nodeSize+1; i++) {
-            //cout << node->children[i]->id << "\n";
+            cout << node->children[i]->id << "\n";
         }
         for(int i = 0; i < node->nodeSize+1; i++) {
             printTree(node->children[i]);
         }
     }
     else if( node->height == 1 && externalNodeHeight <= 0) {
-        //cout << "---V1\n";
+        cout << "---V1\n";
         for(int i = 0; i < node->nodeSize; i++) {
-            //cout << node->values[i] << "\n";
+            cout << node->values[i] << "\n";
         }
     }
     else {
-        //cout << "---V\n";
+        cout << "---V\n";
         for(int i = 0; i < node->nodeSize+1; i++) {
-            //cout << node->values[i] << "\n";
+            cout << node->values[i] << "\n";
         }
         for(int i = 0; i < node->nodeSize+1; i++) {
             printExternal(node->values[i]);
@@ -1777,22 +1851,22 @@ void ModifiedBtree::printExternal(int node) {
     int* values = new int[size*2];
     readNode(node,ptr_height,ptr_nodeSize,keys,values);
 
-    //cout << "=== E " << node << "\n";
-    //cout << height << "\n";
-    //cout << nodeSize << "\n";
-    //cout << "---\n";
+    cout << "=== E " << node << "\n";
+    cout << height << "\n";
+    cout << nodeSize << "\n";
+    cout << "---\n";
     for(int i = 0; i < nodeSize; i++) {
-        //cout << keys[i] << "\n";
+        cout << keys[i] << "\n";
     }
-    //cout << "---\n";
+    cout << "---\n";
     if(height == 1) {
         for(int i = 0; i < nodeSize; i++) {
-            //cout << values[i] << "\n";
+            cout << values[i] << "\n";
         }
     }
     else {
         for(int i = 0; i < nodeSize+1; i++) {
-            //cout << values[i] << "\n";
+            cout << values[i] << "\n";
         }
         for(int i = 0; i < nodeSize+1; i++) {
             printExternal(values[i]);

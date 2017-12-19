@@ -5,6 +5,7 @@
 #include "TreeTester.h"
 #include "../TruncatedBufferTree/TruncatedBufferTree.h"
 #include "../Btree/ModifiedBtree.h"
+#include "../Btree/ModifiedBuilder.h"
 #include <ratio>
 #include <chrono>
 #include <iostream>
@@ -452,7 +453,7 @@ void TreeTester::modifiedBTreeTest(int B, int M, int N, int runs) {
 
     int numberOfQueries = 10000;
 
-    // Insert, query, iocounter, papi io
+    // Insert, query, iocounter
     long insertTime = 0;
     long insertIO = 0;
     long queryTime = 0;
@@ -519,9 +520,6 @@ void TreeTester::modifiedBTreeTest(int B, int M, int N, int runs) {
         }
         file1.close();
 
-        ModifiedBtree* tree = new ModifiedBtree(B,M);
-
-        // Insert N elements
         long tempMod = 2*N;
         int modulus;
         if(tempMod > 2147483647) {
@@ -531,10 +529,28 @@ void TreeTester::modifiedBTreeTest(int B, int M, int N, int runs) {
             modulus = tempMod;
         }
 
+        //ModifiedBtree* tree = new ModifiedBtree(B,M);
+
+        // Build REALISTIC tree in O(sort), much faster than O(N log_B( N/B)).
+        ModifiedBuilder* builder = new ModifiedBuilder();
+        int root = builder->build(N,B,M);
+        ModifiedBtree* tree = new ModifiedBtree(B,M,root);
+        delete(builder);
+
         int number;
         KeyValue* keyVal;
+        // Insert 1mil elements to make the constructed tree realistic
+        // REMOVED: Now building realistic tree from the start!
+        /*for(int j = 1; j <= 1000000; j++) {
+            number = rand() % modulus +1;
+            keyVal = new KeyValue(number,number);
+            tree->insert(keyVal);
+            delete(keyVal);
+        }*/
+
+        // Now insert 1mil elements that we time
         high_resolution_clock::time_point t1 = high_resolution_clock::now();
-        for(int j = 1; j <= N; j++) {
+        for(int j = 1; j <= 1000000; j++) {
             number = rand() % modulus +1;
             keyVal = new KeyValue(number,number);
             tree->insert(keyVal);

@@ -46,6 +46,7 @@ private:
     void testTruncatedInsertQueryDelete();
     void testBinarySearchFracList();
     void readDiskstatsTest();
+    void buildModifiedBTreeTest();
 
 
 

@@ -26,6 +26,8 @@
  * NOTE: Buffers MUST be deleted after flush.
  * This way new elements can just be appended.
  *
+ * NOTE: This version has bad memory usage, as it uses arrays of pointers
+ * to elements. Truncated Buffer Tree uses arrays storing elements directly.
  */
 
 
@@ -105,7 +107,7 @@ ExternalBufferedBTree::~ExternalBufferedBTree() {
  * Time will be set according to the trees relative time.
  * A negative value denotes a delete.
  */
-void ExternalBufferedBTree::update(KeyValueTime *keyValueTime) {
+void ExternalBufferedBTree::update(KeyValueTime* keyValueTime) {
 
     forcedFlushed = false;
     treeTime++;

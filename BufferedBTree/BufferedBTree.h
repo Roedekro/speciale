@@ -23,19 +23,27 @@ public:
     int minInternalNodes;
     int externalNodeHeight; // Height of the tree where all nodes, and below, are external
     long iocounter;
-    BufferedBTree(int B, int M);
+
+    /*
+     * General Methods
+     */
+    BufferedBTree(int B, int M, int N, float delta);
     virtual ~BufferedBTree();
+    void insert(KeyValueTime element);
+    int query(int element);
+
+    /*
+     * Tree Structural Methods
+     */
     void externalize();
     void recursiveExternalize(BufferedInternalNode* node);
-    void insert(KeyValueTime* element);
-    void insertIntoNonFullInternal(BufferedInternalNode* node);
-    void insertIntoNonFull(KeyValueTime* element, int id, int height, int nodeSize, int* keys, int* values, bool write);
+    void insertIntoNonFullInternal(KeyValueTime element, BufferedInternalNode* node);
+    void insertIntoNonFull(KeyValueTime element, int id, int height, int nodeSize, int* keys, int* values, bool write);
     void splitChildInternal(BufferedInternalNode* parent, BufferedInternalNode* child, int childNumber);
     void splitChildBorder(BufferedInternalNode* parent, int childNumber, int* childSize,
                           int* cKeys, int* cValues, int* newKeys, int* newValues);
     void splitChild(int height, int nodeSize, int* keys, int* values, int childNumber, int* childSize,
                     int* cKeys, int* cValues, int* newKeys, int* newValues);
-    int query(int element);
     void internalize();
     void recursiveInternalize(BufferedInternalNode* node);
     void deleteElement(int element);
@@ -46,12 +54,22 @@ public:
                          int* cKeys, int* cValues);
     void fuseChild(int height, int* nodeSize, int* keys, int* values, int childNumber, int* childSize,
                    int* cKeys, int* cValues);
-    void readNode(int id, int* height, int* nodeSize, int* keys, int* values);
-    void writeNode(int id, int height, int nodeSize, int* keys, int* values);
+
+    /*
+     * Buffer Handling Methods
+     */
+    void sortInternal(std::vector<KeyValueTime>* buffer);
+
+    /*
+     * Utility Methods
+     */
+
+    void readNode(int id, int* height, int* nodeSize, int*bufferSize, std::vector<int>* keys, std::vector<int>* values);
+    void writeNode(int id, int height, int nodeSize, int bufferSize, std::vector<int>* keys, std::vector<int>* values);
     void printTree(BufferedInternalNode* node);
     void printExternal(int node);
     void cleanup();
-    void sortInternal(std::vector<KeyValueTime>* buffer);
+
 };
 
 

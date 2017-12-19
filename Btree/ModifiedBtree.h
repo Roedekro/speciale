@@ -22,6 +22,7 @@ public:
     int externalNodeHeight; // Height of the tree where all nodes, and below, are external
     long iocounter;
     ModifiedBtree(int B, int M);
+    ModifiedBtree(int B, int M, int root);
     virtual ~ModifiedBtree();
     void externalize();
     void recursiveExternalize(ModifiedInternalNode* node);

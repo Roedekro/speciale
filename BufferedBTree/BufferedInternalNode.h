@@ -13,14 +13,15 @@ public:
     int id;
     int height;
     int nodeSize;
+    bool externalChildren;
     //int bufferSize; // Use vectors .size() method instead.
-    int* keys;
+    /*int* keys;
     int* values;
-    BufferedInternalNode** children;
-    /*std::vector<int>* keys;
+    BufferedInternalNode** children;*/
+    std::vector<int>* keys;
     std::vector<int>* values;
     std::vector<BufferedInternalNode*>* children;
-    std::vector<KeyValueTime>* buffer;*/
+    std::vector<KeyValueTime>* buffer;
     BufferedInternalNode(int id, int height, int size, bool externalChildren, int bufferSize);
     ~BufferedInternalNode();
 

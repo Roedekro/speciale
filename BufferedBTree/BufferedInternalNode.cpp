@@ -8,25 +8,29 @@ BufferedInternalNode::BufferedInternalNode(int id, int height, int size, bool ex
     this->id = id;
     this->height = height;
     this-> nodeSize = 0;
-    //this->bufferSize = 0;
+    this->externalChildren = externalChildren;
 
-
-    /*if(height > 1) {
-        this->keys = new std::vector<int>();
-        keys->reserve(4*size-1);
-        if(externalChildren) {
-            this->values = new std::vector<int>();
-            values->reserve(4*size);
-        }
-        else {
-            this->children = new std::vector<BufferedInternalNode*>();
-            children->reserve(4*size);
-        }
+    this->keys = new std::vector<int>();
+    keys->reserve(4*size-1);
+    if(externalChildren) {
+        this->values = new std::vector<int>();
+        values->reserve(4*size);
+    }
+    else {
+        this->children = new std::vector<BufferedInternalNode*>();
+        children->reserve(4*size);
     }
     this->buffer = new std::vector<KeyValueTime>();
-    buffer->reserve(bufferSize);*/
+    buffer->reserve(bufferSize);
 }
 
 BufferedInternalNode::~BufferedInternalNode() {
-
+    delete(keys);
+    if(externalChildren){
+        delete(values);
+    }
+    else {
+        delete(children);
+    }
+    delete(buffer);
 }
