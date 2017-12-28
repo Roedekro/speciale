@@ -31,6 +31,7 @@
 #include <fstream>
 //#include <papi.h>
 #include <random>
+#include <sys/resource.h>
 
 using namespace std;
 
@@ -452,6 +453,7 @@ void TreeTester::truncatedDeltaTest(int B, int M, int N, int runs) {
 void TreeTester::modifiedBTreeTest(int B, int M, int N, int runs) {
 
     int numberOfQueries = 10000;
+    int extraInserts = 1000000;
 
     // Insert, query, iocounter
     long insertTime = 0;
@@ -532,10 +534,12 @@ void TreeTester::modifiedBTreeTest(int B, int M, int N, int runs) {
         //ModifiedBtree* tree = new ModifiedBtree(B,M);
 
         // Build REALISTIC tree in O(sort), much faster than O(N log_B( N/B)).
+        cout << "Building\n";
         ModifiedBuilder* builder = new ModifiedBuilder();
         int root = builder->build(N,B,M);
         ModifiedBtree* tree = new ModifiedBtree(B,M,root);
         delete(builder);
+        //cout << "================= Finished building!\n";
 
         int number;
         KeyValue* keyVal;
@@ -548,9 +552,22 @@ void TreeTester::modifiedBTreeTest(int B, int M, int N, int runs) {
             delete(keyVal);
         }*/
 
+        cout << "Inserting\n";
         // Now insert 1mil elements that we time
         high_resolution_clock::time_point t1 = high_resolution_clock::now();
-        for(int j = 1; j <= 1000000; j++) {
+        high_resolution_clock::time_point ttemp1 = high_resolution_clock::now();
+        high_resolution_clock::time_point ttemp2 = high_resolution_clock::now();
+        for(int j = 0; j < extraInserts; j++) {
+            if(j%10000==0) {
+                ttemp2 = high_resolution_clock::now();
+                long temp_time = chrono::duration_cast<chrono::milliseconds>(ttemp2 - ttemp1).count();
+                cout << j << " " << temp_time << "\n";
+                ttemp1 = high_resolution_clock::now();
+                /*cout << j << "\n";
+                struct rusage r_usage;
+                getrusage(RUSAGE_SELF,&r_usage);
+                cout << "Memory during insertion " << r_usage.ru_maxrss << "\n";*/
+            }
             number = rand() % modulus +1;
             keyVal = new KeyValue(number,number);
             tree->insert(keyVal);
@@ -590,6 +607,7 @@ void TreeTester::modifiedBTreeTest(int B, int M, int N, int runs) {
         temp = (diskReads2-diskReads1) + (diskWrites2 - diskWrites1);
         insertIO = insertIO + temp;
 
+        cout << "Query\n";
         t1 = high_resolution_clock::now();
         for(int j = 1; j <= numberOfQueries; j++) {
             number = rand() % modulus +1;

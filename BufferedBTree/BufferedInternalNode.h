@@ -21,6 +21,8 @@ public:
     std::vector<int>* keys;
     std::vector<int>* values;
     std::vector<BufferedInternalNode*>* children;
+    std::vector<int>* leafInfo;
+    //std::vector<int>* bufferSizes; // Of children
     std::vector<KeyValueTime>* buffer;
     BufferedInternalNode(int id, int height, int size, bool externalChildren, int bufferSize);
     ~BufferedInternalNode();

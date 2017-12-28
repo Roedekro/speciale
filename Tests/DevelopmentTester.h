@@ -30,7 +30,7 @@ private:
     void recursivePrintModifiedNode(ModifiedInternalNode* node);
     void internalModifiedBtreeInsertAndQueryTest();
     void internalModifiedBtreeInsertDeleteAndQueryTest();
-    void BufferedBtreeInsertDeleteAndQueryTest();
+    void BufferedBtreeInsertDeleteAndQueryTest(); // Deprecated
     void internalNodeCalculation();
     void sortTest();
     void sizeTest();
@@ -47,7 +47,7 @@ private:
     void testBinarySearchFracList();
     void readDiskstatsTest();
     void buildModifiedBTreeTest();
-
+    void initialTestBufferedBTree();
 
 
 

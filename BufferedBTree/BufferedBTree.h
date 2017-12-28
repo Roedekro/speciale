@@ -14,7 +14,7 @@ public:
     int B;
     int M;
     int size;
-    int bufferSize;
+    int maxBufferSize;
     BufferedInternalNode* root;
     int numberOfNodes; // Created during lifetime. Used to avoid duplicates.
     int currentNumberOfNodes; // Actual number of nodes in the tree
@@ -31,41 +31,43 @@ public:
     virtual ~BufferedBTree();
     void insert(KeyValueTime element);
     int query(int element);
+    int specialQuery(int element);
+    void deleteElement(int element);
 
     /*
      * Tree Structural Methods
      */
+    int flushInternalNode(BufferedInternalNode* node);
+    int flushExternalNode(int node);
+    int splitInternalNodeInternalChildren(BufferedInternalNode* node, int childIndex);
+    int splitInternalNodeExternalChildren(BufferedInternalNode* node, int childIndex);
+    int splitExternalNodeExternalChildren();
+    int splitLeafInternalParent(BufferedInternalNode* node, int leafNumber);
+    int splitLeafExternalParent(std::vector<int>* keys, std::vector<int>* values, int leafNumber);
     void externalize();
     void recursiveExternalize(BufferedInternalNode* node);
-    void insertIntoNonFullInternal(KeyValueTime element, BufferedInternalNode* node);
-    void insertIntoNonFull(KeyValueTime element, int id, int height, int nodeSize, int* keys, int* values, bool write);
-    void splitChildInternal(BufferedInternalNode* parent, BufferedInternalNode* child, int childNumber);
-    void splitChildBorder(BufferedInternalNode* parent, int childNumber, int* childSize,
-                          int* cKeys, int* cValues, int* newKeys, int* newValues);
-    void splitChild(int height, int nodeSize, int* keys, int* values, int childNumber, int* childSize,
-                    int* cKeys, int* cValues, int* newKeys, int* newValues);
     void internalize();
     void recursiveInternalize(BufferedInternalNode* node);
-    void deleteElement(int element);
-    void deleteNonSparseInternal(int element, BufferedInternalNode* node);
-    void deleteNonSparse(int element, int id, int height, int nodeSize, int* keys, int* values, bool write);
-    void fuseChildInternal(BufferedInternalNode* parent, BufferedInternalNode* child, int childNumber);
-    void fuseChildBorder(BufferedInternalNode* parent, int childNumber, int* childSize,
-                         int* cKeys, int* cValues);
-    void fuseChild(int height, int* nodeSize, int* keys, int* values, int childNumber, int* childSize,
-                   int* cKeys, int* cValues);
 
     /*
      * Buffer Handling Methods
      */
-    void sortInternal(std::vector<KeyValueTime>* buffer);
+    void mergeVectors(std::vector<KeyValueTime>* v1, std::vector<KeyValueTime>* v2); // Places result in v1
+    int appendBuffer(int node, std::vector<KeyValueTime>* kvts); // Returns resulting buffer size
+    void writeBuffer(int id, std::vector<KeyValueTime>* kvts); // Will delete kvts
+    void writeBufferNoDelete(int id, std::vector<KeyValueTime>* kvts);
 
     /*
      * Utility Methods
      */
-
     void readNode(int id, int* height, int* nodeSize, int*bufferSize, std::vector<int>* keys, std::vector<int>* values);
+    void readNodeInfo(int id, int* height, int* nodeSize, int*bufferSize);
     void writeNode(int id, int height, int nodeSize, int bufferSize, std::vector<int>* keys, std::vector<int>* values);
+    void writeNodeNoDelete(BufferedInternalNode* node);
+    void readLeaf(int leaf, std::vector<KeyValueTime>* ret, int leafSize);
+    void writeLeaf(int leaf, std::vector<KeyValueTime>* kvts); // Deletes kvts
+    int readLeafInfo(int id, std::vector<int>* leafs);
+    void writeLeafInfo(int id, std::vector<int>* leafs);
     void printTree(BufferedInternalNode* node);
     void printExternal(int node);
     void cleanup();

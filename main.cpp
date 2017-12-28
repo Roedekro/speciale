@@ -14,9 +14,15 @@ void test() {
     /*TreeTester* treeTester = new TreeTester();
     treeTester->modifiedBTreeTest(32,256,10000,2);*/
 
-    DevelopmentTester* dev = new DevelopmentTester();
+    /*DevelopmentTester* dev = new DevelopmentTester();
     dev->test();
-    delete(dev);
+    delete(dev);*/
+
+    // Modified BTree test - Insert and Query
+    TreeTester* test = new TreeTester();
+    // int B, int M, int N, int runs
+    test->modifiedBTreeTest(131072,8388608,50000000,10);
+    delete(test);
 
     /*TreeTester* test = new TreeTester();
     // B = 128KB, M = 8MB, N = 100mil, runs = 2

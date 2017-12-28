@@ -38,6 +38,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <fstream>
+#include <sys/resource.h>
 
 using namespace std;
 
@@ -80,6 +81,7 @@ void DevelopmentTester::test() {
     //testBinarySearchFracList();
     //readDiskstatsTest();
     buildModifiedBTreeTest();
+    //initialTestBufferedBTree();
 }
 
 int DevelopmentTester::streamtestread(long n, int increment) {
@@ -847,7 +849,7 @@ void DevelopmentTester::internalModifiedBtreeInsertDeleteAndQueryTest() {
 
 void DevelopmentTester::BufferedBtreeInsertDeleteAndQueryTest() {
 
-    int number = 100;
+    /*int number = 100;
     int deletes = number/3*2;
     int* keys = new int[number];
     int* values = new int[number];
@@ -878,7 +880,7 @@ void DevelopmentTester::BufferedBtreeInsertDeleteAndQueryTest() {
         btree->deleteElement(i);
         //cout << btree->internalNodeCounter << "\n";
     }*/
-    cout << "Root is " << btree->root->id << "\n";
+    /*cout << "Root is " << btree->root->id << "\n";
     btree->printTree(btree->root);
     cout << "External node height is " << btree->externalNodeHeight << "\n";
     cout << "Tree height height is " << btree->root->height << "\n";
@@ -903,10 +905,10 @@ void DevelopmentTester::BufferedBtreeInsertDeleteAndQueryTest() {
     cout << "Tree height height is " << btree->root->height << "\n";
     btree->printTree(btree->root); */
 
-    cout << "Number of nodes " << btree->currentNumberOfNodes << "\n";
+    /*cout << "Number of nodes " << btree->currentNumberOfNodes << "\n";
     cout << btree->numberOfNodes << " " << btree->internalNodeCounter;
     btree->cleanup();
-
+*/
 }
 
 void DevelopmentTester::internalNodeCalculation() {
@@ -1734,10 +1736,10 @@ void DevelopmentTester::readDiskstatsTest() {
 
     string diskstats = "/proc/diskstats";
 
-    if(FILE *file = fopen(diskstats.c_str(), "r")) {
+    /*if(FILE *file = fopen(diskstats.c_str(), "r")) {
         fclose(file);
         cout << diskstats << " exists\n";
-    }
+    }*/
 
     std::ifstream file(diskstats);
     std::string str;
@@ -1805,14 +1807,91 @@ void DevelopmentTester::readDiskstatsTest() {
 
 void DevelopmentTester::buildModifiedBTreeTest() {
 
-    int B = 32;
-    int M = 1024;
-    int N = 2048;
+    int B = 131072;
+    int M = 8388608; //1024
+    int N = 50000000;
 
     ModifiedBuilder* builder = new ModifiedBuilder();
     int root = builder->build(N,B,M);
     ModifiedBtree* tree = new ModifiedBtree(B,M,root);
-    cout << "Printing!\n";
-    tree->printTree(tree->root);
+    delete(builder);
+    cout << "================= Finished building!\n";
+    cout << tree->externalNodeHeight << " " << tree->numberOfNodes << "\n";
+
+    srand (time(NULL));
+
+    long tempMod = 2*N;
+    int modulus;
+    if(tempMod > 2147483647) {
+        modulus = 2147483647;
+    }
+    else {
+        modulus = tempMod;
+    }
+    struct rusage r_usage;
+    getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory before insertion " << r_usage.ru_maxrss << "\n";
+
+    KeyValue* keyVal;
+    for(int i = 0; i < 1000000; i++) {
+        if(i%1000==0) {
+            cout << i << "\n";
+            struct rusage r_usage;
+            getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory during insertion " << r_usage.ru_maxrss << "\n";
+        }
+        int ins = rand() % modulus + 1;
+        keyVal = new KeyValue(ins,ins);
+        tree->insert(keyVal);
+        delete(keyVal);
+    }
+
+    cout << tree->root->height << "\n";
+    /*tree->externalize();
+
+    for(int i = 0; i < 10000; i++) {
+        if(i%1000==0)cout << i << "\n";
+        int ins = rand() % modulus + 1;
+        tree->insert(new KeyValue(ins,ins));
+    }*/
+
+
+
+    cout << "================= Finished inserting!\n";
+
+    for(int i = 0; i < 10000; i++) {
+        int q =  rand() % modulus + 1;
+        int ret = tree->query(q);
+        if(q != ret) {
+            //cout << q << " " << ret << "\n";
+        }
+    }
+    cout << "================= Printing!\n";
+    //tree->printTree(tree->root);
     tree->cleanup();
+}
+
+void DevelopmentTester::initialTestBufferedBTree() {
+
+    int B = 32;
+    int M = 128;
+    int N = 100;
+    float delta = 1.0;
+
+    BufferedBTree* tree = new BufferedBTree(B,M,N,delta);
+
+    for(int i = 1; i <= N; i++) {
+        tree->insert(KeyValueTime(i,i,i));
+    }
+
+    cout << "============================================= DONE INSERTING\n";
+
+    for(int i = 1; i <= N; i++) {
+        int ret = tree->query(i);
+        if(ret != i) {
+            cout << i << " " << ret << "\n";
+        }
+    }
+
+
 }

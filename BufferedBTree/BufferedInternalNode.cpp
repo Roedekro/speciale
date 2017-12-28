@@ -20,6 +20,11 @@ BufferedInternalNode::BufferedInternalNode(int id, int height, int size, bool ex
         this->children = new std::vector<BufferedInternalNode*>();
         children->reserve(4*size);
     }
+    if(height == 1){
+        leafInfo = new std::vector<int>();
+        leafInfo->reserve(4*size);
+    }
+    //this->bufferSizes = new std::vector<int>();
     this->buffer = new std::vector<KeyValueTime>();
     buffer->reserve(bufferSize);
 }
@@ -33,4 +38,7 @@ BufferedInternalNode::~BufferedInternalNode() {
         delete(children);
     }
     delete(buffer);
+    if(height == 1) {
+        delete(leafInfo);
+    }
 }

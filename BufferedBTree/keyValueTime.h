@@ -15,6 +15,10 @@ struct KeyValueTime {
         time = t;
     }
     KeyValueTime();
+    bool operator < (const KeyValueTime& str) const
+    {
+        return (key < str.key);
+    }
 };
 
 #endif //SPECIALE_KEYVALUETIME_H
