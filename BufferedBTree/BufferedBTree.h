@@ -56,6 +56,7 @@ public:
     int appendBuffer(int node, std::vector<KeyValueTime>* kvts); // Returns resulting buffer size
     void writeBuffer(int id, std::vector<KeyValueTime>* kvts); // Will delete kvts
     void writeBufferNoDelete(int id, std::vector<KeyValueTime>* kvts);
+    void readBuffer(int id, int bufferSize, std::vector<KeyValueTime>* buffer);
 
     /*
      * Utility Methods

@@ -80,8 +80,8 @@ void DevelopmentTester::test() {
     //testTruncatedInsertQueryDelete(); // Main Truncated Buffer Tree!
     //testBinarySearchFracList();
     //readDiskstatsTest();
-    buildModifiedBTreeTest();
-    //initialTestBufferedBTree();
+    //buildModifiedBTreeTest();
+    initialTestBufferedBTree();
 }
 
 int DevelopmentTester::streamtestread(long n, int increment) {
@@ -1881,6 +1881,7 @@ void DevelopmentTester::initialTestBufferedBTree() {
     BufferedBTree* tree = new BufferedBTree(B,M,N,delta);
 
     for(int i = 1; i <= N; i++) {
+        cout << "Inserting " << i << "\n";
         tree->insert(KeyValueTime(i,i,i));
     }
 
