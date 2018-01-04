@@ -116,8 +116,8 @@ ModifiedBtree::~ModifiedBtree() {
  */
 void ModifiedBtree::externalize() {
 
-    cout << "Externalizing #internalNodes " << internalNodeCounter << " maxInternalNodes " << maxInternalNodes << "\n";
-    cout << "#nodes in tree " << currentNumberOfNodes << " External node height is " << externalNodeHeight << "\n";
+    //cout << "Externalizing #internalNodes " << internalNodeCounter << " maxInternalNodes " << maxInternalNodes << "\n";
+    //cout << "#nodes in tree " << currentNumberOfNodes << " External node height is " << externalNodeHeight << "\n";
 
     if(externalNodeHeight == -1) {
         // Special case, first time we externalize
@@ -131,7 +131,7 @@ void ModifiedBtree::externalize() {
     // and externalize the children of the nodes at this level.
     recursiveExternalize(root);
 
-    cout << "Externalization completed, new #internalNodes " << internalNodeCounter << " external node height " << externalNodeHeight << "\n";
+    //cout << "Externalization completed, new #internalNodes " << internalNodeCounter << " external node height " << externalNodeHeight << "\n";
 }
 
 void ModifiedBtree::recursiveExternalize(ModifiedInternalNode *node) {
@@ -682,6 +682,11 @@ int ModifiedBtree::query(int element) {
 
             ////cout << "Found node " << currentNode << " in place " << i << "\n";
 
+            /* Just reuse arrays
+            delete[] keys;
+            delete[] values;
+            keys = new int[size*2-1];
+            values = new int[size*2];*/
             readNode(currentNode,ptr_height,ptr_nodeSize,keys,values);
         }
 

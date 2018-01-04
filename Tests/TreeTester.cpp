@@ -561,7 +561,8 @@ void TreeTester::modifiedBTreeTest(int B, int M, int N, int runs) {
             if(j%10000==0) {
                 ttemp2 = high_resolution_clock::now();
                 long temp_time = chrono::duration_cast<chrono::milliseconds>(ttemp2 - ttemp1).count();
-                cout << j << " " << temp_time << "\n";
+                // Force result to be written in real time
+                cout << j << " " << temp_time << "\n"; // << std::flush;
                 ttemp1 = high_resolution_clock::now();
                 /*cout << j << "\n";
                 struct rusage r_usage;
@@ -607,6 +608,7 @@ void TreeTester::modifiedBTreeTest(int B, int M, int N, int runs) {
         temp = (diskReads2-diskReads1) + (diskWrites2 - diskWrites1);
         insertIO = insertIO + temp;
 
+
         cout << "Query\n";
         t1 = high_resolution_clock::now();
         for(int j = 1; j <= numberOfQueries; j++) {
@@ -649,8 +651,8 @@ void TreeTester::modifiedBTreeTest(int B, int M, int N, int runs) {
         temp = (diskReads3-diskReads2) + (diskWrites3 - diskWrites2);
         queryIO = queryIO + temp;
 
-        // Write out temp result
-        cout << "run=" << i << " " << insertTime << " " << insertIO << " " << queryTime << " " << queryIO << "\n";
+        // Write out temp result, force flush
+        cout << "run=" << i << " " << insertTime << " " << insertIO << " " << queryTime << " " << queryIO << "\n" << std::flush;
 
         tree->cleanup();
         delete(tree);

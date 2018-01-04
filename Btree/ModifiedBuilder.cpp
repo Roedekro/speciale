@@ -339,8 +339,13 @@ string ModifiedBuilder::generate(int N, int B, int M) {
         delete[] inputStreams;
         delete[] heapArray;
         delete(heap);
+
+        // Dont forget output (I did)
+        out->close();
+        delete(out);
     }
 
+    // Delete all but the last temp file
     for(int i = 1; i < fileCounter; i++) {
         string name = "temp";
         name += to_string(i);
