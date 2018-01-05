@@ -40,8 +40,11 @@ public:
     int flushInternalNode(BufferedInternalNode* node);
     int flushExternalNode(int node);
     int splitInternalNodeInternalChildren(BufferedInternalNode* node, int childIndex);
-    int splitInternalNodeExternalChildren(BufferedInternalNode* node, int childIndex);
-    int splitExternalNodeExternalChildren();
+    int splitInternalNodeExternalChildren(BufferedInternalNode* node, int childIndex, int cHeight, int cNodeSize,
+                                          int* cBuffersize, std::vector<int>* cKeys, std::vector<int>* cValues);
+    int splitExternalNodeExternalChildren(int nodeSize, std::vector<int>* keys, std::vector<int>* values, int childIndex,
+                                          int cHeight, int cNodeSize, int* cBuffersize, std::vector<int>* cKeys,
+                                          std::vector<int>* cValues);
     int splitLeafInternalParent(BufferedInternalNode* node, int leafNumber);
     int splitLeafExternalParent(std::vector<int>* keys, std::vector<int>* values, int leafNumber);
     void externalize();
@@ -64,6 +67,7 @@ public:
     void readNode(int id, int* height, int* nodeSize, int*bufferSize, std::vector<int>* keys, std::vector<int>* values);
     void readNodeInfo(int id, int* height, int* nodeSize, int*bufferSize);
     void writeNode(int id, int height, int nodeSize, int bufferSize, std::vector<int>* keys, std::vector<int>* values);
+    void writeNodeInfo(int id, int height, int nodeSize, int bufferSize);
     void writeNodeNoDelete(BufferedInternalNode* node);
     void readLeaf(int leaf, std::vector<KeyValueTime>* ret, int leafSize);
     void writeLeaf(int leaf, std::vector<KeyValueTime>* kvts); // Deletes kvts

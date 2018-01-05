@@ -3,6 +3,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <vector>
 #include "Tests/DevelopmentTester.h"
 #include "Tests/TreeTester.h"
 #include "Btree/KeyValue.h"
@@ -17,6 +18,23 @@ void test() {
     DevelopmentTester* dev = new DevelopmentTester();
     dev->test();
     delete(dev);
+
+    /*
+     * Quick experiment
+     */
+    /*std::vector<int> vector;
+    vector.push_back(1);
+    vector.push_back(2);
+    vector.push_back(3);
+    vector.push_back(4);
+    vector.push_back(5);
+
+    //vector.erase(vector.begin() + 2, vector.begin() + 4);
+    vector.erase(vector.begin() + 2, vector.end());
+
+    for(int i = 0; i < vector.size(); i++) {
+        cout << vector.at(i);
+    }*/
 
     // Modified BTree test - Insert and Query
     /*TreeTester* test = new TreeTester();
