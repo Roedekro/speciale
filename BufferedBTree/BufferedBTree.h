@@ -46,7 +46,8 @@ public:
                                           int cHeight, int cNodeSize, int* cBuffersize, std::vector<int>* cKeys,
                                           std::vector<int>* cValues);
     int splitLeafInternalParent(BufferedInternalNode* node, int leafNumber);
-    int splitLeafExternalParent(std::vector<int>* keys, std::vector<int>* values, int leafNumber);
+    int splitLeafExternalParent(int nodeSize, std::vector<int>* keys, std::vector<int>* values, int leafNumber,
+                                std::vector<int>* leafSizes, std::vector<KeyValueTime>* leaf);
     void externalize();
     void recursiveExternalize(BufferedInternalNode* node);
     void internalize();
@@ -75,6 +76,7 @@ public:
     void writeLeafInfo(int id, std::vector<int>* leafs);
     void printTree(BufferedInternalNode* node);
     void printExternal(int node);
+    void printLeaf(int leaf, int leafSize);
     void cleanup();
 
 };

@@ -38,7 +38,7 @@ int ModifiedBuilder::build(int N, int B, int M) {
     //cout << "Generating\n";
 
     // Generate new file of sorted integers
-    string input = generate(N, B, M);
+    string input = generate(N, B, M/8);
     ModifiedBtree tree(B,M); // Use methods to build nodes
 
     queue<int> leafs;

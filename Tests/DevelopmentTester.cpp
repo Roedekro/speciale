@@ -1878,21 +1878,33 @@ void DevelopmentTester::initialTestBufferedBTree() {
     int N = 100;
     float delta = 1.0;
 
+    int insert = N;
+    //int insert = 50;
+
     BufferedBTree* tree = new BufferedBTree(B,M,N,delta);
 
-    for(int i = 1; i <= N; i++) {
+    for(int i = 1; i <= insert; i++) {
         cout << "Inserting " << i << "\n";
         tree->insert(KeyValueTime(i,i,i));
     }
 
     cout << "============================================= DONE INSERTING\n";
 
-    for(int i = 1; i <= N; i++) {
+    for(int i = 1; i <= insert; i++) {
         int ret = tree->query(i);
         if(ret != i) {
             cout << i << " " << ret << "\n";
         }
     }
 
+    cout << "============================================= PRINTING\n";
 
+    tree->printTree(tree->root);
+
+    cout << "============================================= CLEANING UP\n";
+
+    tree->cleanup();
+    delete(tree);
+
+    cout << "Done!";
 }
