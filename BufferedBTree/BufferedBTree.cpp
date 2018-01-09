@@ -160,7 +160,7 @@ int BufferedBTree::query(int element) {
 
     // We reached external node or external leaf
     if(internalNode->height == 1) {
-        // Find correct left
+        // Find correct leaf
         int index = internalNode->nodeSize;
         while(index > 0 && element <= internalNode->keys->at(index-1)) {
             index--;
@@ -194,30 +194,76 @@ int BufferedBTree::query(int element) {
         int* ptr_height = &height;
         int* ptr_nodeSize = &nodeSize;
         int* ptr_bufferSize = &bufferSize;
-        vector<int>* keys = new vector<int>();
+        /*vector<int>* keys = new vector<int>();
         keys->reserve(4*size);
         vector<int>* values = new vector<int>();
-        values->reserve(4*size);
+        values->reserve(4*size);*/
+        vector<int>* keys;
+        vector<int>* values;
+
 
         //readNode(currentNode,ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
+
+        /*vector<KeyValueTime>* buffer = new vector<KeyValueTime>();
+        buffer->reserve(maxBufferSize);*/
+        vector<KeyValueTime>* buffer;
 
         // Search down to the bottom layer
         // Switched to correct do while
         int parent = internalNode->id;
         do {
+            /*if(element == 1884) {
+                cout << parent << " " << currentNode << " " << index << "\n";
+            }*/
+
+            keys = new vector<int>();
+            keys->reserve(4*size);
+            values = new vector<int>();
+            values->reserve(4*size);
+            buffer = new vector<KeyValueTime>();
+            buffer->reserve(maxBufferSize);
+
             readNode(currentNode,ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
 
-            // TODO Scan buffer
-
+            if(bufferSize != 0) {
+                readBuffer(currentNode,bufferSize,buffer);
+                for(int i = 0; i < bufferSize; i++) {
+                    KeyValueTime kvt = buffer->at(i);
+                    if(kvt.key == element) {
+                        result = kvt.value;
+                        // Clean up and return
+                        delete(keys);
+                        delete(values);
+                        delete(buffer);
+                        return result;
+                    }
+                }
+            }
 
             index = nodeSize;
             while(index > 0 && element <= keys->at(index-1)) {
                 index--;
             }
+
+            /*if(element == 1884) {
+                cout << "Index for node " << currentNode << " " << index << "\n";
+            }*/
+
             parent = currentNode;
             currentNode = values->at(index);
+
+            delete(keys);
+            delete(values);
+            delete(buffer);
         }
         while(height != 1);
+
+        /*if(element == 1884) {
+            cout << "Index and value " << index << " " << values->at(index) << "\n";
+            for(int i = 0; i < values->size(); i++) {
+                cout << values->at(i) << "\n";
+            }
+        }*/
 
         /*while(height != 1) {
             index = nodeSize;
@@ -234,19 +280,22 @@ int BufferedBTree::query(int element) {
         }*/
 
         // Clean up parent
-        delete(keys);
+        /*delete(keys);
         delete(values);
+        delete(buffer);*/
 
         // We are now at the leaf level, read in leaf size
+        int leafSize;
         vector<int>* leafSizes = new vector<int>();
         leafSizes->reserve(4*size);
         readLeafInfo(parent,leafSizes);
-        int leafSize = leafSizes->at(index);
+        //readLeafInfo(currentNode,leafSizes);
+        leafSize = leafSizes->at(index);
         delete(leafSizes);
 
         // Read in leaf
         vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
-        leaf->reserve(4*size);
+        leaf->reserve(maxBufferSize);
         readLeaf(currentNode,leaf,leafSize);
 
         // Scan leaf
@@ -260,6 +309,10 @@ int BufferedBTree::query(int element) {
 
         // Clean up
         delete(leaf);
+
+        /*if(element == 1884) {
+            cout << "Final " << parent << " " << currentNode << " " << index << "\n";
+        }*/
 
         return result;
     }
@@ -286,6 +339,11 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
 
     // Sort buffer
     sort(node->buffer->begin(), node->buffer->end());
+
+    cout << "The buffer contains the following elements\n";
+    for(int i = 0; i < node->buffer->size(); i++) {
+        cout << node->buffer->at(i).key << " " << node->buffer->at(i).value << " " << node->buffer->at(i).time << "\n";
+    }
 
     // Special case if we only have one child, such as when we insert the
     // first elements into the tree
@@ -347,7 +405,7 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
                     toChild->push_back(kvt);
                 }
                 // Should we set startOfElements?
-                if(startOfElements == -1 && kvt.key < firstKey) {
+                if(startOfElements == -1 && kvt.key > firstKey) {
                     startOfElements = i;
                 }
                 // Are we done?
@@ -361,6 +419,8 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
             // Remove elements from buffer
             // We know the start and end from above
             node->buffer->erase(node->buffer->begin()+startOfElements, node->buffer->begin() + endOfElements + 1);
+            //node->buffer->erase(node->buffer->begin()+startOfElements, node->buffer->begin() + endOfElements);
+            cout << "Internal Case1 " << node->buffer->size() << "\n";
         }
         else if(index == 0) {
             // Special case for the first child
@@ -380,11 +440,13 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
             }
             // endOfElements was not set if the last element in the buffer is added toChild
             if(endOfElements == -1) {
-                endOfElements = (int) node->buffer->size();
+                endOfElements = (int) node->buffer->size()-1;
             }
             // Remove elements from buffer
             // We know the start and end from above
             node->buffer->erase(node->buffer->begin(), node->buffer->begin() + endOfElements + 1);
+            //node->buffer->erase(node->buffer->begin(), node->buffer->begin() + endOfElements);
+            cout << "Internal Case2 " << node->buffer->size() << "\n";
         }
         else {
             // Special case for last child
@@ -404,6 +466,7 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
             // Remove elements from buffer
             // We know the start and end from above
             node->buffer->erase(node->buffer->begin()+startOfelements, node->buffer->end());
+            cout << "Internal Case3 " << node->buffer->size() << "\n";
         }
     }
     else {
@@ -415,11 +478,25 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
         node->buffer->erase(node->buffer->begin(), node->buffer->end());
     }
 
+
     // 3 cases for children: External leafs, internal children, external children.
     if(node->height == 1) {
         // Handle leafs
         cout << "#values = " << node->values->size() << "\n";
         int child = node->values->at(index);
+
+        cout << "The following elements will be pushed to leaf " << child << "\n";
+        for(int i = 0; i < toChild->size(); i++) {
+            cout << toChild->at(i).key << " " << toChild->at(i).value << " " << toChild->at(i).time << "\n";
+        }
+
+        cout << "The buffer NOW contains the following elements\n";
+        if(node->buffer->size() != 0) {
+            for(int i = 0; i < node->buffer->size(); i++) {
+                cout << node->buffer->at(i).key << " " << node->buffer->at(i).value << " " << node->buffer->at(i).time << "\n";
+            }
+        }
+
         // Read in leaf
         vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
         readLeaf(child,leaf,node->leafInfo->at(index));
@@ -443,7 +520,7 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
         //node->buffer->clear(); // Preserves capacity
         delete(toChild);
 
-        while(leafSize >= 4*size-1) {
+        while(leafSize >= maxBufferSize) {
             // Call appropriate split
             leafSize = splitLeafInternalParent(node,index);
         }
@@ -608,7 +685,7 @@ int BufferedBTree::flushExternalNode(int node) {
                 toChild->push_back(kvt);
             }
             // Should we set startOfElements?
-            if(startOfElements == -1 && kvt.key < firstKey) {
+            if(startOfElements == -1 && kvt.key > firstKey) {
                 startOfElements = i;
             }
             // Are we done?
@@ -622,8 +699,8 @@ int BufferedBTree::flushExternalNode(int node) {
         // Remove elements from buffer
         // We know the start and end from above
         cout << "case1 " << startOfElements << " " << endOfElements << "\n";
-        //buffer->erase(buffer->begin()+startOfElements, buffer->begin() + endOfElements + 1);
-        buffer->erase(buffer->begin()+startOfElements, buffer->begin() + endOfElements);
+        buffer->erase(buffer->begin()+startOfElements, buffer->begin() + endOfElements + 1);
+        //buffer->erase(buffer->begin()+startOfElements, buffer->begin() + endOfElements);
     }
     else if(index == 0) {
         // Special case for the first child
@@ -643,13 +720,13 @@ int BufferedBTree::flushExternalNode(int node) {
         }
         // endOfElements was not set if the last element in the buffer is added toChild
         if(endOfElements == -1) {
-            endOfElements = (int) buffer->size();
+            endOfElements = (int) buffer->size()-1;
         }
         // Remove elements from buffer
         // We know the start and end from above
         cout << "case2 " << endOfElements << "\n";
-        //buffer->erase(buffer->begin(), buffer->begin() + endOfElements + 1);
-        buffer->erase(buffer->begin(), buffer->begin() + endOfElements);
+        buffer->erase(buffer->begin(), buffer->begin() + endOfElements + 1);
+        //buffer->erase(buffer->begin(), buffer->begin() + endOfElements);
     }
     else {
         // Special case for last child
@@ -699,7 +776,7 @@ int BufferedBTree::flushExternalNode(int node) {
         int newLeafSize = leaf->size();
         (*leafSizes)[index] = newLeafSize;
 
-        while(newLeafSize > 4*size) {
+        while(newLeafSize > maxBufferSize) {
             cout << "Splitleaf size " << newLeafSize << "\n";
             newLeafSize = splitLeafExternalParent(nodeSize,keys,values,index,leafSizes, leaf);
             nodeSize++;
@@ -1175,10 +1252,10 @@ int BufferedBTree::splitLeafInternalParent(BufferedInternalNode *node, int leafN
     int leafSize = node->leafInfo->at(leafNumber);
     numberOfNodes++;
     int newLeafID = numberOfNodes;
-    int newSize = 2*size;
+    int newSize = maxBufferSize/2;
     int cSize = leafSize-newSize;
     vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
-    readLeaf(leafID,leaf,node->leafInfo->at(leafNumber));
+    readLeaf(leafID,leaf,leafSize);
 
     /*cout << "Leaf size " << leaf->size() << " and content is\n";
     for(int i = 0; i < leaf->size(); i++) {
@@ -1211,6 +1288,26 @@ int BufferedBTree::splitLeafInternalParent(BufferedInternalNode *node, int leafN
     (*node->values)[leafNumber+1] = newLeafID;
     (node->nodeSize)++;
 
+    // Check leafs
+    int prev = 0;
+    for(int i = 0; i < leaf->size(); i++) {
+        if(leaf->at(i).key < prev) {
+            cout << "+++++++++++++++++++++++++++ERROR\n";
+        }
+        cout << leaf->at(i).key << " " << leaf->at(i).value << " " << leaf->at(i).time << "\n";
+        prev = leaf->at(i).key;
+    }
+
+    cout << "---\n";
+
+    for(int i = 0; i < newLeaf->size(); i++) {
+        if(newLeaf->at(i).key < prev) {
+            cout << "+++++++++++++++++++++++++++ERROR2\n";
+        }
+        cout << newLeaf->at(i).key << " " << newLeaf->at(i).value << " " << newLeaf->at(i).time << "\n";
+        prev = newLeaf->at(i).key;
+    }
+
     writeLeaf(leafID,leaf);
     writeLeaf(newLeafID, newLeaf);
     return cSize;
@@ -1227,7 +1324,7 @@ int BufferedBTree::splitLeafExternalParent(int nodeSize, std::vector<int> *keys,
     int origLeafSize = leafSizes->at(leafNumber);
     numberOfNodes++;
     int newLeafID = numberOfNodes;
-    int nSize = 2*size;
+    int nSize = maxBufferSize/2;
     int leafSize = origLeafSize - nSize;
     vector<KeyValueTime>* nLeaf = new vector<KeyValueTime>();
     nLeaf->reserve(2*size);
@@ -1831,8 +1928,13 @@ void BufferedBTree::printLeaf(int leafID, int leafSize) {
     cout << "=== L " << leafID << "\n";
     cout << leafSize << "\n";
     cout << "---\n";
+    int key, value, time;
     for(int i = 0; i < leafSize; i++) {
-        cout << is->readNext() << " " << is->readNext() << " " << is->readNext() << "\n";
+        key = is->readNext();
+        value = is->readNext();
+        time = is->readNext();
+        cout << key << " " << value << " " << time << "\n";
+        // Error, wrong order of evaluation! cout << is->readNext() << " " << is->readNext() << " " << is->readNext() << "\n";
     }
     /*while(!is->endOfStream()) {
         cout << is->readNext() << " " << is->readNext() << " " << is->readNext() << "\n";

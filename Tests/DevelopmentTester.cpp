@@ -81,7 +81,8 @@ void DevelopmentTester::test() {
     //testBinarySearchFracList();
     //readDiskstatsTest();
     //buildModifiedBTreeTest();
-    initialTestBufferedBTree();
+    //initialTestBufferedBTree();
+    advancedTestBufferedBTree();
 }
 
 int DevelopmentTester::streamtestread(long n, int increment) {
@@ -1900,6 +1901,96 @@ void DevelopmentTester::initialTestBufferedBTree() {
     cout << "============================================= PRINTING\n";
 
     tree->printTree(tree->root);
+
+    cout << "============================================= CLEANING UP\n";
+
+    tree->cleanup();
+    delete(tree);
+
+    cout << "Done!";
+}
+
+void DevelopmentTester::advancedTestBufferedBTree() {
+
+    // Quick test
+    /*int testN = 10;
+    vector<KeyValueTime>* buffer = new vector<KeyValueTime>();
+    for(int i = 0; i < testN; i++) {
+        int r = rand() % testN + 1;
+        buffer->push_back(KeyValueTime(r,r,i));
+        cout << r << " " << r << " " << i << "\n";
+    }
+
+    sort(buffer->begin(),buffer->end());
+
+    cout << "=============================================\n";
+
+    for(int i = 0; i < testN; i++) {
+        KeyValueTime kvt = buffer->at(i);
+        cout << kvt.key << " " << kvt.value << " " << kvt.time << "\n";
+    }
+
+    cout << "=============================================\n";
+
+    buffer->erase(buffer->begin()+2,buffer->begin()+2);
+
+    for(int i = 0; i < buffer->size(); i++) {
+        KeyValueTime kvt = buffer->at(i);
+        cout << kvt.key << " " << kvt.value << " " << kvt.time << "\n";
+    }
+
+    cout << "=============================================\n";
+     */
+
+    int B = 64;
+    int M = 256;
+    int N = 2500;
+    float delta = 1.0;
+
+    int insert = N;
+    //int insert = 50;
+
+    //srand (time(NULL));
+
+    BufferedBTree* tree = new BufferedBTree(B,M,N,delta);
+
+    vector<int> store;
+
+    for(int i = 1; i <= insert; i++) {
+        int ins = rand() % N + 1;
+        cout << "---Inserting " << ins << " " << i << "\n";
+
+        store.push_back(ins);
+        tree->insert(KeyValueTime(ins,ins,i));
+    }
+
+    cout << "============================================= DONE INSERTING\n";
+
+    /*for(int i = 1; i <= insert; i++) {
+        int ret = tree->query(i);
+        if(ret != i) {
+            cout << i << " " << ret << "\n";
+        }
+    }*/
+
+    for(int i = 0; i < store.size(); i++) {
+        int ret = tree->query(store.at(i));
+        if(ret != store.at(i)) {
+            cout << store.at(i) << " " << ret << "\n";
+        }
+    }
+
+    cout << "============================================= PRINTING\n";
+
+    tree->printTree(tree->root);
+
+    cout << "============================================= ELEMENTS\n";
+
+    /*sort(store.begin(),store.end());
+
+    for(int i = 0; i < store.size(); i++) {
+        cout << store.at(i) << "\n";
+    }*/
 
     cout << "============================================= CLEANING UP\n";
 

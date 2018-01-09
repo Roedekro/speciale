@@ -48,6 +48,7 @@ private:
     void readDiskstatsTest();
     void buildModifiedBTreeTest();
     void initialTestBufferedBTree();
+    void advancedTestBufferedBTree();
 
 
 
