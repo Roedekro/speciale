@@ -28,6 +28,7 @@ public:
      * General Methods
      */
     BufferedBTree(int B, int M, int N, float delta);
+    BufferedBTree(int B, int M, int N, float delta,int exRoot);
     virtual ~BufferedBTree();
     void insert(KeyValueTime element);
     int query(int element);

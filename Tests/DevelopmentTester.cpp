@@ -21,6 +21,7 @@
 #include "../TruncatedBufferTree/ExternalBufferedBTree.h"
 #include "../TruncatedBufferTree/TruncatedBufferTree.h"
 #include "../Btree/ModifiedBuilder.h"
+#include "../BufferedBTree/BufferedBTreeBuilder.h"
 
 #include <ctime>
 #include <ratio>
@@ -82,7 +83,8 @@ void DevelopmentTester::test() {
     //readDiskstatsTest();
     //buildModifiedBTreeTest();
     //initialTestBufferedBTree();
-    advancedTestBufferedBTree();
+    //advancedTestBufferedBTree();
+    buildBufferedBTreeTest();
 }
 
 int DevelopmentTester::streamtestread(long n, int increment) {
@@ -1944,8 +1946,9 @@ void DevelopmentTester::advancedTestBufferedBTree() {
 
     int B = 64;
     int M = 256;
-    int N = 2500;
-    float delta = 1.0;
+    int N = 250000;
+    //float delta = 1.0;
+    float delta = 100;
 
     int insert = N;
     //int insert = 50;
@@ -1982,7 +1985,7 @@ void DevelopmentTester::advancedTestBufferedBTree() {
 
     cout << "============================================= PRINTING\n";
 
-    tree->printTree(tree->root);
+    //tree->printTree(tree->root);
 
     cout << "============================================= ELEMENTS\n";
 
@@ -1998,4 +2001,52 @@ void DevelopmentTester::advancedTestBufferedBTree() {
     delete(tree);
 
     cout << "Done!";
+}
+
+void DevelopmentTester::buildBufferedBTreeTest() {
+
+    int B = 64;
+    int M = 256;
+    int N = 25000;
+    //float delta = 1.0;
+    float delta = 100;
+    int insert = N;
+
+    cout << "============================================= BUILDING\n";
+    BufferedBTreeBuilder builder;
+    int newRoot = builder.build(N,B,M,delta);
+
+    BufferedBTree* tree = new BufferedBTree(B,M,N,delta,newRoot);
+
+    cout << "============================================= INSERTING\n";
+
+    vector<int> store;
+
+    for(int i = 1; i <= insert; i++) {
+        int ins = rand() % N + 1;
+        cout << "---Inserting " << ins << " " << i << "\n";
+
+        store.push_back(ins);
+        tree->insert(KeyValueTime(ins,ins,i));
+    }
+
+
+
+    cout << "============================================= DONE INSERTING\n";
+
+    for(int i = 0; i < store.size(); i++) {
+        int ret = tree->query(store.at(i));
+        if(ret != store.at(i)) {
+            cout << store.at(i) << " " << ret << "\n";
+        }
+    }
+
+    cout << "============================================= CLEANING UP\n";
+
+    tree->cleanup();
+    delete(tree);
+
+    cout << "Done!";
+
+
 }
