@@ -5,6 +5,7 @@
 
 #include <queue>
 #include <algorithm>
+#include <iostream>
 #include "BufferedBTreeBuilder.h"
 #include "../Streams/OutputStream.h"
 #include "../Streams/BufferedOutputStream.h"
@@ -30,7 +31,7 @@ BufferedBTreeBuilder::~BufferedBTreeBuilder() {
 int BufferedBTreeBuilder::build(int N, int B, int M, float delta) {
 
     // Generate new file of sorted integers
-    string input = generate(N, B, M/8);
+    string input = generate(N, B/8, M/8); // Make room for 2 ints
     BufferedBTree tree(B,M,N,delta); // Use methods to build nodes
 
     queue<int> leafs;
@@ -42,6 +43,9 @@ int BufferedBTreeBuilder::build(int N, int B, int M, float delta) {
     in->open(input.c_str());
 
     int size = tree.size; // #values. max fanout is 4*size-1 and min is size.
+    if(size < 2) {
+        size = 2;
+    }
     int maxBufferSize = tree.maxBufferSize;
 
     int leafElementCounter = 0;
@@ -64,12 +68,12 @@ int BufferedBTreeBuilder::build(int N, int B, int M, float delta) {
             // Clean up
             leafElementCounter = 0;
             if(in->endOfStream()) {
-                delete(leafElements);
+                //delete(leafElements);
                 break;
             }
             else {
                 leafSize = rand() % range + (maxBufferSize/2); // New leafSize
-                leafElements->clear();
+                leafElements = new vector<KeyValueTime>();
             }
         }
     }
@@ -92,17 +96,19 @@ int BufferedBTreeBuilder::build(int N, int B, int M, float delta) {
     // Place them in the node queue
     while(true) {
 
-        // Nodes placed in nodes
         if (!leafs.empty()) {
             int node = leafs.front();
-            nodes.pop();
+            leafs.pop();
             int max = maxKeys.front();
             maxKeys.pop();
-            (*keys)[elementCounter] = max;
-            (*values)[elementCounter] = node;
+            /*(*keys)[elementCounter] = max;
+            (*values)[elementCounter] = node;*/
+            keys->push_back(max);
+            values->push_back(node);
             int leafSize = leafSizes.front();
             leafSizes.pop();
-            (*leafInfo)[elementCounter] = leafSize;
+            //(*leafInfo)[elementCounter] = leafSize;
+            leafInfo->push_back(leafSize);
             elementCounter++;
             if (elementCounter == nodeFanout) {
                 // Write out new node
@@ -133,25 +139,36 @@ int BufferedBTreeBuilder::build(int N, int B, int M, float delta) {
             values = new vector<int>();
             nodeCounter++;
             nodeFanout = rand() % range + (size + 1);
-            if (nodeCounter == 1) {
-                break;
-            }
             height++;
             nodeCounter = 0;
             elementCounter = 0;
+            break;
         } else {
             // Wrote this levels nodes already
-            if (nodeCounter == 1) {
-                break;
-            }
             height++;
             nodeCounter = 0;
+            break;
         }
+    }
+
+    // Only a single node?
+    if(nodes.size() == 1) {
+        delete(keys);
+        delete(values);
+
+        if(FILE *file = fopen(input.c_str(), "r")) {
+            fclose(file);
+            remove(input.c_str());
+        }
+
+        return numberOfNodes;
     }
 
     // Recursively create the rest of the tree
     bool alternate = true;
     while(true) {
+
+        //cout << nodeCounter << "\n";
 
 
         if(alternate) {
@@ -161,8 +178,10 @@ int BufferedBTreeBuilder::build(int N, int B, int M, float delta) {
                 nodes.pop();
                 int max = maxKeys.front();
                 maxKeys.pop();
-                (*keys)[elementCounter] = max;
-                (*values)[elementCounter] = node;
+                /*(*keys)[elementCounter] = max;
+                (*values)[elementCounter] = node;*/
+                keys->push_back(max);
+                values->push_back(node);
                 elementCounter++;
                 if(elementCounter == nodeFanout) {
                     // Write out new node
@@ -170,6 +189,7 @@ int BufferedBTreeBuilder::build(int N, int B, int M, float delta) {
                     maxKeys.push((*keys)[elementCounter-1]);
                     leafs.push(numberOfNodes);
                     tree.writeNode(numberOfNodes,height,elementCounter-1,0,keys,values);
+                    //cout << "Wrote out node " << numberOfNodes << " of size " << elementCounter << "\n";
                     keys = new vector<int>();
                     values = new vector<int>();
                     nodeCounter++;
@@ -183,6 +203,7 @@ int BufferedBTreeBuilder::build(int N, int B, int M, float delta) {
                 maxKeys.push((*keys)[elementCounter-1]);
                 leafs.push(numberOfNodes);
                 tree.writeNode(numberOfNodes,height,elementCounter-1,0,keys,values);
+                //cout << "Wrote out node " << numberOfNodes << " of size " << elementCounter << "\n";
                 keys = new vector<int>();
                 values = new vector<int>();
                 nodeCounter++;
@@ -213,8 +234,10 @@ int BufferedBTreeBuilder::build(int N, int B, int M, float delta) {
                 leafs.pop();
                 int max = maxKeys.front();
                 maxKeys.pop();
-                (*keys)[elementCounter] = max;
-                (*values)[elementCounter] = node;
+                /*(*keys)[elementCounter] = max;
+                (*values)[elementCounter] = node;*/
+                keys->push_back(max);
+                values->push_back(node);
                 elementCounter++;
                 if(elementCounter == nodeFanout) {
                     // Write out new node
@@ -222,6 +245,7 @@ int BufferedBTreeBuilder::build(int N, int B, int M, float delta) {
                     maxKeys.push((*keys)[elementCounter-1]);
                     nodes.push(numberOfNodes);
                     tree.writeNode(numberOfNodes,height,elementCounter-1,0,keys,values);
+                    //cout << "Wrote out node " << numberOfNodes << " of size " << elementCounter << "\n";
                     keys = new vector<int>();
                     values = new vector<int>();
                     nodeCounter++;
@@ -235,6 +259,7 @@ int BufferedBTreeBuilder::build(int N, int B, int M, float delta) {
                 maxKeys.push((*keys)[elementCounter-1]);
                 nodes.push(numberOfNodes);
                 tree.writeNode(numberOfNodes,height,elementCounter-1,0,keys,values);
+                //cout << "Wrote out node " << numberOfNodes << " of size " << elementCounter << "\n";
                 keys = new vector<int>();
                 values = new vector<int>();
                 nodeCounter++;

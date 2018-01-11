@@ -7,6 +7,7 @@
 #include "../Btree/ModifiedBtree.h"
 #include "../Btree/ModifiedBuilder.h"
 #include "../BufferedBTree/BufferedBTree.h"
+#include "../BufferedBTree/BufferedBTreeBuilder.h"
 #include <ratio>
 #include <chrono>
 #include <iostream>
@@ -680,6 +681,8 @@ void TreeTester::modifiedBTreeTest(int B, int M, int N, int runs) {
 void TreeTester::bufferedBTreeDeltaTest(int B, int M, int N, int runs) {
 
     int numberOfQueries = 10000;
+    int insertionsDuringBuild = 100000; // 100k to fill buffers
+    int insertions = 1000000; // 1mil to measure
 
     int min = log2(N);
     int max = B * log2(N) + 1;
@@ -706,6 +709,31 @@ void TreeTester::bufferedBTreeDeltaTest(int B, int M, int N, int runs) {
         for (int r = 0; r < runs; r++) {
 
             srand(time(NULL));
+
+            long tempMod = 2 * N;
+            int modulus;
+            if (tempMod > 2147483647) {
+                modulus = 2147483647;
+            } else {
+                modulus = tempMod;
+            }
+
+            cout << "Building\n";
+            //BufferedBTree* tree = new BufferedBTree(B,M,N,delta);
+            BufferedBTreeBuilder* builder = new BufferedBTreeBuilder();
+            int exRoot = builder->build(N-insertionsDuringBuild,B,M,delta);
+            delete(builder);
+            cout << "Building tree\n";
+            BufferedBTree* tree = new BufferedBTree(B,M,N,delta,exRoot);
+
+            int number;
+
+            cout << "Building insertion\n";
+            // Insert the 100k missing elements
+            for (int j = 0; j < insertionsDuringBuild; j++) {
+                number = rand() % modulus + 1;
+                tree->insert(KeyValueTime(number, number,j+1));
+            }
 
             using namespace std::chrono;
 
@@ -754,24 +782,10 @@ void TreeTester::bufferedBTreeDeltaTest(int B, int M, int N, int runs) {
             }
             file1.close();
 
-            long tempMod = 2 * N;
-            int modulus;
-            if (tempMod > 2147483647) {
-                modulus = 2147483647;
-            } else {
-                modulus = tempMod;
-            }
-
-            BufferedBTree* tree = new BufferedBTree(B,M,N,delta);
-
-            int number;
-
-            //cout << "Inserting\n";
+            cout << "Inserting\n";
             // Now insert 1mil elements that we time
             high_resolution_clock::time_point t1 = high_resolution_clock::now();
-            high_resolution_clock::time_point ttemp1 = high_resolution_clock::now();
-            high_resolution_clock::time_point ttemp2 = high_resolution_clock::now();
-            for (int j = 0; j < N; j++) {
+            for (int j = 0; j < insertions; j++) {
                 number = rand() % modulus + 1;
                 tree->insert(KeyValueTime(number, number,j+1));
             }

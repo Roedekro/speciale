@@ -9,7 +9,7 @@
 
 class BufferedBTreeBuilder {
 public:
-    int numberOfNodes;
+    int numberOfNodes = 0;
     BufferedBTreeBuilder();
     ~BufferedBTreeBuilder();
     int build(int n, int B, int M, float delta);

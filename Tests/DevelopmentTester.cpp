@@ -2007,7 +2007,7 @@ void DevelopmentTester::buildBufferedBTreeTest() {
 
     int B = 64;
     int M = 256;
-    int N = 25000;
+    int N = 256;
     //float delta = 1.0;
     float delta = 100;
     int insert = N;
