@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <cmath>
 #include <algorithm>
+#include <sys/resource.h>
 
 using namespace std;
 
@@ -144,13 +145,13 @@ BufferedBTree::BufferedBTree(int B, int M, int N, float delta, int exRoot) {
     internalNodeCounter = 1;
     currentNumberOfNodes = exRoot;
 
-    cout << "Root size " << root->nodeSize << "\n";
+    //cout << "Root size " << root->nodeSize << "\n";
 
     //cout << "Internalizing\n";
     //cout << numberOfNodes << " " << internalNodeCounter << " " << minInternalNodes << " " << maxInternalNodes << " " << externalNodeHeight << "\n";
     // Call internalize until we reach internalHeight
     while(internalNodeCounter < minInternalNodes) {
-        cout << "Internalize " << internalNodeCounter << "\n";
+        //cout << "Internalize " << internalNodeCounter << "\n";
         internalize();
     }
 
@@ -171,6 +172,10 @@ void BufferedBTree::insert(KeyValueTime element) {
 
         // Sort buffer - No, done in flush
         //sort(root->buffer->begin(), root->buffer->end());
+
+        /*struct rusage r_usage;
+        getrusage(RUSAGE_SELF,&r_usage);
+        cout << "Memory before flush " << r_usage.ru_maxrss << "\n";*/
 
         // Flush buffer
         flushInternalNode(root);
@@ -203,6 +208,10 @@ void BufferedBTree::insert(KeyValueTime element) {
 }
 
 int BufferedBTree::query(int element) {
+
+    /*struct rusage r_usage;
+        getrusage(RUSAGE_SELF,&r_usage);
+        cout << "Memory before query " << r_usage.ru_maxrss << "\n";*/
 
     // Scan each buffer on the path down
     int result = 0;
@@ -389,6 +398,292 @@ int BufferedBTree::query(int element) {
         /*if(element == 1884) {
             cout << "Final " << parent << " " << currentNode << " " << index << "\n";
         }*/
+
+        return result;
+    }
+
+    return -1;
+}
+
+/*
+ * Special query which "flushes" buffers on its path down the tree.
+ * This should hopefully result in faster query times overall.
+ */
+int BufferedBTree::specialQuery(int element) {
+
+    // Scan each buffer on the path down
+    // We do not flush these internal buffers, as they are "free"
+    // to scan in the I/O model at least.
+    int result = 0;
+    // Internal
+    BufferedInternalNode* internalNode = root;
+    while(true) {
+        // Scan buffer
+        for(int i = 0; i < internalNode->buffer->size(); i ++) {
+            if(internalNode->buffer->at(i).key == element) {
+                result = internalNode->buffer->at(i).value;
+                break; // Break for loop
+            }
+        }
+        // Check result
+        if(result != 0) {
+            return result;
+        }
+        if(!internalNode->externalChildren) {
+            // Follow element down according to keys
+            int index = internalNode->nodeSize;
+            while(index > 0 && element <= internalNode->keys->at(index-1)) {
+                index--;
+            }
+            internalNode = internalNode->children->at(index);
+        }
+        else {
+            // Shift to external
+            break;
+        }
+    }
+
+    // We reached external node or external leaf
+    if(internalNode->height == 1) {
+        // Find correct leaf
+        int index = internalNode->nodeSize;
+        while(index > 0 && element <= internalNode->keys->at(index-1)) {
+            index--;
+        }
+        int leafID= internalNode->values->at(index);
+
+        //Scan leaf
+        vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
+        readLeaf(leafID,leaf,internalNode->leafInfo->at(index));
+        for(int i  = 0; i < leaf->size(); i++) {
+            if(leaf->at(i).key == element) {
+                result = leaf->at(i).value;
+                break;
+            }
+        }
+        leaf->clear();
+        delete(leaf);
+        return result;
+    }
+    else {
+        // Continue search externally
+
+        // First scan the values
+        int index = internalNode->nodeSize;
+        while(index > 0 && element <= internalNode->keys->at(index-1)) {
+            index--;
+        }
+        int currentNode = internalNode->values->at(index);
+        int height = 1000;
+        int nodeSize, bufferSize;
+        int* ptr_height = &height;
+        int* ptr_nodeSize = &nodeSize;
+        int* ptr_bufferSize = &bufferSize;
+        vector<int>* keys;
+        vector<int>* values;
+        vector<KeyValueTime>* buffer;
+        vector<KeyValueTime>* toChild;
+
+        // Search down to the bottom layer
+        // Switched to correct do while
+        int parent = internalNode->id;
+        do {
+
+            keys = new vector<int>();
+            keys->reserve(4*size);
+            values = new vector<int>();
+            values->reserve(4*size);
+            buffer = new vector<KeyValueTime>();
+            buffer->reserve(maxBufferSize);
+
+            readNode(currentNode,ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
+
+            index = nodeSize;
+            while(index > 0 && element <= keys->at(index-1)) {
+                index--;
+            }
+
+            int key = keys->at(index); // Use this key to select elements from the buffer.
+
+            // NOW we "flush" buffers.
+
+            toChild = new vector<KeyValueTime>();
+
+
+            if(bufferSize != 0) {
+                readBuffer(currentNode,bufferSize,buffer);
+
+                // Buffer might no longer be sorted, because of the special queries preceeding this query.
+                sort(buffer->begin(),buffer->end());
+
+                if(index != nodeSize && index != 0) {
+                    // If we are not pushing to the first or last child
+                    int firstKey = keys->at(index-1); // Elements must be larger than this key
+                    int secondKey = keys->at(index); // Elements must be smaller or equal to this key
+                    int startOfElements=-1, endOfElements=-1;
+                    // Add elements to toChild
+                    for(int i = 0; i < buffer->size(); i++) {
+                        KeyValueTime kvt = buffer->at(i);
+                        if(kvt.key == element) {
+                            result = kvt.value;
+                            // Clean up and return
+                            delete(toChild);
+                            delete(keys);
+                            delete(values);
+                            delete(buffer);
+                            return result;
+                        }
+                        // Do we add it to toChild?
+                        if(firstKey < kvt.key && kvt.key <= secondKey) {
+                            toChild->push_back(kvt);
+                        }
+                        // Should we set startOfElements?
+                        if(startOfElements == -1 && kvt.key > firstKey) {
+                            startOfElements = i;
+                        }
+                        // Are we done?
+                        if(kvt.key <= secondKey) {
+                            endOfElements = i;
+                        }
+                        else {
+                            break; // No more elements <= secondKey
+                        }
+                    }
+                    // Remove elements from buffer
+                    // We know the start and end from above
+                    buffer->erase(buffer->begin()+startOfElements, buffer->begin() + endOfElements + 1);
+                    //node->buffer->erase(node->buffer->begin()+startOfElements, node->buffer->begin() + endOfElements);
+                    //cout << "Internal Case1 " << node->buffer->size() << "\n";
+                }
+                else if(index == 0) {
+                    // Special case for the first child
+                    int firstKey = keys->at(index); // Elements smaller or equal to this key
+                    int endOfElements=-1;
+                    // Add elements toChild
+                    for(int i = 0; i < buffer->size(); i++) {
+                        KeyValueTime kvt = buffer->at(i);
+                        if(kvt.key == element) {
+                            result = kvt.value;
+                            // Clean up and return
+                            delete(toChild);
+                            delete(keys);
+                            delete(values);
+                            delete(buffer);
+                            return result;
+                        }
+                        // Do we add it to toChild?
+                        if(kvt.key <= firstKey) {
+                            toChild->push_back(kvt);
+                        }
+                        else {
+                            endOfElements = i-1;
+                            break; // No more elements <= secondKey
+                        }
+                    }
+                    // endOfElements was not set if the last element in the buffer is added toChild
+                    if(endOfElements == -1) {
+                        endOfElements = (int) buffer->size()-1;
+                    }
+                    // Remove elements from buffer
+                    // We know the start and end from above
+                    buffer->erase(buffer->begin(), buffer->begin() + endOfElements + 1);
+                    //node->buffer->erase(node->buffer->begin(), node->buffer->begin() + endOfElements);
+                    //cout << "Internal Case2 " << node->buffer->size() << "\n";
+                }
+                else {
+                    // Special case for last child
+                    int firstKey = keys->at(index-1); // Elements must be larger than this key
+                    int startOfelements=-1;
+                    // Add elements to toChild
+                    for(int i = 0; i < buffer->size(); i++) {
+                        KeyValueTime kvt = buffer->at(i);
+                        if(kvt.key == element) {
+                            result = kvt.value;
+                            // Clean up and return
+                            delete(toChild);
+                            delete(keys);
+                            delete(values);
+                            delete(buffer);
+                            return result;
+                        }
+                        // Do we add it to toChild?
+                        if(kvt.key > firstKey) {
+                            toChild->push_back(kvt);
+                            if(startOfelements == -1) {
+                                startOfelements = i;
+                            }
+                        }
+                    }
+                    // Remove elements from buffer
+                    // We know the start and end from above
+                    buffer->erase(buffer->begin()+startOfelements, buffer->end());
+                    //cout << "Internal Case3 " << node->buffer->size() << "\n";
+                }
+            }
+            else {
+                // Very special case when we have but one child
+                for(int i = 0; i < buffer->size(); i++) {
+                    KeyValueTime kvt = buffer->at(i);
+                    if(kvt.key == element) {
+                        result = kvt.value;
+                        // Clean up and return
+                        delete(toChild);
+                        delete(keys);
+                        delete(values);
+                        delete(buffer);
+                        return result;
+                    }
+                    toChild->push_back(kvt);
+                }
+                buffer->erase(buffer->begin(), buffer->end());
+            }
+
+            // Write out new buffer, if old buffer changed
+            if(toChild->size() != 0) {
+                writeNodeInfo(currentNode,height,nodeSize,buffer->size());
+                writeBuffer(currentNode,buffer);
+
+                // Append toChild to childs buffer
+                appendBuffer(values->at(index),toChild); // Notice childs buffer no longer sorted!
+            }
+            else {
+                delete(toChild);
+            }
+
+            parent = currentNode;
+            currentNode = values->at(index);
+
+            delete(keys);
+            delete(values);
+            delete(buffer);
+        }
+        while(height != 1);
+
+        // We are now at the leaf level, read in leaf size
+        int leafSize;
+        vector<int>* leafSizes = new vector<int>();
+        leafSizes->reserve(4*size);
+        readLeafInfo(parent,leafSizes);
+        //readLeafInfo(currentNode,leafSizes);
+        leafSize = leafSizes->at(index);
+        delete(leafSizes);
+
+        // Read in leaf
+        vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
+        leaf->reserve(maxBufferSize);
+        readLeaf(currentNode,leaf,leafSize);
+
+        // Scan leaf
+        for(int i = 0; i < leafSize; i++) {
+            KeyValueTime kvt = leaf->at(i);
+            if(kvt.key == element) {
+                result = kvt.value;
+                break;
+            }
+        }
+
+        // Clean up
+        delete(leaf);
 
         return result;
     }
@@ -711,121 +1006,134 @@ int BufferedBTree::flushExternalNode(int node) {
     // Sort buffer
     sort(buffer->begin(),buffer->end());
 
-    // Find child we can push most to
-    int index = 0;
-    int indexKey = keys->at(0);
-    int indexCounter = 0; // Counter for size of current index
-    int largestIndex = 0; // Largest index so far
-    int largest = 0; // Size of largest index so far
-    int current;
-    bool last = false; // Special case, last child doesnt have a key
-    for(int i = 0; i < buffer->size(); i++) {
-        current = buffer->at(i).key;
-        if(last) {
-            indexCounter++;
-        }
-        else if(current <= indexKey) {
-            indexCounter++;
-        }
-        else {
-            // Evaluate index
-            if(indexCounter > largest) {
-                largestIndex = index;
-            }
-            index++;
-            // Special case if we reached last child
-            if(index == nodeSize) {
-                last = true;
-            }
-            else {
-                indexKey = keys->at(index);
-            }
-            indexCounter = 0;
-            i--; // Because we might not be part of the range of the next child
-        }
-    }
-    // Evaluate last index
-    if(indexCounter > largest) {
-        largestIndex = index;
-    }
-
     // Create new vector with elements to child
     vector<KeyValueTime>* toChild = new vector<KeyValueTime>();
-    if(index != nodeSize && index != 0) {
-        // If we are not pushing to the first or last child
-        int firstKey = keys->at(index-1); // Elements must be larger than this key
-        int secondKey = keys->at(index); // Elements must be smaller or equal to this key
-        int startOfElements=-1, endOfElements=-1;
-        // Add elements to toChild
+    int index = 0;
+    // Single child = no key
+    if(nodeSize != 0) {
+        // Find child we can push most to
+        int indexKey = keys->at(0);
+        int indexCounter = 0; // Counter for size of current index
+        int largestIndex = 0; // Largest index so far
+        int largest = 0; // Size of largest index so far
+        int current;
+        bool last = false; // Special case, last child doesnt have a key
         for(int i = 0; i < buffer->size(); i++) {
-            KeyValueTime kvt = buffer->at(i);
-            // Do we add it to toChild?
-            if(firstKey < kvt.key && kvt.key <= secondKey) {
-                toChild->push_back(kvt);
+            current = buffer->at(i).key;
+            if(last) {
+                indexCounter++;
             }
-            // Should we set startOfElements?
-            if(startOfElements == -1 && kvt.key > firstKey) {
-                startOfElements = i;
-            }
-            // Are we done?
-            if(kvt.key <= secondKey) {
-                endOfElements = i;
+            else if(current <= indexKey) {
+                indexCounter++;
             }
             else {
-                break; // No more elements <= secondKey
+                // Evaluate index
+                if(indexCounter > largest) {
+                    largestIndex = index;
+                }
+                index++;
+                // Special case if we reached last child
+                if(index == nodeSize) {
+                    last = true;
+                }
+                else {
+                    indexKey = keys->at(index);
+                }
+                indexCounter = 0;
+                i--; // Because we might not be part of the range of the next child
             }
         }
-        // Remove elements from buffer
-        // We know the start and end from above
-        //cout << "case1 " << startOfElements << " " << endOfElements << "\n";
-        buffer->erase(buffer->begin()+startOfElements, buffer->begin() + endOfElements + 1);
-        //buffer->erase(buffer->begin()+startOfElements, buffer->begin() + endOfElements);
-    }
-    else if(index == 0) {
-        // Special case for the first child
-        int firstKey = keys->at(index); // Elements smaller or equal to this key
-        int endOfElements=-1;
-        // Add elements toChild
-        for(int i = 0; i < buffer->size(); i++) {
-            KeyValueTime kvt = buffer->at(i);
-            // Do we add it to toChild?
-            if(kvt.key <= firstKey) {
-                toChild->push_back(kvt);
-            }
-            else {
-                endOfElements = i-1;
-                break; // No more elements <= secondKey
-            }
+        // Evaluate last index
+        if(indexCounter > largest) {
+            largestIndex = index;
         }
-        // endOfElements was not set if the last element in the buffer is added toChild
-        if(endOfElements == -1) {
-            endOfElements = (int) buffer->size()-1;
-        }
-        // Remove elements from buffer
-        // We know the start and end from above
-        //cout << "case2 " << endOfElements << "\n";
-        buffer->erase(buffer->begin(), buffer->begin() + endOfElements + 1);
-        //buffer->erase(buffer->begin(), buffer->begin() + endOfElements);
-    }
-    else {
-        // Special case for last child
-        int firstKey = keys->at(index-1); // Elements must be larger than this key
-        int startOfelements=-1;
-        // Add elements to toChild
-        for(int i = 0; i < buffer->size(); i++) {
-            KeyValueTime kvt = buffer->at(i);
-            // Do we add it to toChild?
-            if(kvt.key > firstKey) {
-                toChild->push_back(kvt);
-                if(startOfelements == -1) {
-                    startOfelements = i;
+
+        if(index != nodeSize && index != 0) {
+            // If we are not pushing to the first or last child
+            int firstKey = keys->at(index-1); // Elements must be larger than this key
+            int secondKey = keys->at(index); // Elements must be smaller or equal to this key
+            int startOfElements=-1, endOfElements=-1;
+            // Add elements to toChild
+            for(int i = 0; i < buffer->size(); i++) {
+                KeyValueTime kvt = buffer->at(i);
+                // Do we add it to toChild?
+                if(firstKey < kvt.key && kvt.key <= secondKey) {
+                    toChild->push_back(kvt);
+                }
+                // Should we set startOfElements?
+                if(startOfElements == -1 && kvt.key > firstKey) {
+                    startOfElements = i;
+                }
+                // Are we done?
+                if(kvt.key <= secondKey) {
+                    endOfElements = i;
+                }
+                else {
+                    break; // No more elements <= secondKey
                 }
             }
+            // Remove elements from buffer
+            // We know the start and end from above
+            //cout << "case1 " << startOfElements << " " << endOfElements << "\n";
+            buffer->erase(buffer->begin()+startOfElements, buffer->begin() + endOfElements + 1);
+            //buffer->erase(buffer->begin()+startOfElements, buffer->begin() + endOfElements);
         }
-        // Remove elements from buffer
-        // We know the start and end from above
-        //cout << "case3\n";
-        buffer->erase(buffer->begin()+startOfelements, buffer->end());
+        else if(index == 0) {
+            // Special case for the first child
+            int firstKey = keys->at(index); // Elements smaller or equal to this key
+            int endOfElements=-1;
+            // Add elements toChild
+            for(int i = 0; i < buffer->size(); i++) {
+                KeyValueTime kvt = buffer->at(i);
+                // Do we add it to toChild?
+                if(kvt.key <= firstKey) {
+                    toChild->push_back(kvt);
+                }
+                else {
+                    endOfElements = i-1;
+                    break; // No more elements <= secondKey
+                }
+            }
+            // endOfElements was not set if the last element in the buffer is added toChild
+            if(endOfElements == -1) {
+                endOfElements = (int) buffer->size()-1;
+            }
+            // Remove elements from buffer
+            // We know the start and end from above
+            //cout << "case2 " << endOfElements << "\n";
+            buffer->erase(buffer->begin(), buffer->begin() + endOfElements + 1);
+            //buffer->erase(buffer->begin(), buffer->begin() + endOfElements);
+        }
+        else {
+            // Special case for last child
+            int firstKey = keys->at(index-1); // Elements must be larger than this key
+            int startOfelements=-1;
+            // Add elements to toChild
+            for(int i = 0; i < buffer->size(); i++) {
+                KeyValueTime kvt = buffer->at(i);
+                // Do we add it to toChild?
+                if(kvt.key > firstKey) {
+                    toChild->push_back(kvt);
+                    if(startOfelements == -1) {
+                        startOfelements = i;
+                    }
+                }
+            }
+            // Remove elements from buffer
+            // We know the start and end from above
+            //cout << "case3\n";
+            buffer->erase(buffer->begin()+startOfelements, buffer->end());
+        }
+    }
+    else {
+        // Single child
+        // Add all elements toChild
+        for(int i = 0; i < buffer->size(); i++) {
+            KeyValueTime kvt = buffer->at(i);
+            toChild->push_back(kvt);
+        }
+        // Delete all elements from buffer
+        buffer->erase(buffer->begin(),buffer->end());
     }
 
     int childID = values->at(index);
@@ -1523,7 +1831,7 @@ void BufferedBTree::recursiveInternalize(BufferedInternalNode *node) {
         node->children->reserve(4*size);
         for(int i = 0; i < node->nodeSize+1; i++) {
             int id = (*node->values)[i];
-            cout << "Internalizing node " << id << "\n";
+            //cout << "Internalizing node " << id << "\n";
             BufferedInternalNode* child = new BufferedInternalNode(id,0,size,true,maxBufferSize);
             int* ptr_height = &(child->height);
             int* ptr_nodeSize = &(child->nodeSize);
@@ -1532,7 +1840,7 @@ void BufferedBTree::recursiveInternalize(BufferedInternalNode *node) {
             readNode(id,ptr_height,ptr_nodeSize,ptr_bufferSize,child->keys,child->values);
             //(*node->children)[i] = child;
             node->children->push_back(child);
-            cout << node->id << " " << (*node->children)[i]->id << "\n";
+            //cout << node->id << " " << (*node->children)[i]->id << "\n";
             internalNodeCounter++;
             if(child->height == 1) {
                 // Load in leaf info

@@ -22,7 +22,7 @@ void test() {
     TreeTester* test = new TreeTester();
     // B = 128KB, M = 8MB, N = 100mil, runs = 2
     //test->truncatedDeltaTest(131072,8388608,10000000,2);
-    test->bufferedBTreeDeltaTest(131072,8388608,10000000,2);
+    test->bufferedBTreeDeltaTest(13107,838860,10000000,2);
     delete(test);
 
 
@@ -128,6 +128,20 @@ int main(int argc, char* argv[]) {
         TreeTester* test = new TreeTester();
         // int B, int M, int N, int runs
         test->modifiedBTreeTest(131072,8388608,atoi(argv[2]),10);
+        delete(test);
+    }
+    else if(test == 7) {
+        // Buffered B Tree delta test
+        TreeTester* test = new TreeTester();
+        // B = 128KB, M = 8MB, N = 100mil, runs = 2
+        test->bufferedBTreeDeltaTest(131072,8388608,atoi(argv[2]),10);
+        delete(test);
+    }
+    else if(test == 8) {
+        // Buffered B Tree insert, query and special query (with "flush")
+        TreeTester* test = new TreeTester();
+        // B = 128KB, M = 8MB, N = 100mil, runs = 2
+        test->bufferedBTreeTestSpecialQuery(131072,8388608,atoi(argv[2]),10,atoi(argv[3]));
         delete(test);
     }
 
