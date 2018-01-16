@@ -30,7 +30,7 @@ XDict::XDict(float alpha) {
     }
 
     // Extend file to appropriate size
-    int result = lseek(fileDescriptor, fileSize-1, SEEK_SET);
+    int result = lseek(fileDescriptor, fileSize*sizeof(long), SEEK_SET);
     if (result == -1) {
         close(fileDescriptor);
         perror("Error original lseek");

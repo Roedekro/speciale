@@ -15,15 +15,15 @@ void test() {
     /*TreeTester* treeTester = new TreeTester();
     treeTester->modifiedBTreeTest(32,256,10000,2);*/
 
-    /*DevelopmentTester* dev = new DevelopmentTester();
+    DevelopmentTester* dev = new DevelopmentTester();
     dev->test();
-    delete(dev);*/
+    delete(dev);
 
-    TreeTester* test = new TreeTester();
+    /*TreeTester* test = new TreeTester();
     // B = 128KB, M = 8MB, N = 100mil, runs = 2
     //test->truncatedDeltaTest(131072,8388608,10000000,2);
     test->bufferedBTreeDeltaTest(13107,838860,10000000,2);
-    delete(test);
+    delete(test);*/
 
 
     /*

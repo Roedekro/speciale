@@ -85,6 +85,13 @@ BufferedBTree::BufferedBTree(int B, int M, int N, float delta) {
     out.create(name.c_str());
     out.close();
 
+    // Calculate minimum elements needed to be pushed to a child in flush
+    minToPush = B * log2(N) / delta;
+    minToPush = minToPush / sizeof(KeyValueTime);
+    if(minToPush < 2) {
+        minToPush = 2;
+    }
+
 }
 
 /*
@@ -155,6 +162,12 @@ BufferedBTree::BufferedBTree(int B, int M, int N, float delta, int exRoot) {
         internalize();
     }
 
+    // Calculate minimum elements needed to be pushed to a child in flush
+    minToPush = B * log2(N) / delta;
+    minToPush = minToPush / sizeof(KeyValueTime);
+    if(minToPush < 2) {
+        minToPush = 2;
+    }
 
 }
 
@@ -503,7 +516,7 @@ int BufferedBTree::specialQuery(int element) {
                 index--;
             }
 
-            int key = keys->at(index); // Use this key to select elements from the buffer.
+            //int key = keys->at(index); // Use this key to select elements from the buffer.
 
             // NOW we "flush" buffers.
 
@@ -516,6 +529,20 @@ int BufferedBTree::specialQuery(int element) {
                 // Buffer might no longer be sorted, because of the special queries preceeding this query.
                 sort(buffer->begin(),buffer->end());
 
+                // Scan the buffer first, for simplicity
+                for(int i = 0; i < bufferSize; i++) {
+                    KeyValueTime kvt = buffer->at(i);
+                    if(kvt.key == element) {
+                        result = kvt.value;
+                        // Clean up and return
+                        delete(keys);
+                        delete(values);
+                        delete(buffer);
+                        delete(toChild);
+                        return result;
+                    }
+                }
+
                 if(index != nodeSize && index != 0) {
                     // If we are not pushing to the first or last child
                     int firstKey = keys->at(index-1); // Elements must be larger than this key
@@ -524,7 +551,7 @@ int BufferedBTree::specialQuery(int element) {
                     // Add elements to toChild
                     for(int i = 0; i < buffer->size(); i++) {
                         KeyValueTime kvt = buffer->at(i);
-                        if(kvt.key == element) {
+                        /*if(kvt.key == element) {
                             result = kvt.value;
                             // Clean up and return
                             delete(toChild);
@@ -532,7 +559,7 @@ int BufferedBTree::specialQuery(int element) {
                             delete(values);
                             delete(buffer);
                             return result;
-                        }
+                        }*/
                         // Do we add it to toChild?
                         if(firstKey < kvt.key && kvt.key <= secondKey) {
                             toChild->push_back(kvt);
@@ -562,7 +589,7 @@ int BufferedBTree::specialQuery(int element) {
                     // Add elements toChild
                     for(int i = 0; i < buffer->size(); i++) {
                         KeyValueTime kvt = buffer->at(i);
-                        if(kvt.key == element) {
+                        /*if(kvt.key == element) {
                             result = kvt.value;
                             // Clean up and return
                             delete(toChild);
@@ -570,7 +597,7 @@ int BufferedBTree::specialQuery(int element) {
                             delete(values);
                             delete(buffer);
                             return result;
-                        }
+                        }*/
                         // Do we add it to toChild?
                         if(kvt.key <= firstKey) {
                             toChild->push_back(kvt);
@@ -597,7 +624,7 @@ int BufferedBTree::specialQuery(int element) {
                     // Add elements to toChild
                     for(int i = 0; i < buffer->size(); i++) {
                         KeyValueTime kvt = buffer->at(i);
-                        if(kvt.key == element) {
+                        /*if(kvt.key == element) {
                             result = kvt.value;
                             // Clean up and return
                             delete(toChild);
@@ -605,7 +632,7 @@ int BufferedBTree::specialQuery(int element) {
                             delete(values);
                             delete(buffer);
                             return result;
-                        }
+                        }*/
                         // Do we add it to toChild?
                         if(kvt.key > firstKey) {
                             toChild->push_back(kvt);
@@ -619,35 +646,75 @@ int BufferedBTree::specialQuery(int element) {
                     buffer->erase(buffer->begin()+startOfelements, buffer->end());
                     //cout << "Internal Case3 " << node->buffer->size() << "\n";
                 }
-            }
-            else {
-                // Very special case when we have but one child
-                for(int i = 0; i < buffer->size(); i++) {
-                    KeyValueTime kvt = buffer->at(i);
-                    if(kvt.key == element) {
-                        result = kvt.value;
-                        // Clean up and return
-                        delete(toChild);
-                        delete(keys);
-                        delete(values);
-                        delete(buffer);
-                        return result;
+
+                // Write out new buffer, if old buffer changed
+                if(!toChild->empty() && height != 1) {
+
+                    writeNodeInfo(currentNode, height, nodeSize, buffer->size());
+                    if(!buffer->empty()) {
+                        writeBuffer(currentNode, buffer);
                     }
-                    toChild->push_back(kvt);
+                    else {
+                        delete(buffer);
+                    }
+
+                    // Append toChild to childs buffer
+                    appendBuffer(values->at(index), toChild); // Notice childs buffer no longer sorted!
+                    delete(toChild);
                 }
-                buffer->erase(buffer->begin(), buffer->end());
-            }
+                else if(!toChild->empty()) {
 
-            // Write out new buffer, if old buffer changed
-            if(toChild->size() != 0) {
-                writeNodeInfo(currentNode,height,nodeSize,buffer->size());
-                writeBuffer(currentNode,buffer);
+                    writeNodeInfo(currentNode, height, nodeSize, buffer->size());
+                    if(!buffer->empty()) {
+                        writeBuffer(currentNode, buffer);
+                    }
+                    else {
+                        delete(buffer);
+                    }
 
-                // Append toChild to childs buffer
-                appendBuffer(values->at(index),toChild); // Notice childs buffer no longer sorted!
+                    // Push toChild to leaf
+                    vector<int>* leafInfo = new vector<int>();
+                    readLeafInfo(currentNode,leafInfo);
+
+                    int leafSize = leafInfo->at(index);
+
+                    // Read in leaf
+                    vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
+                    leaf->reserve(maxBufferSize);
+                    readLeaf(values->at(index),leaf,leafSize);
+
+                    mergeVectors(leaf,toChild);
+
+                    delete(toChild);
+
+                    leafSize = leaf->size();
+
+                    // Scan leaf
+                    for(int i = 0; i < leafSize; i++) {
+                        KeyValueTime kvt = leaf->at(i);
+                        if(kvt.key == element) {
+                            result = kvt.value;
+                            break;
+                        }
+                    }
+
+                    (*leafInfo)[index] = leafSize;
+                    writeLeafInfo(currentNode,leafInfo);
+
+                    writeLeaf(values->at(index),leaf);
+
+
+                }
+                else {
+                    // toChild is empty
+                    delete(toChild);
+                    delete(buffer);
+                }
             }
             else {
+                // No buffer
                 delete(toChild);
+                delete(buffer);
             }
 
             parent = currentNode;
@@ -655,35 +722,40 @@ int BufferedBTree::specialQuery(int element) {
 
             delete(keys);
             delete(values);
-            delete(buffer);
         }
         while(height != 1);
 
-        // We are now at the leaf level, read in leaf size
-        int leafSize;
-        vector<int>* leafSizes = new vector<int>();
-        leafSizes->reserve(4*size);
-        readLeafInfo(parent,leafSizes);
-        //readLeafInfo(currentNode,leafSizes);
-        leafSize = leafSizes->at(index);
-        delete(leafSizes);
+        if(result == 0) {
+            // Scan leaf
 
-        // Read in leaf
-        vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
-        leaf->reserve(maxBufferSize);
-        readLeaf(currentNode,leaf,leafSize);
+            //cout << "Scanning leaf " << currentNode << "\n";
 
-        // Scan leaf
-        for(int i = 0; i < leafSize; i++) {
-            KeyValueTime kvt = leaf->at(i);
-            if(kvt.key == element) {
-                result = kvt.value;
-                break;
+            // We are now at the leaf level, read in leaf size
+            int leafSize;
+            vector<int>* leafSizes = new vector<int>();
+            leafSizes->reserve(4*size);
+            readLeafInfo(parent,leafSizes);
+            //readLeafInfo(currentNode,leafSizes);
+            leafSize = leafSizes->at(index);
+            delete(leafSizes);
+
+            // Read in leaf
+            vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
+            leaf->reserve(maxBufferSize);
+            readLeaf(currentNode,leaf,leafSize);
+
+            // Scan leaf
+            for(int i = 0; i < leafSize; i++) {
+                KeyValueTime kvt = leaf->at(i);
+                if(kvt.key == element) {
+                    result = kvt.value;
+                    break;
+                }
             }
-        }
 
-        // Clean up
-        delete(leaf);
+            // Clean up
+            delete(leaf);
+        }
 
         return result;
     }
@@ -705,11 +777,247 @@ int BufferedBTree::specialQuery(int element) {
  */
 int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
 
+    // Redone entire method to properly reflect the _actual_ structure, not as its described in the article.
+
+    // 1) Handle our buffer
+    // 2) Clean up this node
+    // 3) Flush relevant children
+    // 4) Balance relevant children
+
+    // Done in this order to mimic the external order, where we can not afford to keep this node
+    // in memory while handling the children.
+
+    // First sort the buffer
+    sort(node->buffer->begin(), node->buffer->end());
+
+    // Now find the ranges of elements larger than the minimum size.
+    // Use a vector of vectors so that we can grow the individual vectors
+    // when we need them, thus only using linear space in the buffer size.
+    vector< vector<KeyValueTime>*>* toChildren = new vector< vector<KeyValueTime>*>();
+
+    // Populate toChildren
+    for(int i = 0; i < (node->nodeSize)+1; i++) {
+            toChildren->push_back(new vector<KeyValueTime>());
+    }
+
+    if(node->nodeSize != 0) {
+        // Multiple children
+        int index = 0;
+        int key = node->keys->at(index);
+        for(int i = 0; i < node->buffer->size(); i++) {
+            KeyValueTime kvt = node->buffer->at(i);
+            if(kvt.key <= key) {
+                toChildren->at(index)->push_back(kvt);
+            }
+            else {
+                // Check if we are about to add to the last child (no key)
+                index++;
+                if(index < node->nodeSize) {
+                    // Acquire new key
+                    key = node->keys->at(index);
+                    i--; // Recurse
+                }
+                else {
+                    // Special case, add remaining elements in buffer to last child
+                    toChildren->at(index)->push_back(kvt);
+                    for(int j = i+1; j < node->buffer->size(); j++) {
+                        kvt = node->buffer->at(j);
+                        toChildren->at(index)->push_back(kvt);
+                    }
+                    // Finished
+                    break;
+                }
+            }
+        }
+
+    }
+    else {
+        // Only a single child
+        // Add all elements from buffer to index 0 of toChildren
+        for(int i = 0; i < node->buffer->size(); i++) {
+            KeyValueTime kvt = node->buffer->at(i);
+            toChildren->at(0)->push_back(kvt);
+        }
+    }
+
+    // We can not afford to check every external child
+    vector<int>* externalChecker = new vector<int>();
+
+    // Append to children
+    for(int i = 0; i < toChildren->size(); i++) {
+        if(toChildren->at(i)->size() >= minToPush) {
+
+            // 3 different types of children: Leafs, internal children, external children
+            if(node->height == 1) {
+                // Children are leafs
+                int child = node->values->at(i);
+
+                // Read in leaf
+                vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
+                readLeaf(child,leaf,node->leafInfo->at(i));
+
+                // Merge with buffer
+                mergeVectors(leaf,toChildren->at(i)); // Places result in leaf
+
+                int leafSize = (int) leaf->size();
+
+                // Update parent node
+                (*node->leafInfo)[i] = leafSize;
+
+                // Write out new leaf
+                writeLeaf(child,leaf);
+            }
+            else if(!node->externalChildren) {
+                // Internal children
+                BufferedInternalNode* child = node->children->at(i);
+                vector<KeyValueTime>* toChild = toChildren->at(i);
+                for(int i = 0; i < toChild->size(); i++) {
+                    // Can not push directly
+                    KeyValueTime kvt = toChild->at(i);
+                    child->buffer->push_back(kvt);
+                }
+            }
+            else {
+                // External children
+                int child = node->values->at(i);
+                vector<KeyValueTime>* toChild = toChildren->at(i);
+                // Appendbuffer updates childs buffer size
+                int bSize = appendBuffer(child,toChild);
+                if(bSize >= maxBufferSize) {
+                    externalChecker->push_back(i);
+                }
+            }
+        }
+    }
+
+
+    // Clean up parent, including writing out new buffer
+    node->buffer->clear(); // Soft delete old buffer
+    // Rebuild buffer from the vectors that where too small to get appended
+    for(int i = 0; i < toChildren->size(); i++) {
+        vector<KeyValueTime>* toChild = toChildren->at(i);
+        if(toChild->size() < minToPush) {
+            // Did not get pushed, add to buffer
+            for(int j = 0; j < toChild->size(); j++) {
+                KeyValueTime kvt = toChild->at(j);
+                node->buffer->push_back(kvt);
+            }
+        }
+        // Clean up vector
+        delete(toChild);
+    }
+    // Clean up toChildren
+    delete(toChildren);
+
+    // Same concept as with externalChecker, we can not afford
+    // to check every external child for the need to rebalance.
+    vector<int>* externalRebalance = new vector<int>();
+
+    // Flush children if relevant
+    if(node->height == 1) {
+        // Children are leafs
+        // No flushing
+    }
+    else if(!node->externalChildren) {
+        // Internal children
+        for(int i = 0; i < (node->nodeSize)+1; i++) {
+            BufferedInternalNode* child = node->children->at(i);
+            // Check if we need to flush child
+            if(child->buffer->size() >= maxBufferSize) {
+                flushInternalNode(child);
+            }
+        }
+    }
+    else {
+        // External children
+
+        // We can not afford to check them all, luckily we saved
+        // the ones to flush above!
+
+        for(int i = 0; i < externalChecker->size(); i++) {
+            int toCheck = externalChecker->at(i);
+            int child = node->values->at(toCheck);
+            int cHeight, cSize, cBufferSize;
+            int* ptr_cHeight = &cHeight;
+            int* ptr_cSize = &cSize;
+            int* ptr_cBufferSize = &cBufferSize;
+            readNodeInfo(child,ptr_cHeight,ptr_cSize,ptr_cBufferSize);
+
+            // Check if we need to flush
+            if(cBufferSize >= maxBufferSize) {
+                cSize = flushExternalNode(child);
+                // Need rebalancing in the next step?
+                if(cSize >= 4*size-1) {
+                    externalRebalance->push_back(toCheck); // Position of child to rebalance
+                }
+            }
+        }
+    }
+
+    delete(externalChecker);
+
+
+    // Rebalance children if necessary
+    if(node->height == 1) {
+        // Children are leafs
+        for(int i = 0; i < node->leafInfo->size(); i++) {
+            if(node->leafInfo->at(i) > maxBufferSize) {
+                splitLeafInternalParent(node,i);
+                i--; // Recurse
+            }
+        }
+
+    }
+    else if(!node->externalChildren) {
+        // Internal children
+        for(int i = 0; i < (node->nodeSize)+1; i++) {
+            BufferedInternalNode* child = node->children->at(i);
+            while(child->nodeSize >= 4*size-1) {
+                // Call appropriate split
+                splitInternalNodeInternalChildren(node,i);
+            }
+        }
+
+    }
+    else {
+        // External children
+        int offset = 0; // We will be inserting into values during the process
+                        // meaning the indexes in externalRebalance will be offset.
+        for(int i = 0; i < externalRebalance->size(); i++) {
+            int childNumber = externalRebalance->at(i) + offset;
+            int child = node->values->at(childNumber);
+            int cHeight, cSize, cBufferSize;
+            int* ptr_cHeight = &cHeight;
+            int* ptr_cSize = &cSize;
+            int* ptr_cBufferSize = &cBufferSize;
+            vector<int>* cKeys = new vector<int>();
+            cKeys->reserve(4*size);
+            vector<int>* cValues = new vector<int>();
+            cValues->reserve(4*size);
+            readNode(child,ptr_cHeight,ptr_cSize,ptr_cBufferSize,cKeys,cValues);
+
+            while(cSize >= 4*size-1) {
+                cSize = splitInternalNodeExternalChildren(node,childNumber,cHeight,cSize,ptr_cBufferSize,cKeys,cValues);
+                offset++;
+            }
+            writeNode(child,cHeight,cSize,cBufferSize,cKeys,cValues);
+        }
+    }
+
+    delete(externalRebalance);
+
+    // Return nodeSize
+    return node->nodeSize;
+
+    // ========================================= Old method below
+    // Here we only pushed to the largest child, as described in the article.
+    // This is obviously wrong, as the buffer might not get reduced to an appropriate size.
+
     //cout << "Flush internal node " << node->id << " size " << node->nodeSize << "\n";
     //cout << "Buffer size " << node->buffer->size() << "\n";
 
     // Sort buffer
-    sort(node->buffer->begin(), node->buffer->end());
+    //sort(node->buffer->begin(), node->buffer->end());
 
     /*cout << "The buffer contains the following elements\n";
     for(int i = 0; i < node->buffer->size(); i++) {
@@ -718,7 +1026,7 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
 
     // Special case if we only have one child, such as when we insert the
     // first elements into the tree
-    int index = 0;
+    /*int index = 0;
     if(node->nodeSize != 0) {
         // Find the child whom we can push the most elements to
         //cout << "#keys = " << node->keys->size() << "\n";
@@ -869,7 +1177,7 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
         }*/
 
         // Read in leaf
-        vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
+        /*vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
         readLeaf(child,leaf,node->leafInfo->at(index));
 
         //cout << "Original leaf size " << leaf->size() << "\n";
@@ -938,7 +1246,7 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
                 /*cout << "Internal Node external Child Writing out node " << child << " of nodeSize " << cSize <<
                      " and " << cKeys->size() << " " << cValues->size() << "\n";*/
 
-                writeNode(child,cHeight,cSize,cBufferSize,cKeys,cValues);
+                /*writeNode(child,cHeight,cSize,cBufferSize,cKeys,cValues);
             }
         }
     }
@@ -949,7 +1257,7 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
         cout << node->children->at(index)->id << "\n";*/
 
         // Push to largest child
-        BufferedInternalNode* child = node->children->at(index);
+        /*BufferedInternalNode* child = node->children->at(index);
         //cout << "Internal child: Pushing elements from " << node->id << " to " << child->id << "\n";
         for(int i = 0; i < toChild->size(); i++) {
             // Can not push directly
@@ -973,7 +1281,7 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
             splitInternalNodeInternalChildren(node,index);
         }
     }
-    return node->nodeSize;
+    return node->nodeSize;*/
 }
 
 /*
@@ -983,10 +1291,278 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
  */
 int BufferedBTree::flushExternalNode(int node) {
 
-    //cout << "Flush external node " << node  << "\n";
+    // Redone entire method to properly reflect the _actual_ structure, not as its described in the article.
+
+    // 1) Handle our buffer
+    // 2) Clean up this node
+    // 3) Flush relevant children
+    // 4) Balance relevant children
+
+    // Done in this order because we can not afford to keep this node
+    // in memory while handling the children.
 
     // Read in node
     int height, nodeSize, bufferSize;
+    int* ptr_height = &height;
+    int* ptr_nodeSize = &nodeSize;
+    int* ptr_bufferSize = &bufferSize;
+    vector<int>* keys = new vector<int>();
+    keys->reserve(4*size);
+    vector<int>* values = new vector<int>();
+    values->reserve(4*size);
+    readNode(node,ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
+
+    //cout << "Buffer size " << bufferSize << "\n";
+
+    // Read in buffer
+    vector<KeyValueTime>* buffer = new vector<KeyValueTime>();
+    buffer->reserve(maxBufferSize);
+    readBuffer(node,bufferSize,buffer);
+
+    // Sort buffer
+    sort(buffer->begin(),buffer->end());
+
+    // Now find the ranges of elements larger than the minimum size.
+    // Use a vector of vectors so that we can grow the individual vectors
+    // when we need them, thus only using linear space in the buffer size.
+    vector< vector<KeyValueTime>*>* toChildren = new vector< vector<KeyValueTime>*>();
+
+    // Populate toChildren
+    for(int i = 0; i < nodeSize+1; i++) {
+        toChildren->push_back(new vector<KeyValueTime>());
+    }
+
+    if(nodeSize != 0) {
+        // Multiple children
+        int index = 0;
+        int key = keys->at(index);
+        for(int i = 0; i < buffer->size(); i++) {
+            KeyValueTime kvt = buffer->at(i);
+            if(kvt.key <= key) {
+                toChildren->at(index)->push_back(kvt);
+            }
+            else {
+                // Check if we are about to add to the last child (no key)
+                index++;
+                if(index < nodeSize) {
+                    // Acquire new key
+                    key = keys->at(index);
+                    i--; // Recurse
+                }
+                else {
+                    // Special case, add remaining elements in buffer to last child
+                    toChildren->at(index)->push_back(kvt);
+                    for(int j = i+1; j < buffer->size(); j++) {
+                        kvt = buffer->at(j);
+                        toChildren->at(index)->push_back(kvt);
+                    }
+                    // Finished
+                    break;
+                }
+            }
+        }
+
+    }
+    else {
+        // Only a single child
+        // Add all elements from buffer to index 0 of toChildren
+        for(int i = 0; i < buffer->size(); i++) {
+            KeyValueTime kvt = buffer->at(i);
+            toChildren->at(0)->push_back(kvt);
+        }
+    }
+
+    // We can not afford to check every external child
+    vector<int>* externalChecker = new vector<int>();
+    vector<int>* leafInfo = new vector<int>();
+
+    // Append to children
+    // Unlike in the internal case we check the case first
+    if(height == 1) {
+        // Children are leafs
+
+        // Read in leafInfo
+        readLeafInfo(node,leafInfo);
+
+        for(int i = 0; i < toChildren->size(); i++) {
+            if (toChildren->at(i)->size() >= minToPush) {
+
+                int child = values->at(i);
+                int leafSize = leafInfo->at(i);
+
+                // Read in leaf
+                vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
+                readLeaf(child,leaf,leafSize);
+
+                // Merge with buffer
+                mergeVectors(leaf,toChildren->at(i)); // Places result in leaf
+
+                leafSize = (int) leaf->size();
+
+                // Update parent node
+                (*leafInfo)[i] = leafSize;
+
+                if(leafSize >= maxBufferSize) {
+                    externalChecker->push_back(i);
+                }
+
+                // Write out new leaf
+                writeLeaf(child,leaf);
+            }
+        }
+
+        // Write out updated leafInfo
+        //writeLeafInfo(node,leafInfo);
+    }
+    else {
+        // External children
+
+        for(int i = 0; i < toChildren->size(); i++) {
+            if (toChildren->at(i)->size() >= minToPush) {
+                int child = values->at(i);
+                vector<KeyValueTime>* toChild = toChildren->at(i);
+                // Appendbuffer updates childs buffer size
+                int bSize = appendBuffer(child,toChild);
+                if(bSize >= maxBufferSize) {
+                    externalChecker->push_back(i);
+                }
+            }
+        }
+    }
+
+    // Clean up parent, including writing out new buffer
+    buffer->clear(); // Soft delete old buffer
+    // Rebuild buffer from the vectors that where too small to get appended
+    for(int i = 0; i < toChildren->size(); i++) {
+        vector<KeyValueTime>* toChild = toChildren->at(i);
+        if(toChild->size() < minToPush) {
+            // Did not get pushed, add to buffer
+            for(int j = 0; j < toChild->size(); j++) {
+                KeyValueTime kvt = toChild->at(j);
+                buffer->push_back(kvt);
+            }
+        }
+        // Clean up vector
+        delete(toChild);
+    }
+    // Clean up toChildren
+    delete(toChildren);
+
+    // Write out buffer
+    bufferSize = (int) buffer->size();
+    writeBuffer(node,buffer);
+    //writeNodeInfo(node,height,nodeSize,bufferSize);
+    //delete(keys);
+    //delete(values);
+
+    vector<int>* externalRebalance = new vector<int>();
+
+    // Flush to children
+    if(height == 1) {
+        // Leafs, already flushed
+    }
+    else {
+        // Flush the children in externalChecker
+
+        for(int i = 0; i < externalChecker->size(); i++) {
+            int index = externalChecker->at(i);
+            int child = values->at(index);
+            int cSize = flushExternalNode(child);
+            if(cSize >= 4*size-1) {
+                externalRebalance->push_back(index);
+            }
+        }
+        // Delete externalChecker
+        delete(externalChecker);
+    }
+
+
+    // Rebalance
+    if(height == 1) {
+
+        int offset = 0;
+        // Get leaf info
+        /*vector<int>* leafInfo = new vector<int>();
+        leafInfo->reserve(4*size);
+        readLeafInfo(node,leafInfo);*/
+
+        // Leafs to be rebalanced kept in externalChecker
+        for(int i = 0; i < externalChecker->size(); i++) {
+            int index = externalChecker->at(i) + offset;
+            int child = values->at(index);
+            int leafSize = leafInfo->at(index);
+
+            // Read in leaf
+            vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
+            leaf->reserve(4*size);
+            readLeaf(child,leaf,leafSize);
+
+            while(leafSize > maxBufferSize) {
+                //cout << "Splitleaf size " << newLeafSize << "\n";
+                leafSize = splitLeafExternalParent(nodeSize,keys,values,index,leafInfo, leaf);
+                nodeSize++;
+                offset++;
+            }
+            writeLeaf(child,leaf); // Deletes leaf
+
+        }
+
+        writeLeafInfo(node,leafInfo); // Deletes leafInfo
+
+        // Clean up
+        delete(externalChecker);
+        delete(externalRebalance);
+    }
+    else {
+        int offset = 0;
+        // Children to be rebalanced kept in externalRebalance
+        for(int i = 0; i < externalRebalance->size(); i++) {
+
+            int index = externalRebalance->at(i) + offset;
+            int child = values->at(index);
+            int cHeight, cSize, cBufferSize;
+            int* ptr_cHeight = &cHeight;
+            int* ptr_cSize = &cSize;
+            int* ptr_cBufferSize = &cBufferSize;
+            vector<int>* cKeys = new vector<int>();
+            cKeys->reserve(4*size);
+            vector<int>* cValues = new vector<int>();
+            cValues->reserve(4*size);
+            readNode(child,ptr_cHeight,ptr_cSize,ptr_cBufferSize,cKeys,cValues);
+
+            // Split until child has appropriate size
+            // New children will get appropriate size by default
+            while(cSize > 4*size-1) {
+                cSize = splitExternalNodeExternalChildren(nodeSize, keys, values, index, cHeight, cSize, ptr_cBufferSize,
+                                                          cKeys, cValues);
+                nodeSize++;
+                offset++;
+            }
+
+            // Clean up child
+            writeNode(child,cHeight,cSize,cBufferSize,cKeys,cValues);
+        }
+
+
+        // Clean up externalRebalance
+        delete(externalRebalance);
+        delete(leafInfo);
+    }
+
+    // Write out parent
+    writeNode(node,height,nodeSize,bufferSize,keys,values);
+
+    // Return nodesize
+    return nodeSize;
+
+    /***********************************************************************
+     * Old method below
+     */
+
+    //cout << "Flush external node " << node  << "\n";
+
+    // Read in node
+    /*int height, nodeSize, bufferSize;
     int* ptr_height = &height;
     int* ptr_nodeSize = &nodeSize;
     int* ptr_bufferSize = &bufferSize;
@@ -1256,7 +1832,7 @@ int BufferedBTree::flushExternalNode(int node) {
     }
 
     // Return nodes possibly updated size
-    return nodeSize;
+    return nodeSize;*/
 }
 
 /*

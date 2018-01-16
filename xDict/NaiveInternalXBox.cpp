@@ -83,10 +83,10 @@ void NaiveInternalXBox::batchInsert(std::vector<KeyValueTime> *toInsert) {
                 // Count elements that fits into next subbox
 
                 // If we reach 1/2 sqrt(x) elements insert into subbox
-                if() {
+                if(true) {
 
                     // If this will cause it to exceed max size split
-                    if() {
+                    if(true) {
 
                         // Check if max upper level, else split
                         if(upperLevelCounter != maxNumberOfUpperLevelSubboxes) {
@@ -143,13 +143,13 @@ void NaiveInternalXBox::middleBatchInsert() {
     // Gather elements into middle buffer
 
     // Scan middle buffer and insert into lower level subboxes
-    for() {
+    for(int i = 0; i < 10; i++) {
 
         // If we reach 1/2 sqrt(x) elements insert into subbox
-        if() {
+        if(true) {
 
             // If this insertion will cause it to exceed its max size split
-            if() {
+            if(true) {
 
                 // Do we have room to split the lower level subbx?
                 if(lowerLevelCounter != maxNumberOfLowerLevelSubboxes) {

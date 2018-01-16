@@ -23,6 +23,7 @@ public:
     int minInternalNodes;
     int externalNodeHeight; // Height of the tree where all nodes, and below, are external
     long iocounter;
+    int minToPush;
 
     /*
      * General Methods

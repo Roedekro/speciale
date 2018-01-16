@@ -1946,7 +1946,7 @@ void DevelopmentTester::advancedTestBufferedBTree() {
 
     int B = 64;
     int M = 256;
-    int N = 250000;
+    int N = 2500;
     //float delta = 1.0;
     float delta = 100;
 
@@ -2007,7 +2007,7 @@ void DevelopmentTester::buildBufferedBTreeTest() {
 
     int B = 64;
     int M = 256;
-    int N = 256;
+    int N = 25600;
     //float delta = 1.0;
     float delta = 100;
     int insert = N;
@@ -2036,6 +2036,15 @@ void DevelopmentTester::buildBufferedBTreeTest() {
 
     for(int i = 0; i < store.size(); i++) {
         int ret = tree->query(store.at(i));
+        if(ret != store.at(i)) {
+            cout << store.at(i) << " " << ret << "\n";
+        }
+    }
+
+    cout << "============================================= SPECIAL\n";
+
+    for(int i = 0; i < store.size(); i++) {
+        int ret = tree->specialQuery(store.at(i));
         if(ret != store.at(i)) {
             cout << store.at(i) << " " << ret << "\n";
         }
