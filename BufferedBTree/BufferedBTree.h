@@ -80,6 +80,8 @@ public:
     void printExternal(int node);
     void printLeaf(int leaf, int leafSize);
     void cleanup();
+    long calculateSize(BufferedInternalNode* node);
+
 
 };
 

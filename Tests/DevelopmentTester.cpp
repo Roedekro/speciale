@@ -2005,12 +2005,40 @@ void DevelopmentTester::advancedTestBufferedBTree() {
 
 void DevelopmentTester::buildBufferedBTreeTest() {
 
-    int B = 64;
+
+
+    /*int B = 64;
     int M = 256;
-    int N = 25600;
+    int N = 25600;*/
+
+    int B = 131000;
+    int M = 8000000;
+    int N = 50000000;
     //float delta = 1.0;
     float delta = 100;
-    int insert = N;
+    //int insert = N;
+    int insert = 1000000;
+
+    struct rusage r_usage;
+    getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory before build " << r_usage.ru_maxrss << "\n";
+
+    /*BufferedBTree* tree2 = new BufferedBTree(B,M,N,delta);
+    for(int i = 1; i <= insert; i++) {
+        int ins = rand() % N + 1;
+        //cout << "---Inserting " << ins << " " << i << "\n";
+
+        //store.push_back(ins);
+        tree2->insert(KeyValueTime(ins,ins,i));
+    }
+
+    getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory after build " << r_usage.ru_maxrss << "\n";
+
+
+    return;*/
+
+
 
     cout << "============================================= BUILDING\n";
     BufferedBTreeBuilder builder;
@@ -2018,37 +2046,47 @@ void DevelopmentTester::buildBufferedBTreeTest() {
 
     BufferedBTree* tree = new BufferedBTree(B,M,N,delta,newRoot);
 
+    getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory after build " << r_usage.ru_maxrss << "\n";
+
+    cout << tree->maxInternalNodes << " " << tree->internalNodeCounter << "\n";
+
     cout << "============================================= INSERTING\n";
 
-    vector<int> store;
+    //vector<int> store;
 
     for(int i = 1; i <= insert; i++) {
         int ins = rand() % N + 1;
-        cout << "---Inserting " << ins << " " << i << "\n";
+        //cout << "---Inserting " << ins << " " << i << "\n";
 
-        store.push_back(ins);
+        //store.push_back(ins);
         tree->insert(KeyValueTime(ins,ins,i));
     }
 
+    getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory after insertions " << r_usage.ru_maxrss << "\n";
 
+    cout << tree->maxInternalNodes << " " << tree->internalNodeCounter << "\n";
+
+    cout << "Size of internal nodes = " << tree->calculateSize(tree->root) << "\n";
 
     cout << "============================================= DONE INSERTING\n";
 
-    for(int i = 0; i < store.size(); i++) {
+    /*for(int i = 0; i < store.size(); i++) {
         int ret = tree->query(store.at(i));
         if(ret != store.at(i)) {
             cout << store.at(i) << " " << ret << "\n";
         }
-    }
+    }*/
 
     cout << "============================================= SPECIAL\n";
 
-    for(int i = 0; i < store.size(); i++) {
+    /*for(int i = 0; i < store.size(); i++) {
         int ret = tree->specialQuery(store.at(i));
         if(ret != store.at(i)) {
             cout << store.at(i) << " " << ret << "\n";
         }
-    }
+    }*/
 
     cout << "============================================= CLEANING UP\n";
 

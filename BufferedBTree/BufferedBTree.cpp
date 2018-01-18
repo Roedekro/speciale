@@ -88,6 +88,9 @@ BufferedBTree::BufferedBTree(int B, int M, int N, float delta) {
     // Calculate minimum elements needed to be pushed to a child in flush
     minToPush = B * log2(N) / delta;
     minToPush = minToPush / sizeof(KeyValueTime);
+
+    minToPush = maxBufferSize / (4*size);
+
     if(minToPush < 2) {
         minToPush = 2;
     }
@@ -115,7 +118,8 @@ BufferedBTree::BufferedBTree(int B, int M, int N, float delta, int exRoot) {
 
     // How many nodes can we store in internal Memory?
     // Three ints, an array of keys, and an array of pointers, pr. Node. + a buffer.
-    int internalNodeSize = ((size*4-1)*sizeof(int)) + (size*4*sizeof(BufferedInternalNode*)) + B; // Keys, children, buffer
+    int internalNodeSize = ((size*4-1)*sizeof(int)) + (size*4*sizeof(BufferedInternalNode*)) + B +
+                            ((size*4)*sizeof(int)); // Keys, children, buffer, leafInfo
     maxInternalNodes = M/internalNodeSize;
     if(maxInternalNodes < 1) {
         maxInternalNodes = 1;
@@ -157,6 +161,10 @@ BufferedBTree::BufferedBTree(int B, int M, int N, float delta, int exRoot) {
     //cout << "Internalizing\n";
     //cout << numberOfNodes << " " << internalNodeCounter << " " << minInternalNodes << " " << maxInternalNodes << " " << externalNodeHeight << "\n";
     // Call internalize until we reach internalHeight
+
+    // T-ODO: Comment out
+    //minInternalNodes = 1;
+
     while(internalNodeCounter < minInternalNodes) {
         //cout << "Internalize " << internalNodeCounter << "\n";
         internalize();
@@ -165,13 +173,33 @@ BufferedBTree::BufferedBTree(int B, int M, int N, float delta, int exRoot) {
     // Calculate minimum elements needed to be pushed to a child in flush
     minToPush = B * log2(N) / delta;
     minToPush = minToPush / sizeof(KeyValueTime);
+
+    minToPush = maxBufferSize / (4*size);
+
     if(minToPush < 2) {
         minToPush = 2;
     }
 
+    //cout << "IntNodeSize = " << internalNodeSize << " fanout = " << (size*4) << " and minToPush = " << minToPush << " maxBuf = " << maxBufferSize << "\n";
+    //cout << maxInternalNodes << " " << internalNodeCounter << "\n";
+
+}
+
+void recursiveCleanup(BufferedInternalNode* node) {
+
+    if(!node->externalChildren) {
+        for(int i = 0; i < (node->nodeSize)+1; i++) {
+            recursiveCleanup(node->children->at(i));
+        }
+    }
+    delete(node);
 }
 
 BufferedBTree::~BufferedBTree() {
+
+
+    // Clean up all internal nodes
+    recursiveCleanup(root);
 
 }
 
@@ -194,7 +222,7 @@ void BufferedBTree::insert(KeyValueTime element) {
         flushInternalNode(root);
 
         // Check root size
-        if(root->keys->size() > 4*size-1) {
+        if(root->nodeSize > 4*size-1) {
             //cout << "Creating new root " << numberOfNodes+1 << "\n";
             // Create new root
             numberOfNodes++;
@@ -777,6 +805,12 @@ int BufferedBTree::specialQuery(int element) {
  */
 int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
 
+    /*struct rusage r_usage;
+    getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory before flush on node " << node->id << " " << r_usage.ru_maxrss << " " << node->externalChildren <<  "\n";*/
+
+    //cout << "================================================ " << node->buffer->size() << "\n";
+
     // Redone entire method to properly reflect the _actual_ structure, not as its described in the article.
 
     // 1) Handle our buffer
@@ -892,7 +926,9 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
 
 
     // Clean up parent, including writing out new buffer
-    node->buffer->clear(); // Soft delete old buffer
+    //node->buffer->clear(); // Soft delete old buffer
+    delete(node->buffer);
+    node->buffer = new vector<KeyValueTime>();
     // Rebuild buffer from the vectors that where too small to get appended
     for(int i = 0; i < toChildren->size(); i++) {
         vector<KeyValueTime>* toChild = toChildren->at(i);
@@ -908,6 +944,11 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
     }
     // Clean up toChildren
     delete(toChildren);
+
+    /* Never happens
+    if(node->buffer->size() > maxBufferSize) {
+        cout << "============================================================================ " << node->buffer->size() << "\n";
+    }*/
 
     // Same concept as with externalChecker, we can not afford
     // to check every external child for the need to rebalance.
@@ -937,20 +978,29 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
         for(int i = 0; i < externalChecker->size(); i++) {
             int toCheck = externalChecker->at(i);
             int child = node->values->at(toCheck);
-            int cHeight, cSize, cBufferSize;
+
+            int cSize = flushExternalNode(child);
+            // Need rebalancing in the next step?
+            if(cSize >= 4*size-1) {
+                externalRebalance->push_back(toCheck); // Position of child to rebalance
+            }
+
+
+            /*int cHeight, cSize, cBufferSize;
             int* ptr_cHeight = &cHeight;
             int* ptr_cSize = &cSize;
             int* ptr_cBufferSize = &cBufferSize;
             readNodeInfo(child,ptr_cHeight,ptr_cSize,ptr_cBufferSize);
 
             // Check if we need to flush
+            // Redundant, we have to
             if(cBufferSize >= maxBufferSize) {
                 cSize = flushExternalNode(child);
                 // Need rebalancing in the next step?
                 if(cSize >= 4*size-1) {
                     externalRebalance->push_back(toCheck); // Position of child to rebalance
                 }
-            }
+            }*/
         }
     }
 
@@ -1005,6 +1055,29 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
     }
 
     delete(externalRebalance);
+
+    /*getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory after flush on node " << node->id << " " << r_usage.ru_maxrss << "\n";*/
+
+    // Asserts, all hold true
+    /*int nSize = node->nodeSize;
+    if(node->keys->size() != nSize) {
+        cout << "1++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n";
+        cout << node->keys->size() << " " << nSize << " " << node->height << "\n";
+    }
+    if(node->externalChildren && node->values->size() != nSize+1) {
+        cout << "2++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n";
+        cout << node->values->size() << " " << nSize+1 << "\n";
+    }
+    if(!node->externalChildren && node->children->size() != nSize+1) {
+        cout << "3++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n";
+        cout << node->children->size() << " " << nSize+1 << "\n";
+    }
+
+     if(node->height == 1 && node->leafInfo->size() != nSize+1) {
+        cout << "4++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n";
+         cout << node->leafInfo->size() << " " << nSize+1 << "\n";
+    }*/
 
     // Return nodeSize
     return node->nodeSize;
@@ -1291,6 +1364,10 @@ int BufferedBTree::flushInternalNode(BufferedInternalNode *node) {
  */
 int BufferedBTree::flushExternalNode(int node) {
 
+    /*struct rusage r_usage;
+    getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory before flush on node " << node << " " << r_usage.ru_maxrss <<  "\n";*/
+
     // Redone entire method to properly reflect the _actual_ structure, not as its described in the article.
 
     // 1) Handle our buffer
@@ -1312,7 +1389,12 @@ int BufferedBTree::flushExternalNode(int node) {
     values->reserve(4*size);
     readNode(node,ptr_height,ptr_nodeSize,ptr_bufferSize,keys,values);
 
-    //cout << "Buffer size " << bufferSize << "\n";
+    //cout << height << " " << nodeSize << "\n";
+
+    //cout << "1Buffer size " << bufferSize << "\n";
+
+    //int originalBufSize = bufferSize;
+    //int pushToChildren = 0;
 
     // Read in buffer
     vector<KeyValueTime>* buffer = new vector<KeyValueTime>();
@@ -1321,6 +1403,9 @@ int BufferedBTree::flushExternalNode(int node) {
 
     // Sort buffer
     sort(buffer->begin(),buffer->end());
+
+    /*getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory DURING-1 flush on node " << node << " " << r_usage.ru_maxrss << "\n";*/
 
     // Now find the ranges of elements larger than the minimum size.
     // Use a vector of vectors so that we can grow the individual vectors
@@ -1369,8 +1454,12 @@ int BufferedBTree::flushExternalNode(int node) {
         for(int i = 0; i < buffer->size(); i++) {
             KeyValueTime kvt = buffer->at(i);
             toChildren->at(0)->push_back(kvt);
+            //pushToChildren++;
         }
     }
+
+    /*getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory DURING-2 flush on node " << node << " " << r_usage.ru_maxrss << "\n";*/
 
     // We can not afford to check every external child
     vector<int>* externalChecker = new vector<int>();
@@ -1387,6 +1476,11 @@ int BufferedBTree::flushExternalNode(int node) {
         for(int i = 0; i < toChildren->size(); i++) {
             if (toChildren->at(i)->size() >= minToPush) {
 
+                //pushToChildren += toChildren->at(i)->size();
+
+                /*getrusage(RUSAGE_SELF,&r_usage);
+                cout << "Memory DURING--1 flush on node " << node << " " << r_usage.ru_maxrss << "\n";*/
+
                 int child = values->at(i);
                 int leafSize = leafInfo->at(i);
 
@@ -1394,8 +1488,16 @@ int BufferedBTree::flushExternalNode(int node) {
                 vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
                 readLeaf(child,leaf,leafSize);
 
+                /*getrusage(RUSAGE_SELF,&r_usage);
+                cout << "Memory DURING--2 flush on node " << node << " " << r_usage.ru_maxrss << "\n";*/
+
                 // Merge with buffer
                 mergeVectors(leaf,toChildren->at(i)); // Places result in leaf
+
+                /*getrusage(RUSAGE_SELF,&r_usage);
+                cout << "Memory DURING--3 flush on node " << node << " " << r_usage.ru_maxrss << "\n";*/
+
+                //cout << "Updating leaf from size " << leafSize << " to " << leaf->size() << "\n";
 
                 leafSize = (int) leaf->size();
 
@@ -1404,10 +1506,17 @@ int BufferedBTree::flushExternalNode(int node) {
 
                 if(leafSize >= maxBufferSize) {
                     externalChecker->push_back(i);
+                    //cout << "Need to rebalance " << child << "\n";
                 }
+
+                /*getrusage(RUSAGE_SELF,&r_usage);
+                cout << "Memory DURING--4 flush on node " << node << " " << r_usage.ru_maxrss << "\n";*/
 
                 // Write out new leaf
                 writeLeaf(child,leaf);
+
+                /*getrusage(RUSAGE_SELF,&r_usage);
+                cout << "Memory DURING--5 flush on node " << node << " " << r_usage.ru_maxrss << "\n";*/
             }
         }
 
@@ -1417,11 +1526,14 @@ int BufferedBTree::flushExternalNode(int node) {
     else {
         // External children
 
+        //cout << "EXTERNAL CHILDREN!\n";
+
         for(int i = 0; i < toChildren->size(); i++) {
             if (toChildren->at(i)->size() >= minToPush) {
                 int child = values->at(i);
                 vector<KeyValueTime>* toChild = toChildren->at(i);
-                // Appendbuffer updates childs buffer size
+                //pushToChildren += toChild->size();
+                        // Appendbuffer updates childs buffer size
                 int bSize = appendBuffer(child,toChild);
                 if(bSize >= maxBufferSize) {
                     externalChecker->push_back(i);
@@ -1430,8 +1542,14 @@ int BufferedBTree::flushExternalNode(int node) {
         }
     }
 
+    /*getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory DURING-3 flush on node " << node << " " << r_usage.ru_maxrss << "\n";*/
+
     // Clean up parent, including writing out new buffer
     buffer->clear(); // Soft delete old buffer
+    /*delete(buffer);
+    buffer = new vector<KeyValueTime>();*/
+
     // Rebuild buffer from the vectors that where too small to get appended
     for(int i = 0; i < toChildren->size(); i++) {
         vector<KeyValueTime>* toChild = toChildren->at(i);
@@ -1448,12 +1566,34 @@ int BufferedBTree::flushExternalNode(int node) {
     // Clean up toChildren
     delete(toChildren);
 
+    /*if(originalBufSize - pushToChildren != buffer->size()) {
+        cout << "B++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n";
+        cout << originalBufSize << " " << pushToChildren << " " << buffer->size() << "\n";
+        cout << nodeSize << "\n";
+    }*/
+
     // Write out buffer
     bufferSize = (int) buffer->size();
-    writeBuffer(node,buffer);
+    if(bufferSize != 0) {
+        writeBuffer(node,buffer);
+    }
+    else {
+        // Remove previous buffer if present
+        string name = "Buf";
+        name += to_string(node);
+        if(FILE *file = fopen(name.c_str(), "r")) {
+            fclose(file);
+            remove(name.c_str());
+        }
+        delete(buffer);
+    }
+    //cout << "2Buffer size " << bufferSize << "\n";
     //writeNodeInfo(node,height,nodeSize,bufferSize);
     //delete(keys);
     //delete(values);
+
+    /*getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory DURING1 flush on node " << node << " " << r_usage.ru_maxrss << "\n";*/
 
     vector<int>* externalRebalance = new vector<int>();
 
@@ -1476,15 +1616,20 @@ int BufferedBTree::flushExternalNode(int node) {
         delete(externalChecker);
     }
 
+    /*getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory DURING2 flush on node " << node << " " << r_usage.ru_maxrss <<  "\n";*/
+
 
     // Rebalance
     if(height == 1) {
 
-        int offset = 0;
+
         // Get leaf info
         /*vector<int>* leafInfo = new vector<int>();
         leafInfo->reserve(4*size);
         readLeafInfo(node,leafInfo);*/
+
+        int offset = 0;
 
         // Leafs to be rebalanced kept in externalChecker
         for(int i = 0; i < externalChecker->size(); i++) {
@@ -1492,22 +1637,45 @@ int BufferedBTree::flushExternalNode(int node) {
             int child = values->at(index);
             int leafSize = leafInfo->at(index);
 
+            /*getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory DURINGx flush on node " << node << " " << r_usage.ru_maxrss <<  "\n";*/
             // Read in leaf
             vector<KeyValueTime>* leaf = new vector<KeyValueTime>();
-            leaf->reserve(4*size);
+            leaf->reserve(maxBufferSize);
             readLeaf(child,leaf,leafSize);
 
             while(leafSize > maxBufferSize) {
                 //cout << "Splitleaf size " << newLeafSize << "\n";
+                //cout << "Splitleaf\n";
+                //cout << "1 " << leafSize << " " << child << "\n";
                 leafSize = splitLeafExternalParent(nodeSize,keys,values,index,leafInfo, leaf);
+                //cout << "2 " << leafSize << "\n";
+                //cout << "3 " << leafInfo->at(index) << "\n";
                 nodeSize++;
                 offset++;
+
+                /*if(leafSize != leaf->size()) {
+                    cout << "L+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n";
+                    cout << leafSize << " " << leaf->size() << "\n";
+                }*/
             }
+
+            //(*leafInfo)[index] = leafSize; Already gets updated
+
             writeLeaf(child,leaf); // Deletes leaf
+
+            /*getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory DURINGy flush on node " << node << " " << r_usage.ru_maxrss <<  "\n";*/
 
         }
 
+        /*if(nodeSize+1 != leafInfo->size()) {
+            cout << "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n";
+            cout << nodeSize+1 << " " << leafInfo->size() << "\n";
+        }*/
+
         writeLeafInfo(node,leafInfo); // Deletes leafInfo
+
 
         // Clean up
         delete(externalChecker);
@@ -1549,8 +1717,24 @@ int BufferedBTree::flushExternalNode(int node) {
         delete(leafInfo);
     }
 
+    // Assertions, holds true
+    /*if(nodeSize != keys->size()) {
+        cout << "k========================================================================================\n";
+        cout << keys->size() << " " << nodeSize << "\n";
+    }
+    if(nodeSize+1 != values->size()) {
+        cout << "v========================================================================================\n";
+        cout << values->size() << " " << nodeSize << "\n";
+    }*/
+
     // Write out parent
     writeNode(node,height,nodeSize,bufferSize,keys,values);
+
+    /*getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory AFTER flush on node " << node << " " << r_usage.ru_maxrss << "\n";*/
+
+    //cout << nodeSize << " " << (4*size-1) << " " << internalNodeCounter << "\n";
+
 
     // Return nodesize
     return nodeSize;
@@ -1845,6 +2029,10 @@ int BufferedBTree::splitInternalNodeInternalChildren(BufferedInternalNode *node,
 
     //cout << "Split internal node internal children, node " << node->id << " childNumber " << childNumber << "\n";
 
+    /*if(node->keys->size() != node->nodeSize ) {
+        cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! start\n";
+    }*/
+
     BufferedInternalNode* child = node->children->at(childNumber);
     int childSize = child->nodeSize;
     /*int newSize = (childSize-1)/2;
@@ -1872,7 +2060,7 @@ int BufferedBTree::splitInternalNodeInternalChildren(BufferedInternalNode *node,
     (*node->keys)[childNumber] = (*child->keys)[cSize]; // was cSize-1
 
     // Remove excess keys from child
-    for(int j = 0; j < newSize; j++) {
+    for(int j = 0; j < newSize+1; j++) {
         child->keys->pop_back();
     }
 
@@ -1944,6 +2132,10 @@ int BufferedBTree::splitInternalNodeInternalChildren(BufferedInternalNode *node,
         }
     }
 
+    /*if(node->keys->size() != node->nodeSize ) {
+        cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! slut\n";
+    }*/
+
     return cSize;
 }
 
@@ -1962,6 +2154,10 @@ int BufferedBTree::splitInternalNodeInternalChildren(BufferedInternalNode *node,
 int BufferedBTree::splitInternalNodeExternalChildren(BufferedInternalNode *node, int childIndex,
                                                      int cHeight, int cNodeSize, int* cBuffersize,
                                                      std::vector<int>* cKeys, std::vector<int>* cValues) {
+
+    /*if(node->keys->size() != node->nodeSize ) {
+        cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! start\n";
+    }*/
 
     // Load in child
     int childID = node->values->at(childIndex);
@@ -2073,6 +2269,10 @@ int BufferedBTree::splitInternalNodeExternalChildren(BufferedInternalNode *node,
             writeBuffer(childID,buffer);
             writeBuffer(newID,newBuffer);
         }
+        else {
+            delete(buffer);
+            delete(newBuffer);
+        }
     }
 
     // Write out external nodes, use cSize
@@ -2083,6 +2283,10 @@ int BufferedBTree::splitInternalNodeExternalChildren(BufferedInternalNode *node,
          " and actual size " << nKeys->size() << " " << nValues->size() << "\n";*/
 
     writeNode(newID,nHeight,nSize,newChildsBuffersize,nKeys,nValues);
+
+    /*if(node->keys->size() != node->nodeSize ) {
+        cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! slut\n";
+    }*/
 
     // Notice we changed the value of cBuffersize if relevant above.
     return cSize;
@@ -2192,6 +2396,10 @@ int BufferedBTree::splitExternalNodeExternalChildren(int nodeSize, std::vector<i
             writeBuffer(childID,buffer);
             writeBuffer(nChildID,newBuffer);
         }
+        else {
+            delete(buffer);
+            delete(newBuffer);
+        }
     }
 
     // Write out the new node
@@ -2290,7 +2498,7 @@ int BufferedBTree::splitLeafExternalParent(int nodeSize, std::vector<int> *keys,
     int nSize = maxBufferSize/2;
     int leafSize = origLeafSize - nSize;
     vector<KeyValueTime>* nLeaf = new vector<KeyValueTime>();
-    nLeaf->reserve(2*size);
+    nLeaf->reserve(maxBufferSize/2);
 
     for(int i = 0; i < nSize; i++) {
         KeyValueTime kvt = leaf->at(leafSize+i);
@@ -2448,6 +2656,7 @@ void BufferedBTree::mergeVectors(std::vector<KeyValueTime> *v1, std::vector<KeyV
     for(int i = 0; i < v2->size(); i++) {
         KeyValueTime kvt = v2->at(i);
         v1->push_back(kvt);
+        //v1->push_back(v2->at(i));
     }
     sort(v1->begin(),v1->end());
 
@@ -2746,6 +2955,14 @@ void BufferedBTree::readLeaf(int leaf, std::vector<KeyValueTime> *ret, int leafS
 }
 
 
+void removeFileIfExists(const std::string &filename) {
+    const char *filename_c = filename.c_str();
+    if (FILE *file = fopen(filename_c, "r")) {
+        fclose(file);
+        remove(filename_c);
+    }
+}
+
 /*
  * Deletes kvts
  */
@@ -2753,10 +2970,10 @@ void BufferedBTree::writeLeaf(int leaf, std::vector<KeyValueTime> *kvts) {
 
     string name = "Leaf";
     name += to_string(leaf);
-    if(FILE *file = fopen(name.c_str(), "r")) {
-        fclose(file);
-        remove(name.c_str());
-    }
+    removeFileIfExists(name);
+    /*struct rusage r_usage;
+    getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory writeLeaf writes " << r_usage.ru_maxrss <<  "\n";*/
     OutputStream* out = new BufferedOutputStream(B);
     out->create(name.c_str());
     for(int i = 0; i < kvts->size(); i++) {
@@ -2767,8 +2984,10 @@ void BufferedBTree::writeLeaf(int leaf, std::vector<KeyValueTime> *kvts) {
     }
     out->close();
     delete(out);
-    kvts->clear();
+    //kvts->clear();
     delete(kvts);
+    /*getrusage(RUSAGE_SELF,&r_usage);
+    cout << "Memory after writeLeaf writes " << r_usage.ru_maxrss <<  "\n";*/
 }
 
 int BufferedBTree::readLeafInfo(int id, std::vector<int> *leafs) {
@@ -2984,7 +3203,19 @@ void BufferedBTree::cleanup() {
     }
 }
 
+long BufferedBTree::calculateSize(BufferedInternalNode *node) {
 
+    long ret = 0;
+
+    if(!node->externalChildren) {
+        for(int i = 0; i < node->nodeSize+1; i++) {
+            ret = ret + calculateSize(node->children->at(i));
+        }
+    }
+    //return sizeof(*node) + ret;
+    //return node->nodeSize + 1 + ret;
+    return node->buffer->capacity() + ret;
+}
 
 
 

@@ -681,7 +681,7 @@ void TreeTester::modifiedBTreeTest(int B, int M, int N, int runs) {
 void TreeTester::bufferedBTreeDeltaTest(int B, int M, int N, int runs) {
 
     int numberOfQueries = 10000;
-    int insertionsDuringBuild = 100000; // 100k to fill buffers
+    int insertionsDuringBuild = 1000000; // 1mil to fill internal buffers
     int insertions = 1000000; // 1mil to measure
 
     int min = log2(N);
@@ -718,6 +718,10 @@ void TreeTester::bufferedBTreeDeltaTest(int B, int M, int N, int runs) {
                 modulus = tempMod;
             }
 
+            struct rusage r_usage;
+            getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory before build " << r_usage.ru_maxrss << "\n";
+
             //cout << "Building\n";
             //BufferedBTree* tree = new BufferedBTree(B,M,N,delta);
             BufferedBTreeBuilder* builder = new BufferedBTreeBuilder();
@@ -725,6 +729,9 @@ void TreeTester::bufferedBTreeDeltaTest(int B, int M, int N, int runs) {
             delete(builder);
             //cout << "Building tree\n";
             BufferedBTree* tree = new BufferedBTree(B,M,N,delta,exRoot);
+
+            getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory after build " << r_usage.ru_maxrss << "\n";
 
             int number;
 
@@ -734,6 +741,9 @@ void TreeTester::bufferedBTreeDeltaTest(int B, int M, int N, int runs) {
                 number = rand() % modulus + 1;
                 tree->insert(KeyValueTime(number, number,j+1));
             }
+
+            getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory after initial insertions " << r_usage.ru_maxrss << "\n";
 
             using namespace std::chrono;
 
@@ -792,6 +802,9 @@ void TreeTester::bufferedBTreeDeltaTest(int B, int M, int N, int runs) {
             high_resolution_clock::time_point t2 = high_resolution_clock::now();
             insertTime = insertTime + chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
+            getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory after insertions " << r_usage.ru_maxrss << "\n";
+
             // Write out diskstats again
             sleep(10);
             diskReads2 = 0;
@@ -832,6 +845,8 @@ void TreeTester::bufferedBTreeDeltaTest(int B, int M, int N, int runs) {
             t2 = high_resolution_clock::now();
             queryTime = queryTime + chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
+            getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory after queries " << r_usage.ru_maxrss << "\n";
 
             // Write out diskstats a final time
             sleep(10);
@@ -878,6 +893,9 @@ void TreeTester::bufferedBTreeDeltaTest(int B, int M, int N, int runs) {
 
             tree->cleanup();
             delete (tree);
+
+            getrusage(RUSAGE_SELF,&r_usage);
+            cout << "Memory after cleanup " << r_usage.ru_maxrss << "\n";
         }
 
         // Divide by runs
@@ -898,7 +916,7 @@ void TreeTester::bufferedBTreeDeltaTest(int B, int M, int N, int runs) {
 void TreeTester::bufferedBTreeTest(int B, int M, int N, int runs, float delta) {
 
     int numberOfQueries = 10000;
-    int insertionsDuringBuild = 100000; // 100k to fill buffers
+    int insertionsDuringBuild = 1000000; // 1 mil to fill internal buffers
     int insertions = 1000000; // 1mil to measure
 
     // Insert, query, iocounter
@@ -1096,7 +1114,7 @@ void TreeTester::bufferedBTreeTest(int B, int M, int N, int runs, float delta) {
 void TreeTester::bufferedBTreeTestSpecialQuery(int B, int M, int N, int runs, float delta) {
 
     int numberOfQueries = 10000;
-    int insertionsDuringBuild = 100000; // 100k to fill buffers
+    int insertionsDuringBuild = 1000000; // 1 mil to fill internal buffers
     int insertions = 1000000; // 1mil to measure
 
     // Insert, query, iocounter
