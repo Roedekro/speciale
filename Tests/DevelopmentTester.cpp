@@ -2017,7 +2017,7 @@ void DevelopmentTester::buildBufferedBTreeTest() {
     //float delta = 1.0;
     float delta = 100;
     //int insert = N;
-    int insert = 1000000;
+    int insert = 20000000;
 
     struct rusage r_usage;
     getrusage(RUSAGE_SELF,&r_usage);
@@ -2093,7 +2093,7 @@ void DevelopmentTester::buildBufferedBTreeTest() {
     tree->cleanup();
     delete(tree);
 
-    cout << "Done!";
+    cout << "Done!\n";
 
 
 }

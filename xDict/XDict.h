@@ -16,10 +16,12 @@ public:
     int fileDescriptor;
     long fileSize;
     std::vector<long>* xBoxes; // Contains longs that acts as pointers to the xBoxes of the xDict.
-    float a;
+    float alpha;
     long latestSize; // Holds the size of the latest xBox. Used to calculate size of new xBox.
     long latestX; // Holds the x of the latest xBox
-    long minX = 64; // The minimum x of any xBox, at which point its just an array.
+    long minX; // The minimum x of any xBox, at which point its just a single array + one counter.
+    long minSize;
+    long infoOffset; // Number of information fields in an xBox greater than minX.
 
     XDict(float alpha);
     ~XDict();
@@ -34,8 +36,8 @@ public:
      * Standard methods from the paper
      */
     void batchInsert();
-    void flush();
-    void sampleUp();
+    void flush(long pointer);
+    void sampleUp(long pointer);
     long query(long element);
 
     /*
@@ -47,8 +49,10 @@ public:
     /*
      * Helper methods
      */
-    void calculateNewSize(int x); // Each time its called we calculate the size of the next xBox in line into size
-    void layoutXBox(long pointer, int x);
+    void calculateNewSize(long x); // Each time its called we calculate the size of the next xBox in line into size
+    long recursivelyCalculateSize(long x);
+    void layoutXBox(long pointer, long x);
+    long findNextSubboxForMerge(long pointer, long size);
 
 };
 
