@@ -22,6 +22,7 @@ public:
     long minX; // The minimum x of any xBox, at which point its just a single array + one counter.
     long minSize;
     long infoOffset; // Number of information fields in an xBox greater than minX.
+    int elementSize;
 
     XDict(float alpha);
     ~XDict();
@@ -36,7 +37,7 @@ public:
      * Standard methods from the paper
      */
     void batchInsert();
-    void flush(long pointer);
+    void flush(long pointer, bool recursive);
     void sampleUp(long pointer);
     long query(long element);
 
@@ -51,8 +52,9 @@ public:
      */
     void calculateNewSize(long x); // Each time its called we calculate the size of the next xBox in line into size
     long recursivelyCalculateSize(long x);
-    void layoutXBox(long pointer, long x);
+    long layoutXBox(long pointer, long x);
     long findNextSubboxForMerge(long pointer, long size);
+    void extendMapTo(long pointer);
 
 };
 

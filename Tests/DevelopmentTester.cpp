@@ -22,6 +22,7 @@
 #include "../TruncatedBufferTree/TruncatedBufferTree.h"
 #include "../Btree/ModifiedBuilder.h"
 #include "../BufferedBTree/BufferedBTreeBuilder.h"
+#include "../xDict/XDict.h"
 
 #include <ctime>
 #include <ratio>
@@ -84,7 +85,8 @@ void DevelopmentTester::test() {
     //buildModifiedBTreeTest();
     //initialTestBufferedBTree();
     //advancedTestBufferedBTree();
-    buildBufferedBTreeTest();
+    //buildBufferedBTreeTest();
+    xDictBasicTest();
 }
 
 int DevelopmentTester::streamtestread(long n, int increment) {
@@ -2096,4 +2098,125 @@ void DevelopmentTester::buildBufferedBTreeTest() {
     cout << "Done!\n";
 
 
+}
+
+/*
+ * Test the basic functionality of an xDict / xBox.
+ */
+void DevelopmentTester::xDictBasicTest() {
+
+    long x = 64;
+
+    // Create the most basic of xDicts, a single xBox with minSize
+    float alpha = 1;
+
+    cout << "============================================= BUILDING\n";
+
+    XDict* xDict = new XDict(alpha);
+
+    // We have a subbox of size 64, create one of size 64^2 = 4096
+    /*x = 4096;
+
+    long firstXboxSize = xDict->recursivelyCalculateSize(64);
+    long secondXBoxSize = xDict->recursivelyCalculateSize(4096);
+    long newSize = firstXboxSize + secondXBoxSize;
+
+    cout << "First xBox had size " << firstXboxSize << " second xBox has size " << secondXBoxSize
+         << " totalSize is " << newSize << "\n";*/
+
+    /*xDict->extendMapTo(newSize);
+    xDict->map[newSize] = 1;
+
+    cout << "Laying out new xBox\n";
+
+    xDict->layoutXBox(firstXboxSize,4096);*/
+
+    xDict->addXBox();
+
+    cout << "Latest x is " << xDict->latestX << " fileSize is " << xDict->fileSize << "\n";
+
+    /*
+     * Flush test, place some numbers in the second xBox and flush it.
+     */
+
+    vector<long> insertions;
+
+    long pointerToXBox = xDict->xBoxes->at(1);
+
+    long pointerToInput = pointerToXBox+xDict->infoOffset;
+    int number = 0;
+    int lastNumber = 0;
+    int toInsert = 10;
+    for(int i = 0; i < toInsert; i++) {
+        // Insert increasing numbers
+        long index = pointerToInput+i*4;
+        long ins = rand() % 100 + 1 + lastNumber;
+        xDict->map[index] = ins;
+        xDict->map[index+1] = ins;
+        lastNumber = ins;
+        cout << ins << " ";
+        insertions.push_back(ins);
+    }
+    xDict->map[pointerToInput+4*toInsert] = -1;
+
+    long pointerToMiddle = xDict->map[pointerToXBox+7];
+    lastNumber = 0;
+    for(int i = 0; i < toInsert; i++) {
+        // Insert increasing numbers
+        long index = pointerToMiddle+i*4;
+        long ins = rand() % 100 + 1 + lastNumber;
+        xDict->map[index] = ins;
+        xDict->map[index+1] = ins;
+        lastNumber = ins;
+        cout << ins << " ";
+        insertions.push_back(ins);
+    }
+    xDict->map[pointerToMiddle+4*toInsert] = -1;
+
+    long pointerToOutput = xDict->map[pointerToXBox+9];
+    lastNumber = 0;
+    for(int i = 0; i < toInsert; i++) {
+        // Insert increasing numbers
+        long index = pointerToOutput+i*4;
+        long ins = rand() % 100 + 1 + lastNumber;
+        xDict->map[index] = ins;
+        xDict->map[index+1] = ins;
+        lastNumber = ins;
+        cout << ins << " ";
+        insertions.push_back(ins);
+    }
+    cout << "\n";
+    xDict->map[pointerToOutput+4*toInsert] = -1;
+
+    xDict->map[pointerToXBox+1] = 3*toInsert; // Number of real elements.
+
+    xDict->flush(pointerToXBox,false);
+
+    cout << "Output:\n";
+
+    sort(insertions.begin(),insertions.end());
+    for(int i = 0; i < insertions.size(); i++) {
+        cout << insertions.at(i) << " ";
+    }
+    cout << "\n";
+
+    long key = 0, value = 0;
+    long readIndex = 0;
+    while(key != -1) {
+        key = xDict->map[pointerToOutput+readIndex*4];
+        cout << key << " ";
+        readIndex++;
+
+        // Safeguard
+        if(readIndex > 4*toInsert) {
+            break;
+        }
+    }
+    cout << "\n";
+
+    cout << "============================================= CLEANING UP\n";
+
+    delete(xDict);
+
+    cout << "Done!\n";
 }

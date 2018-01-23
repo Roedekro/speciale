@@ -50,6 +50,7 @@ private:
     void initialTestBufferedBTree();
     void advancedTestBufferedBTree();
     void buildBufferedBTreeTest();
+    void xDictBasicTest();
 
 
 
