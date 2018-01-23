@@ -2158,6 +2158,7 @@ void DevelopmentTester::xDictBasicTest() {
         insertions.push_back(ins);
     }
     xDict->map[pointerToInput+4*toInsert] = -1;
+    cout << "\n";
 
     long pointerToMiddle = xDict->map[pointerToXBox+7];
     lastNumber = 0;
@@ -2172,6 +2173,7 @@ void DevelopmentTester::xDictBasicTest() {
         insertions.push_back(ins);
     }
     xDict->map[pointerToMiddle+4*toInsert] = -1;
+    cout << "\n";
 
     long pointerToOutput = xDict->map[pointerToXBox+9];
     lastNumber = 0;
@@ -2185,10 +2187,60 @@ void DevelopmentTester::xDictBasicTest() {
         cout << ins << " ";
         insertions.push_back(ins);
     }
-    cout << "\n";
     xDict->map[pointerToOutput+4*toInsert] = -1;
+    cout << "\n";
 
-    xDict->map[pointerToXBox+1] = 3*toInsert; // Number of real elements.
+    // Create and insert into two upper level subboxes
+    long sizeOfSubbox = xDict->map[pointerToXBox+3];
+    long numberOfUpperLevel = xDict->map[pointerToXBox+4];
+    long placementOfFirst = pointerToXBox + xDict->infoOffset + x*4 + numberOfUpperLevel;
+    long placementOfSecond = placementOfFirst+sizeOfSubbox;
+
+    // Boolean update
+    long pointerToUpperBool = xDict->map[pointerToXBox+6];
+    xDict->map[pointerToUpperBool] = placementOfFirst;
+    xDict->map[pointerToUpperBool+1] = placementOfSecond;
+
+    // Layout
+    xDict->layoutXBox(placementOfFirst,64);
+    xDict->layoutXBox(placementOfSecond,64);
+
+    // Insert into first
+    long pointerToFirstArray = placementOfFirst+2;
+    lastNumber = 0;
+    for(int i = 0; i < toInsert; i++) {
+        // Insert increasing numbers
+        long index = pointerToFirstArray+i*2;
+        long ins = rand() % 100 + 1 + lastNumber;
+        xDict->map[index] = ins;
+        xDict->map[index+1] = ins;
+        lastNumber = ins;
+        cout << ins << " ";
+        insertions.push_back(ins);
+    }
+    xDict->map[pointerToFirstArray+2*toInsert] = -1;
+    xDict->map[placementOfFirst+1] = toInsert;
+    cout << "\n";
+
+    long pointerToSecondArray = placementOfSecond+2;
+    for(int i = 0; i < toInsert; i++) {
+        // Insert increasing numbers
+        long index = pointerToSecondArray+i*2;
+        long ins = rand() % 100 + 1 + lastNumber;
+        xDict->map[index] = ins;
+        xDict->map[index+1] = ins;
+        lastNumber = ins;
+        cout << ins << " ";
+        insertions.push_back(ins);
+    }
+    xDict->map[pointerToSecondArray+2*toInsert] = -1;
+    xDict->map[placementOfSecond+1] = toInsert;
+
+    cout << "\n";
+
+    cout << "Placed subboxes in " << pointerToUpperBool << " " << placementOfFirst << " and " << placementOfSecond << "\n";
+
+    xDict->map[pointerToXBox+1] = 5*toInsert; // TODO Number of real elements.
 
     xDict->flush(pointerToXBox,false);
 
@@ -2208,7 +2260,7 @@ void DevelopmentTester::xDictBasicTest() {
         readIndex++;
 
         // Safeguard
-        if(readIndex > 4*toInsert) {
+        if(readIndex > 10*toInsert) {
             break;
         }
     }

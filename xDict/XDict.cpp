@@ -135,6 +135,8 @@ void XDict::addXBox() {
  */
 void XDict::flush(long pointer, bool recursive) {
 
+    cout << "FLUSH on xBox at position " << pointer << "\n";
+
     if(map[pointer] <= minX) {
         return; // This xBox is just an array, and is thus by default flushed.
     }
@@ -652,11 +654,12 @@ void XDict::flush(long pointer, bool recursive) {
 
         // Find upper level subbox with smallest element in output buffer
         long upperPointer = findNextSubboxForMerge(pointerToUpperBoolean,numberOfUpperLevelSubboxes);
+        cout << "Upper Pointer = " << upperPointer << "\n";
         long upperSubbox,upperMax,upperBuffer;
         if(upperPointer != -1) {
             upperSubbox = map[upperPointer];
             upperMax = map[upperSubbox+1]; // Real elements in subbox
-            upperBuffer = map[upperSubbox+9]; // Its output buffer
+            upperBuffer = upperSubbox+2; // Its output buffer
         }
 
         long lowerPointer = findNextSubboxForMerge(pointerToLowerBoolean,numberOfLowerLevelSubboxes);
@@ -665,7 +668,7 @@ void XDict::flush(long pointer, bool recursive) {
         if(lowerPointer != -1) {
             lowerSubbox = map[lowerPointer];
             lowerMax = map[lowerSubbox+1]; // Real elements in subbox
-            lowerBuffer = map[lowerSubbox+9]; // Its output buffer
+            lowerBuffer = lowerSubbox+2; // Its output buffer
         }
 
         long upperIndex = 0;
@@ -875,6 +878,7 @@ void XDict::flush(long pointer, bool recursive) {
                 }
                 if(map[upperBuffer+upperIndex*2] != -1) {
                     // Found element in this subbox
+                    cout << "Placing subbox key " << map[upperBuffer+upperIndex*2] << " from index " << upperIndex << "\n";
                     mergeArray[2] = map[upperBuffer+upperIndex*2];
                     mergeArray[3] = map[upperBuffer+upperIndex*2+1];
                 }
@@ -887,7 +891,7 @@ void XDict::flush(long pointer, bool recursive) {
                     // Its now -1 if none was found, but proceed as if it found one.
                     upperSubbox = map[upperPointer];
                     upperMax = map[upperSubbox+1]; // Real elements in subbox
-                    upperBuffer = map[upperSubbox+9]; // Its output buffer
+                    upperBuffer = upperSubbox+2; // Its output buffer
                     upperIndex = 0;
 
                     // Did we find a subbox?
@@ -955,7 +959,7 @@ void XDict::flush(long pointer, bool recursive) {
                     // Its now -1 if none was found, but proceed as if it found one.
                     lowerSubbox = map[lowerPointer];
                     lowerMax = map[lowerSubbox+1]; // Real elements in subbox
-                    lowerBuffer = map[lowerSubbox+9]; // Its output buffer
+                    lowerBuffer = lowerSubbox+2; // Its output buffer
                     lowerIndex = 0;
 
                     // Did we find a subbox?
@@ -1168,28 +1172,37 @@ long XDict::layoutXBox(long pointer, long x) {
 long XDict::findNextSubboxForMerge(long pointer, long size) {
 
     long index = 0;
-    long smallest = -1;
+    long smallest = LONG_MAX;
     long smallestPointer = pointer;
     bool min = false;
 
+    cout << "Finding first subbox at position " << pointer << "\n";
+
     // Find the first subbox
     for(index; index < size; index++) {
+        cout << map[pointer+index] << " ";
         if(map[pointer+index] != 0) {
             // We have a subbox!
             long subboxPointer = map[pointer+index];
             if(map[subboxPointer] <= minX) {
                 min = true;
-                smallest = map[subboxPointer+2];
-                smallestPointer = pointer+index;
+                if(map[subboxPointer+2] < smallest) {
+                    smallest = map[subboxPointer+2];
+                    smallestPointer = pointer+index;
+                }
+
             }
             else {
                 long outputBuffer = map[subboxPointer+9];
-                smallest = map[outputBuffer];
-                smallestPointer = pointer+index;
+                if(map[outputBuffer] < smallest) {
+                    smallest = map[outputBuffer];
+                    smallestPointer = pointer+index;
+                }
             }
-
         }
     }
+
+    cout << " Found " << smallestPointer << " " <<  smallest << "\n";
 
     // Check!
     if(smallest == -1) {
@@ -1229,7 +1242,7 @@ long XDict::findNextSubboxForMerge(long pointer, long size) {
         }
     }
 
-
+    cout << " Found " << smallestPointer << " " <<  smallest << "\n";
     return smallestPointer;
 }
 
