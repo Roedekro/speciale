@@ -2135,6 +2135,7 @@ void DevelopmentTester::xDictBasicTest() {
 
     cout << "Latest x is " << xDict->latestX << " fileSize is " << xDict->fileSize << "\n";
 
+    cout << "============================================= FLUSH TEST\n";
     /*
      * Flush test, place some numbers in the second xBox and flush it.
      */
@@ -2145,59 +2146,63 @@ void DevelopmentTester::xDictBasicTest() {
 
     long pointerToInput = pointerToXBox+xDict->infoOffset;
     int number = 0;
-    int lastNumber = 0;
+    long lastNumber = 0;
     int toInsert = 10;
-    for(int i = 0; i < toInsert; i++) {
+    toInsert = 64;
+    long bufferModifier = 64;
+
+    for(int i = 0; i < toInsert*bufferModifier; i++) {
         // Insert increasing numbers
         long index = pointerToInput+i*4;
         long ins = rand() % 100 + 1 + lastNumber;
         xDict->map[index] = ins;
         xDict->map[index+1] = ins;
         lastNumber = ins;
-        cout << ins << " ";
+        //cout << ins << " ";
         insertions.push_back(ins);
     }
-    xDict->map[pointerToInput+4*toInsert] = -1;
+    xDict->map[pointerToInput+4*toInsert*bufferModifier] = -1;
     cout << "\n";
 
     long pointerToMiddle = xDict->map[pointerToXBox+7];
     lastNumber = 0;
-    for(int i = 0; i < toInsert; i++) {
+    for(int i = 0; i < toInsert*bufferModifier; i++) {
         // Insert increasing numbers
         long index = pointerToMiddle+i*4;
         long ins = rand() % 100 + 1 + lastNumber;
         xDict->map[index] = ins;
         xDict->map[index+1] = ins;
         lastNumber = ins;
-        cout << ins << " ";
+        //cout << ins << " ";
         insertions.push_back(ins);
     }
-    xDict->map[pointerToMiddle+4*toInsert] = -1;
+    xDict->map[pointerToMiddle+4*toInsert*bufferModifier] = -1;
     cout << "\n";
 
     long pointerToOutput = xDict->map[pointerToXBox+9];
     lastNumber = 0;
-    for(int i = 0; i < toInsert; i++) {
+    for(int i = 0; i < toInsert*bufferModifier; i++) {
         // Insert increasing numbers
         long index = pointerToOutput+i*4;
         long ins = rand() % 100 + 1 + lastNumber;
         xDict->map[index] = ins;
         xDict->map[index+1] = ins;
         lastNumber = ins;
-        cout << ins << " ";
+        //cout << ins << " ";
         insertions.push_back(ins);
     }
-    xDict->map[pointerToOutput+4*toInsert] = -1;
+    xDict->map[pointerToOutput+4*toInsert*bufferModifier] = -1;
     cout << "\n";
 
     // Create and insert into two upper level subboxes
     long sizeOfSubbox = xDict->map[pointerToXBox+3];
     long numberOfUpperLevel = xDict->map[pointerToXBox+4];
-    long placementOfFirst = pointerToXBox + xDict->infoOffset + x*4 + numberOfUpperLevel;
+    long pointerToUpperBool = xDict->map[pointerToXBox+6];
+    long placementOfFirst = pointerToUpperBool + numberOfUpperLevel;
     long placementOfSecond = placementOfFirst+sizeOfSubbox;
 
     // Boolean update
-    long pointerToUpperBool = xDict->map[pointerToXBox+6];
+
     xDict->map[pointerToUpperBool] = placementOfFirst;
     xDict->map[pointerToUpperBool+1] = placementOfSecond;
 
@@ -2210,61 +2215,79 @@ void DevelopmentTester::xDictBasicTest() {
     lastNumber = 0;
     for(int i = 0; i < toInsert; i++) {
         // Insert increasing numbers
-        long index = pointerToFirstArray+i*2;
+        long index = pointerToFirstArray+i*4;
         long ins = rand() % 100 + 1 + lastNumber;
         xDict->map[index] = ins;
         xDict->map[index+1] = ins;
         lastNumber = ins;
-        cout << ins << " ";
+        //cout << ins << " ";
         insertions.push_back(ins);
     }
-    xDict->map[pointerToFirstArray+2*toInsert] = -1;
+    xDict->map[pointerToFirstArray+4*toInsert] = -1;
     xDict->map[placementOfFirst+1] = toInsert;
     cout << "\n";
 
     long pointerToSecondArray = placementOfSecond+2;
     for(int i = 0; i < toInsert; i++) {
         // Insert increasing numbers
-        long index = pointerToSecondArray+i*2;
+        long index = pointerToSecondArray+i*4;
         long ins = rand() % 100 + 1 + lastNumber;
         xDict->map[index] = ins;
         xDict->map[index+1] = ins;
         lastNumber = ins;
-        cout << ins << " ";
+        //cout << ins << " ";
         insertions.push_back(ins);
     }
-    xDict->map[pointerToSecondArray+2*toInsert] = -1;
+    xDict->map[pointerToSecondArray+4*toInsert] = -1;
     xDict->map[placementOfSecond+1] = toInsert;
 
     cout << "\n";
 
     cout << "Placed subboxes in " << pointerToUpperBool << " " << placementOfFirst << " and " << placementOfSecond << "\n";
 
-    xDict->map[pointerToXBox+1] = 5*toInsert; // TODO Number of real elements.
+    xDict->map[pointerToXBox+1] = 2*toInsert+3*toInsert*bufferModifier; // TODO Number of real elements.
 
     xDict->flush(pointerToXBox,false);
 
-    cout << "Output:\n";
-
     sort(insertions.begin(),insertions.end());
+
+    /*cout << "Output:\n";
     for(int i = 0; i < insertions.size(); i++) {
         cout << insertions.at(i) << " ";
     }
-    cout << "\n";
+    cout << "\n";*/
+
+    bool correct = true;
 
     long key = 0, value = 0;
     long readIndex = 0;
     while(key != -1) {
         key = xDict->map[pointerToOutput+readIndex*4];
-        cout << key << " ";
+        if(key != -1 && key != insertions.at(readIndex)) {
+            correct = false;
+        }
+        //cout << key << " ";
         readIndex++;
 
         // Safeguard
-        if(readIndex > 10*toInsert) {
+        if(readIndex > 10*toInsert*bufferModifier) {
             break;
         }
     }
     cout << "\n";
+
+    if(correct) {
+        cout << "Flush works correct\n";
+    }
+    else {
+        cout << "Error in Flush\n";
+    }
+
+    cout << "Real elements in xBox is now " << xDict->map[pointerToXBox+1] << "\n";
+
+    cout << "============================================= SAMPLE UP\n";
+
+    xDict->sampleUp(pointerToXBox);
 
     cout << "============================================= CLEANING UP\n";
 
