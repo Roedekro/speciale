@@ -28,8 +28,10 @@ XDict::XDict(float a) {
     alpha = a;
     elementSize = 4;
 
-    minX = 64;
-    minSize = minX*elementSize+3; // x, real elements, and -1 at the end
+    //minX = 64;
+    minX = 8; // Absolute minimum, since a proper xBox needs to be at least 64.
+    long minXalpha = (long) pow(minX,1+alpha);
+    minSize = minXalpha*elementSize+3; // x, #real elements, the elements, and -1 at the end
     infoOffset = 10;
 
     latestSize = minSize;
@@ -125,6 +127,42 @@ void XDict::addXBox() {
 
 }
 
+/*
+ * Query down through the xDict
+ */
+long XDict::query(long element) {
+
+    long ret = -1;
+    long xBoxPointer = 0;
+
+    // Naive search of the first xBox, which is just an array.
+    // Notice the first xBox is of minimum size, and a special Search is made.
+    ret = search(xBoxPointer,2,element);
+
+    if(map[ret] == element && map[ret+1] > 0) {
+        return map[ret+1]; // If only it was always this easy!
+    }
+
+    // We now have a pointer into the first real xBox.
+    // Recursively use this pointer to search down the xDict.
+    for(int i = 1; i < xBoxes->size(); i++) {
+        xBoxPointer = xBoxes->at(i);
+        ret = search(xBoxPointer,ret,element);
+        if(map[ret] == element && map[ret+1] > 0) {
+            return map[ret+1];
+        }
+    }
+
+    // TODO Correct? Write the search method first
+    if(ret != -1) {
+        if(map[ret] == element && map[ret+1] > 0) {
+            return map[ret+1];
+        }
+    }
+    return -1;
+}
+
+
 
 /***********************************************************************************************************************
  * Standard Methods, from the paper
@@ -208,6 +246,7 @@ void XDict::flush(long pointer, bool recursive) {
         }
 
         if(numberOfRealElements == numberOfRealElementsInOutputBuffer) {
+            // TODO wipe our subboxes and write -1 to input and middle.
             return; // We are already flushed
         }
 
@@ -395,6 +434,7 @@ void XDict::flush(long pointer, bool recursive) {
             }
 
             // Output
+            //cout << mergeArray[0] << " " << mergeArray[2] << " " << mergeArray[4] << " " << mergeArray[6] << " " << mergeArray[8] << "\n";
             map[pointerToOutputBuffer+writeIndex*elementSize] = mergeArray[smallestIndex*2];
             map[pointerToOutputBuffer+writeIndex*elementSize+1] = mergeArray[smallestIndex*2+1];
             if(mergeArray[smallestIndex*2+1] > 0) {
@@ -455,10 +495,6 @@ void XDict::flush(long pointer, bool recursive) {
                     map[upperPointer] = 0; // upperPointed pointed into our array of upper level subboxes.
                     upperPointer = findNextSubboxForMerge(pointerToUpperBoolean,numberOfUpperLevelSubboxes);
                     // Its now -1 if none was found, but proceed as if it found one.
-                    upperSubbox = map[upperPointer];
-                    upperMax = map[upperSubbox+1]; // Real elements in subbox
-                    upperBuffer = map[upperSubbox+9]; // Its output buffer
-                    upperIndex = 0;
 
                     // Did we find a subbox?
                     if(upperPointer == -1) {
@@ -466,6 +502,10 @@ void XDict::flush(long pointer, bool recursive) {
                         mergeArray[3] = -1;
                     }
                     else {
+                        upperSubbox = map[upperPointer];
+                        upperMax = map[upperSubbox+1]; // Real elements in subbox
+                        upperBuffer = map[upperSubbox+9]; // Its output buffer
+                        upperIndex = 0;
                         // Find first real element in the subbox
                         while(map[upperBuffer+upperIndex*elementSize+1] < 0 &&
                               map[upperBuffer+upperIndex*elementSize] != -1) {
@@ -523,10 +563,6 @@ void XDict::flush(long pointer, bool recursive) {
                     map[lowerPointer] = 0; // Mark old subbox as deleted.
                     lowerPointer = findNextSubboxForMerge(pointerToLowerBoolean,numberOfLowerLevelSubboxes);
                     // Its now -1 if none was found, but proceed as if it found one.
-                    lowerSubbox = map[lowerPointer];
-                    lowerMax = map[lowerSubbox+1]; // Real elements in subbox
-                    lowerBuffer = map[lowerSubbox+9]; // Its output buffer
-                    lowerIndex = 0;
 
                     // Did we find a subbox?
                     if(lowerPointer == -1) {
@@ -534,6 +570,10 @@ void XDict::flush(long pointer, bool recursive) {
                         mergeArray[7] = -1;
                     }
                     else {
+                        lowerSubbox = map[lowerPointer];
+                        lowerMax = map[lowerSubbox+1]; // Real elements in subbox
+                        lowerBuffer = map[lowerSubbox+9]; // Its output buffer
+                        lowerIndex = 0;
                         // Find first real element
                         while(map[lowerBuffer+lowerIndex*elementSize+1] < 0 &&
                               map[lowerBuffer+lowerIndex*elementSize] != -1) {
@@ -632,6 +672,7 @@ void XDict::flush(long pointer, bool recursive) {
         }
 
         if(numberOfRealElements == numberOfRealElementsInOutputBuffer) {
+            // TODO wipe our subboxes and write -1 to input and middle.
             return; // We are already flushed
         }
 
@@ -1037,6 +1078,8 @@ void XDict::flush(long pointer, bool recursive) {
 }
 
 /*
+ * THIS PARTICULAR SAMPLE UP IS ONLY TO BE CALLED AFTER FLUSH.
+ * For other Sample Up uses in the article use the other relevant methods.
  * Assumes all elements in an xBox is located in the output buffer, and
  * that the xBox is otherwise empty with no subboxes allocated.
  * We create up to half the subboxes and fill each up with forward pointers equivalent to
@@ -1046,9 +1089,22 @@ void XDict::flush(long pointer, bool recursive) {
  * We perform the same procedure for the upper level.
  * And finally we sample up into the input buffer.
  */
-void XDict::sampleUp(long pointerToXBox) {
+void XDict::sampleUpAfterFlush(long pointerToXBox) {
 
     if(map[pointerToXBox] <= minX) {
+
+        cout << "Elements in subbox located at " << pointerToXBox << ": ";
+        long index = 0;
+        while(map[pointerToXBox+2+index*elementSize] != -1) {
+            cout << map[pointerToXBox+2+index*elementSize] << " ";
+            if(index > minX*minX) {
+                cout << "\n";
+                cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ERROR IN SUBBOX\n";
+            }
+            index++;
+        }
+        cout << "\n";
+
         return; // The surrounding xBox gave us pointers and will sample from us.
     }
 
@@ -1064,9 +1120,12 @@ void XDict::sampleUp(long pointerToXBox) {
 
     // Create the appropriate amount of lower level subboxes
     long numberOfPointersToCreate = elementsInOutput/16;
+    if(numberOfPointersToCreate < 1) {
+        numberOfPointersToCreate = 1;
+    }
     long power = (long) pow(x,0.5 + alpha/2); // Size of output buffer of subbox
     if(y <= minX) {
-        power = minX; // Single array
+        power = pow(y,1 + alpha); // Single array
     }
 
     cout << elementsInOutput << " " << numberOfPointersToCreate << " " << power <<  "\n";
@@ -1113,7 +1172,7 @@ void XDict::sampleUp(long pointerToXBox) {
     }
 
     // Run through output creating pointers
-    while(map[pointerToOutput+index*4] != -1) {
+    while(map[pointerToOutput+index*elementSize] != -1) {
         sixteenth++;
         if(sixteenth == 16) {
             // Create pointer
@@ -1159,37 +1218,552 @@ void XDict::sampleUp(long pointerToXBox) {
 
     // Recursively call sample up on the subboxes in the lower level
     for(int i = 0; i < lowerLevelSubboxesToCreate; i++) {
-        sampleUp(map[pointerToLowerBoolean+i]);
+        sampleUpAfterFlush(map[pointerToLowerBoolean+i]);
     }
 
     // Sample into the middle buffer while counting elements
-    // TODO Create subbox pointers while at it! Not for the first subbox though, its implicit.
+    long sampleEveryNthElement = 0;
+    if(y > minX) {
+        sampleEveryNthElement = 16; // Subbox is a normal subbox
+    }
+    else {
+        // Special case, subbox is an array much larger than a normal input array.
+        // Therefore we sample less than every 16th element!
+        // Multiply 16 with the increased ratio
+        long numerator = (long) pow(y,1+alpha); // Actual size of array
+        long ratio = numerator/y; // ratio
+        sampleEveryNthElement = 16 * ratio;
+    }
 
+    cout << "Sampling every " << sampleEveryNthElement << "th element in lower level to middle\n";
 
+    long writeIndex = -1; // So we can count up every time
+    long pointerToMiddle = map[pointerToXBox+7];
+    // Assume the subboxes where place in appropriate sequence (they are)
+    for(int i = 0; i < lowerLevelSubboxesToCreate; i++) {
+        long pointerToSubbox = map[pointerToLowerBoolean+i];
+        long pointerToSubboxInput = 0;
+        if(y > minX) {
+            pointerToSubboxInput = pointerToSubbox + infoOffset + map[pointerToSubbox+4];
+        }
+        else {
+            pointerToSubboxInput = pointerToSubbox+2;
+        }
+        // Create subbox pointer
+        writeIndex++;
+        map[pointerToMiddle+writeIndex*elementSize] = map[pointerToSubboxInput]; // Key
+        map[pointerToMiddle+writeIndex*elementSize+1] = -1; // Subbox pointer
+        map[pointerToMiddle+writeIndex*elementSize+2] = pointerToSubbox;
+        map[pointerToMiddle+writeIndex*elementSize+3] = pointerToLowerBoolean+i;
+
+        // Read elements
+        long subboxIndex = 1;
+        long counter = 0;
+        while(map[pointerToSubboxInput+subboxIndex*elementSize] != -1) {
+            counter++;
+            if(counter == sampleEveryNthElement) {
+                // Sample this element
+                writeIndex++;
+                map[pointerToMiddle+writeIndex*elementSize] = map[pointerToSubboxInput+subboxIndex*elementSize]; // Key
+                map[pointerToMiddle+writeIndex*elementSize+1] = -2; // Forward pointer
+                map[pointerToMiddle+writeIndex*elementSize+2] = pointerToSubboxInput+subboxIndex*elementSize; // Point directly to this element
+                map[pointerToMiddle+writeIndex*elementSize+3] = 0;
+                counter = 0;
+            }
+            subboxIndex++;
+        }
+        cout << "Counter=" << counter << "\n";
+    }
+    // Insert -1 at end of array
+    writeIndex++;
+    map[pointerToMiddle+writeIndex*elementSize] = -1;
+
+    cout << "Created " << writeIndex << " pointers in middle buffer\n";
 
 
     // Create the appropriate amount of upper level subboxes
-    long upperLevelSubboxesToCreate = 0;
+    numberOfPointersToCreate = writeIndex/16;
+    if(numberOfPointersToCreate < 1) {
+        numberOfPointersToCreate = 1;
+    }
+    // Power contains output buffer size of subbox
+    long upperLevelSubboxesToCreate = numberOfPointersToCreate/(power/2); // Never more than half of max
+    if(numberOfPointersToCreate % (power/2) != 0) {
+        upperLevelSubboxesToCreate++; // Gotta create them all, divide evenly
+    }
+    if(upperLevelSubboxesToCreate < 1) {
+        upperLevelSubboxesToCreate = 1; // Minimum
+    }
+
+    long maxNumberOfUpperLevel = map[pointerToXBox+5];
     long pointerToUpperBoolean = map[pointerToXBox+6];
+    latestLocation = pointerToUpperBoolean+maxNumberOfUpperLevel; // First subbox
+
+    cout << "Going to create " << upperLevelSubboxesToCreate << " new upper level subboxes of y = " << y << "\n";
+    for(int i = 0; i < upperLevelSubboxesToCreate; i++) {
+        //cout << "Subbox will be located at " << latestLocation << "\n";
+        map[pointerToUpperBoolean+i] = latestLocation;
+        latestLocation = layoutXBox(latestLocation,y);
+        //cout << latestLocation << "\n";
+    }
 
     // Sample up into the upper level subboxes
+    currentSubboxIndex = 0;
+    currentSubboxOutputBuffer;
+
+    pointersToEachSubbox = numberOfPointersToCreate/upperLevelSubboxesToCreate;
+    if(numberOfPointersToCreate % upperLevelSubboxesToCreate != 0) {
+        pointersToEachSubbox++;
+    }
+    counter = 0;
+    sixteenth = 15; // So we make the first element a pointer
+    index = 0;
+
+    if(y > minX) {
+        // Subboxes are "proper" subboxes, i.e. not arrays.
+        currentSubboxOutputBuffer = map[map[pointerToUpperBoolean+currentSubboxIndex]+9];
+    }
+    else {
+        // Subboxes are just arrays
+        currentSubboxOutputBuffer = map[pointerToUpperBoolean+currentSubboxIndex] + 2;
+    }
+
+    long tempIndex = -1;
+    cout << "Middle consists of: ";
+    do {
+        tempIndex++;
+        cout << map[pointerToMiddle+tempIndex*elementSize] << " ";
+    }
+    while(map[pointerToMiddle+tempIndex*elementSize] != -1);
+    cout << "\n";
+
+    cout << "Pointers to each subbox = " << pointersToEachSubbox << "\n";
+
+    // Run through middle creating pointers
+    while(map[pointerToMiddle+index*elementSize] != -1) {
+        sixteenth++;
+        if(sixteenth == 16) {
+            // Create pointer
+            if(counter < pointersToEachSubbox) {
+                // Create pointer in current subbox
+                //cout << "Writing " << map[pointerToMiddle+index*4] << " to " << map[pointerToUpperBoolean+currentSubboxIndex] << "\n";
+                map[currentSubboxOutputBuffer+counter*elementSize] = map[pointerToMiddle+index*4];
+                map[currentSubboxOutputBuffer+counter*elementSize+1] = -2; // Forward pointer
+                map[currentSubboxOutputBuffer+counter*elementSize+2] = pointerToMiddle+index*4; // Element in output buffer
+                map[currentSubboxOutputBuffer+counter*elementSize+3] = 0; // Empty
+            }
+            else {
+                // Switch subbox
+                counter = 0;
+
+                // Insert -1 at end of current subbox's buffer
+                map[currentSubboxOutputBuffer+pointersToEachSubbox*elementSize] = -1;
+
+                // Find next subbox
+                currentSubboxIndex++;
+                if(y > minX) {
+                    // Subboxes are "proper" subboxes, i.e. not arrays.
+                    currentSubboxOutputBuffer = map[map[pointerToUpperBoolean+currentSubboxIndex]+9];
+                }
+                else {
+                    // Subboxes are just arrays
+                    currentSubboxOutputBuffer = map[pointerToUpperBoolean+currentSubboxIndex] + 2;
+                }
+
+                // Insert this pointer
+                map[currentSubboxOutputBuffer+counter*elementSize] = map[pointerToMiddle+index*4];
+                map[currentSubboxOutputBuffer+counter*elementSize+1] = -2; // Forward pointer
+                map[currentSubboxOutputBuffer+counter*elementSize+2] = pointerToMiddle+index*4; // Element in output buffer
+                map[currentSubboxOutputBuffer+counter*elementSize+3] = 0; // Empty
+            }
+            sixteenth = 0;
+            counter++;
+        }
+        index++;
+    }
+
+    // Insert -1 at the end of the last subbox's buffer
+    map[currentSubboxOutputBuffer+counter*elementSize] = -1;
 
 
     // Recursively call SampleUp on the upper level subboxes
     for(int i = 0; i < upperLevelSubboxesToCreate; i++) {
-        sampleUp(map[pointerToUpperBoolean+i]);
+        sampleUpAfterFlush(map[pointerToUpperBoolean+i]);
     }
 
     // Sample from the upper level subboxes into the input buffer
+    cout << "Sampling every " << sampleEveryNthElement << "th element in upper level to input\n";
+
+    writeIndex = -1; // So we can count up every time
+    long pointerToInput = pointerToXBox+infoOffset;
+    // Assume the subboxes where place in appropriate sequence (they are)
+    for(int i = 0; i < upperLevelSubboxesToCreate; i++) {
+        long pointerToSubbox = map[pointerToUpperBoolean+i];
+        long pointerToSubboxInput = 0;
+        if(y > minX) {
+            pointerToSubboxInput = pointerToSubbox + infoOffset + map[pointerToSubbox+4];
+        }
+        else {
+            pointerToSubboxInput = pointerToSubbox+2;
+        }
+        // Create subbox pointer
+        writeIndex++;
+        map[pointerToInput+writeIndex*elementSize] = map[pointerToSubboxInput]; // Key
+        map[pointerToInput+writeIndex*elementSize+1] = -1; // Subbox pointer
+        map[pointerToInput+writeIndex*elementSize+2] = pointerToSubbox;
+        map[pointerToInput+writeIndex*elementSize+3] = pointerToLowerBoolean+i;
+
+        // Read elements
+        long subboxIndex = 1;
+        long counter = 0;
+        while(map[pointerToSubboxInput+subboxIndex*elementSize] != -1) {
+            counter++;
+            if(counter == sampleEveryNthElement) {
+                // Sample this element
+                writeIndex++;
+                map[pointerToInput+writeIndex*elementSize] = map[pointerToSubboxInput+subboxIndex*elementSize]; // Key
+                map[pointerToInput+writeIndex*elementSize+1] = -2; // Forward pointer
+                map[pointerToInput+writeIndex*elementSize+2] = pointerToSubboxInput+subboxIndex*elementSize; // Point directly to this element
+                map[pointerToInput+writeIndex*elementSize+3] = 0;
+                counter = 0;
+            }
+            subboxIndex++;
+        }
+        cout << "Counter=" << counter << "\n";
+    }
+    // Insert -1 at end of array
+    writeIndex++;
+    map[pointerToInput+writeIndex*elementSize] = -1;
+
+    cout << "Created " << writeIndex << " pointers in input buffer\n";
+
+    tempIndex = -1;
+    cout << "Input consists of: ";
+    do {
+        tempIndex++;
+        cout << map[pointerToInput+tempIndex*elementSize] << " ";
+    }
+    while(map[pointerToInput+tempIndex*elementSize] != -1);
+    cout << "\n";
+}
+
+/*
+ * Queries an xBox at the given location, recursively.
+ * ForwardPointer points into the given xBox's input buffer.
+ * Will return a pointer. This is either a pointer to the element,
+ * or a pointer into the next xBox. This differs from the paper where
+ * we return a pointer into this xBox's output buffer.
+ */
+long XDict::search(long xBoxPointer, long forwardPointer, long element) {
+    // TODO
+
+    cout << "Search on xBox " << xBoxPointer << " with forward pointer " << forwardPointer << "\n";
+
+    if(map[xBoxPointer] <= minX) {
+        // Special case, scan the array at forward pointer
+        long index = 0;
+        while(map[forwardPointer+index*elementSize] != -1 && map[forwardPointer+index*elementSize] < element) {
+            index++;
+        }
+
+        // Couple of cases now
+        // 1) We reached the end of the array
+        // 2) We found an element with the same key
+        // 2a) Its the real deal
+        // 2b) Its a pointer we can follow
+        // 3) We found an element with a larger key
+        // 3a) We found a real element with a larger key
+        // 3b) We found a pointer, subbox or forward, with a larger key
+
+        // Case 1) We reached the end of the array
+        if(map[forwardPointer+index*elementSize] == -1) {
+            index--;
+            if(map[forwardPointer+index*elementSize+1] < 0) {
+                // Return this pointer
+                return map[forwardPointer+index*elementSize+2];
+            }
+            else {
+                // Return the pointer of the reverse pointer
+                return map[map[forwardPointer+index*elementSize+2]+2];
+            }
+        }
+            // Case 2) We found an element with the same key
+        else if(map[forwardPointer+index*elementSize] == element) {
+            // Is this the real deal or a pointer?
+            if(map[forwardPointer+index*elementSize+1] > 0) {
+                // Return pointer to this element
+                return forwardPointer+index*elementSize;
+            }
+            else {
+                // I lied, we can actually have multiple elements with the same value.
+                // Look ahead and see if we can still find the real deal.
+                long tempIndex = index+1;
+                while(map[forwardPointer+tempIndex*elementSize] == element) {
+                    if(map[forwardPointer+tempIndex*elementSize+1] > 0) {
+                        return forwardPointer+tempIndex*elementSize;
+                    }
+                    tempIndex++;
+                }
+                // No luck? Follow original pointer
+                return map[forwardPointer+index*elementSize+2];
+            }
+        }
+            // Case 3) We found an element with a larger key
+        else if(map[forwardPointer+index*elementSize] > element) {
+            // Case 3a) We found a real element with a larger key
+            if(map[forwardPointer+index*elementSize+1] > 0) {
+                // Return the pointer of the reverse pointer
+                return map[map[forwardPointer+index*elementSize+2]+2];
+            }
+            else {
+                index--;
+                if(map[forwardPointer+index*elementSize+1] > 0) {
+                    // Return the pointer of the reverse pointer
+                    return map[map[forwardPointer+index*elementSize+2]+2];
+                }
+                else {
+                    return map[forwardPointer+index*elementSize+2]; // Return pointer
+                }
+            }
+
+        }
+        else {
+            // You should never end up here, go away!
+            cout << "!!!!! ERROR IN SEARCH ON XBOX SIMPLE" << xBoxPointer << "\n";
+        }
+    }
+    else {
+        // Proper xBox
+
+        // ***Scan our input buffer starting at forwardPointer
+        long index = 0;
+        while(map[forwardPointer+index*elementSize] != -1 && map[forwardPointer+index*elementSize] < element) {
+            index++;
+        }
+
+        cout << "Index=" << index << " " << map[forwardPointer+index*elementSize] << "\n";
+
+        if(map[forwardPointer+index*elementSize] == -1) {
+            cout << "Case 1 in input\n";
+            index--;
+            if(map[forwardPointer+index*elementSize+1] < 0) {
+                // Return this pointer
+                forwardPointer = map[forwardPointer+index*elementSize+2];
+            }
+            else {
+                // Return the pointer of the reverse pointer
+                forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+            }
+        }
+        else if(map[forwardPointer+index*elementSize] == element) {
+            cout << "Case 2 in input\n";
+            // Is this the real deal or a pointer?
+            if(map[forwardPointer+index*elementSize+1] > 0) {
+                // Return pointer to this element
+                return forwardPointer+index*elementSize;
+            }
+            else {
+                // I lied, we can actually have multiple elements with the same value.
+                // Look ahead and see if we can still find the real deal.
+                long tempIndex = index+1;
+                while(map[forwardPointer+tempIndex*elementSize] == element) {
+                    if(map[forwardPointer+tempIndex*elementSize+1] > 0) {
+                        return map[forwardPointer+tempIndex*elementSize];
+                    }
+                    tempIndex++;
+                }
+                // No luck? Follow original pointer
+                forwardPointer = map[forwardPointer+index*elementSize+2];
+            }
+        }
+            // Case 3) We found an element with a larger key
+        else if(map[forwardPointer+index*elementSize] > element) {
+            // Case 3a) We found a real element with a larger key
+            if(map[forwardPointer+index*elementSize+1] > 0) {
+                // Return the pointer of the reverse pointer
+                forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+            }
+            else {
+                index--;
+                if(map[forwardPointer+index*elementSize+1] > 0) {
+                    // Return the pointer of the reverse pointer
+                    forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+                }
+                else {
+                    forwardPointer = map[forwardPointer+index*elementSize+2]; // Return pointer
+                }
+            }
+
+        }
+        else {
+            // You should never end up here, go away!
+            cout << "!!!!! ERROR IN SEARCH ON XBOX INPUT" << xBoxPointer << "\n";
+        }
+
+        // ***Recursively search the upper level subbox
+
+        // Calculate which subbox we point into
+        long sizeOfSubboxes = map[xBoxPointer+3];
+        long numberOfMaxUpperLevel = map[xBoxPointer+4];
+        long upperBoolean = map[xBoxPointer+6];
+        long upperLevelStartsAt = upperBoolean + numberOfMaxUpperLevel;
+        long subboxNumber = (forwardPointer-upperLevelStartsAt) % sizeOfSubboxes;
+        long subboxPointer = upperLevelStartsAt+subboxNumber*sizeOfSubboxes;
+
+        forwardPointer = search(subboxPointer,forwardPointer,element);
+        if(map[forwardPointer] == element && map[forwardPointer+1] > 0) {
+            return map[forwardPointer+1];
+        }
+
+        // ***Scan the middle buffer starting at the forward pointer returned from the upper level
+        index = 0;
+        while(map[forwardPointer+index*elementSize] != -1 && map[forwardPointer+index*elementSize] < element) {
+            index++;
+        }
+        if(map[forwardPointer+index*elementSize] == -1) {
+            index--;
+            if(map[forwardPointer+index*elementSize+1] < 0) {
+                // Return this pointer
+                forwardPointer = map[forwardPointer+index*elementSize+2];
+            }
+            else {
+                // Return the pointer of the reverse pointer
+                forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+            }
+        }
+        else if(map[forwardPointer+index*elementSize] == element) {
+            // Is this the real deal or a pointer?
+            if(map[forwardPointer+index*elementSize+1] > 0) {
+                // Return pointer to this element
+                return map[forwardPointer+index*elementSize];
+            }
+            else {
+                // I lied, we can actually have multiple elements with the same value.
+                // Look ahead and see if we can still find the real deal.
+                long tempIndex = index+1;
+                while(map[forwardPointer+tempIndex*elementSize] == element) {
+                    if(map[forwardPointer+tempIndex*elementSize+1] > 0) {
+                        return map[forwardPointer+tempIndex*elementSize];
+                    }
+                    tempIndex++;
+                }
+                // No luck? Follow original pointer
+                forwardPointer = map[forwardPointer+index*elementSize+2];
+            }
+        }
+            // Case 3) We found an element with a larger key
+        else if(map[forwardPointer+index*elementSize] > element) {
+            // Case 3a) We found a real element with a larger key
+            if(map[forwardPointer+index*elementSize+1] > 0) {
+                // Return the pointer of the reverse pointer
+                forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+            }
+            else {
+                index--;
+                if(map[forwardPointer+index*elementSize+1] > 0) {
+                    // Return the pointer of the reverse pointer
+                    forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+                }
+                else {
+                    forwardPointer = map[forwardPointer+index*elementSize+2]; // Return pointer
+                }
+            }
+
+        }
+        else {
+            // You should never end up here, go away!
+            cout << "!!!!! ERROR IN SEARCH ON XBOX MIDDLE" << xBoxPointer << "\n";
+        }
+
+        // ***Recursively search the lower level
+
+        // Calculate which subbox we point into
+        long numberOfMaxLowerLevel = map[xBoxPointer+5];
+        long lowerBoolean = map[xBoxPointer+8];
+        long lowerLevelStartsAt = lowerBoolean + numberOfMaxLowerLevel;
+        subboxNumber = (forwardPointer-lowerLevelStartsAt) % sizeOfSubboxes;
+        subboxPointer = lowerLevelStartsAt+subboxNumber*sizeOfSubboxes;
+
+        forwardPointer = search(subboxPointer,forwardPointer,element);
+        if(map[forwardPointer] == element && map[forwardPointer+1] > 0) {
+            return map[forwardPointer+1];
+        }
+
+        // ***Finally scan the output buffer
+        index = 0;
+        while(map[forwardPointer+index*elementSize] != -1 && map[forwardPointer+index*elementSize] < element) {
+            index++;
+        }
+        if(map[forwardPointer+index*elementSize] == -1) {
+            index--;
+            if(map[forwardPointer+index*elementSize+1] < 0) {
+                // Return this pointer
+                forwardPointer = map[forwardPointer+index*elementSize+2];
+            }
+            else {
+                // Return the pointer of the reverse pointer
+                forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+            }
+        }
+        else if(map[forwardPointer+index*elementSize] == element) {
+            // Is this the real deal or a pointer?
+            if(map[forwardPointer+index*elementSize+1] > 0) {
+                // Return pointer to this element
+                return map[forwardPointer+index*elementSize];
+            }
+            else {
+                // I lied, we can actually have multiple elements with the same value.
+                // Look ahead and see if we can still find the real deal.
+                long tempIndex = index+1;
+                while(map[forwardPointer+tempIndex*elementSize] == element) {
+                    if(map[forwardPointer+tempIndex*elementSize+1] > 0) {
+                        return map[forwardPointer+tempIndex*elementSize];
+                    }
+                    tempIndex++;
+                }
+                // No luck? Follow original pointer
+                forwardPointer = map[forwardPointer+index*elementSize+2];
+            }
+        }
+            // Case 3) We found an element with a larger key
+        else if(map[forwardPointer+index*elementSize] > element) {
+            // Case 3a) We found a real element with a larger key
+            if(map[forwardPointer+index*elementSize+1] > 0) {
+                // Return the pointer of the reverse pointer
+                forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+            }
+            else {
+                index--;
+                if(map[forwardPointer+index*elementSize+1] > 0) {
+                    // Return the pointer of the reverse pointer
+                    forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+                }
+                else {
+                    forwardPointer = map[forwardPointer+index*elementSize+2]; // Return pointer
+                }
+            }
+
+        }
+        else {
+            // You should never end up here, go away!
+            cout << "!!!!! ERROR IN SEARCH ON XBOX OUTPUT" << xBoxPointer << "\n";
+        }
+
+        // ***Return a pointer into the next xBox, or -1 if there are none.
 
 
-
+        cout << "Did we find anything in xBox " << xBoxPointer << "\n";
+    }
 }
 
 
 /***********************************************************************************************************************
  * Extended Methods
  **********************************************************************************************************************/
+
+
+
+
 
 /***********************************************************************************************************************
  * Helper Methods
@@ -1349,6 +1923,7 @@ long XDict::findNextSubboxForMerge(long pointer, long size) {
         if(map[pointer+index] != 0) {
             // We have a subbox!
             long subboxPointer = map[pointer+index];
+            //cout << "x=" << map[subboxPointer] << "\n";
             if(map[subboxPointer] <= minX) {
                 min = true;
                 if(map[subboxPointer+2] < smallest) {
@@ -1361,6 +1936,7 @@ long XDict::findNextSubboxForMerge(long pointer, long size) {
                 long outputBuffer = map[subboxPointer+9];
                 if(map[outputBuffer] < smallest) {
                     smallest = map[outputBuffer];
+                    //cout << "New smallest = " << smallest << "\n";
                     smallestPointer = pointer+index;
                 }
             }

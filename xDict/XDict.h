@@ -32,18 +32,20 @@ public:
      */
     void insert(KeyValue kvt);
     void addXBox(); // Extends the file and relevant structures and variables with another xbox
+    long query(long element);
 
     /*
      * Standard methods from the paper
      */
     void batchInsert();
     void flush(long pointer, bool recursive);
-    void sampleUp(long pointer);
-    long query(long element);
+    void sampleUpAfterFlush(long pointer);
+    long search(long xBoxPointer, long forwardPointer, long element);
 
     /*
      * Extended methods
      */
+
 
 
 
