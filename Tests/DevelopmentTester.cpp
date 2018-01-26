@@ -2152,7 +2152,7 @@ void DevelopmentTester::xDictBasicTest() {
     long lastNumber = 0;
     int toInsert = 10;
     toInsert = 64;
-    long bufferModifier = 8;
+    long bufferModifier = 7;
 
     for(int i = 0; i < toInsert; i++) {
         // Insert increasing numbers
@@ -2164,8 +2164,9 @@ void DevelopmentTester::xDictBasicTest() {
         //cout << ins << " ";
         insertions.push_back(ins);
     }
-    xDict->map[pointerToInput+4*toInsert] = -1;
     cout << "\n";
+    xDict->map[pointerToInput+4*toInsert] = -1;
+
 
     long pointerToMiddle = xDict->map[pointerToXBox+7];
     lastNumber = 0;
@@ -2182,6 +2183,17 @@ void DevelopmentTester::xDictBasicTest() {
     xDict->map[pointerToMiddle+4*toInsert*bufferModifier] = -1;
     cout << "\n";
 
+    // Insert pointer into middle buffer.
+    xDict->map[pointerToMiddle+4*toInsert*bufferModifier] = 1;
+    xDict->map[pointerToMiddle+4*toInsert*bufferModifier+1] = -1;
+    xDict->map[pointerToMiddle+4*toInsert*bufferModifier+2] = -1;
+    xDict->map[pointerToMiddle+4*toInsert*bufferModifier+3] = -1;
+    xDict->map[pointerToMiddle+4*toInsert*bufferModifier+4] = 1;
+    xDict->map[pointerToMiddle+4*toInsert*bufferModifier+5] = -1;
+    xDict->map[pointerToMiddle+4*toInsert*bufferModifier+6] = -1;
+    xDict->map[pointerToMiddle+4*toInsert*bufferModifier+7] = -1;
+    xDict->map[pointerToMiddle+4*toInsert*bufferModifier+8] = -1;
+
     long pointerToOutput = xDict->map[pointerToXBox+9];
     lastNumber = 0;
     for(int i = 0; i < toInsert*bufferModifier; i++) {
@@ -2196,6 +2208,13 @@ void DevelopmentTester::xDictBasicTest() {
     }
     xDict->map[pointerToOutput+4*toInsert*bufferModifier] = -1;
     cout << "\n";
+
+    // Insert pointer at the end
+    /*xDict->map[pointerToOutput+4*toInsert*bufferModifier] = 1;
+    xDict->map[pointerToOutput+4*toInsert*bufferModifier+1] = -1;
+    xDict->map[pointerToOutput+4*toInsert*bufferModifier+2] = 0;
+    xDict->map[pointerToOutput+4*toInsert*bufferModifier+3] = 0;
+    xDict->map[pointerToOutput+4*toInsert*bufferModifier+4] = -1;*/
 
     // Create and insert into two upper level subboxes
     long sizeOfSubbox = xDict->map[pointerToXBox+3];
@@ -2319,7 +2338,29 @@ void DevelopmentTester::xDictBasicTest() {
     // Now search the normal xBox we created for 37
     long forwardPointer = pointerToXBox + xDict->infoOffset;
     cout << "Forward pointer points to " << xDict->map[forwardPointer] << " " << xDict->map[forwardPointer+1] << "\n";
-    long ret = xDict->search(pointerToXBox,forwardPointer,37);
+
+    /*long search = 37;
+    //search = 20000;
+    long ret = xDict->search(pointerToXBox,forwardPointer,search);
+    cout << "Search returned " << ret << " " << xDict->map[ret+1] << "\n";*/
+
+    bool works = true;
+    for(int i = 0; i < insertions.size(); i++) {
+        long search = insertions.at(i);
+        long ret = xDict->search(pointerToXBox,forwardPointer,search);
+        if(xDict->map[ret+1] != search) {
+            cout << "**************************************************************************************************"
+                 << "!!! " << search << " " << xDict->map[ret+1] << "\n";
+            works = false;
+        }
+    }
+
+    if(works) {
+        cout << "Search works correct\n";
+    }
+    else {
+        cout << "Error in Flush\n";
+    }
 
 
     cout << "============================================= CLEANING UP\n";

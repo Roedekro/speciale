@@ -1295,13 +1295,13 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
         upperLevelSubboxesToCreate = 1; // Minimum
     }
 
-    long maxNumberOfUpperLevel = map[pointerToXBox+5];
+    long maxNumberOfUpperLevel = map[pointerToXBox+4];
     long pointerToUpperBoolean = map[pointerToXBox+6];
     latestLocation = pointerToUpperBoolean+maxNumberOfUpperLevel; // First subbox
 
     cout << "Going to create " << upperLevelSubboxesToCreate << " new upper level subboxes of y = " << y << "\n";
     for(int i = 0; i < upperLevelSubboxesToCreate; i++) {
-        //cout << "Subbox will be located at " << latestLocation << "\n";
+        cout << "Subbox will be located at " << latestLocation << "\n";
         map[pointerToUpperBoolean+i] = latestLocation;
         latestLocation = layoutXBox(latestLocation,y);
         //cout << latestLocation << "\n";
@@ -1455,9 +1455,8 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
  * we return a pointer into this xBox's output buffer.
  */
 long XDict::search(long xBoxPointer, long forwardPointer, long element) {
-    // TODO
 
-    cout << "Search on xBox " << xBoxPointer << " with forward pointer " << forwardPointer << "\n";
+    //cout << "Search on xBox " << xBoxPointer << " with forward pointer " << forwardPointer << "\n";
 
     if(map[xBoxPointer] <= minX) {
         // Special case, scan the array at forward pointer
@@ -1477,18 +1476,66 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
 
         // Case 1) We reached the end of the array
         if(map[forwardPointer+index*elementSize] == -1) {
+            //cout << "Case 1\n";
             index--;
             if(map[forwardPointer+index*elementSize+1] < 0) {
                 // Return this pointer
-                return map[forwardPointer+index*elementSize+2];
+                //return map[forwardPointer+index*elementSize+2];
+                // This is either a forward pointer or a subbox pointer
+                long value = map[forwardPointer+index*elementSize+1];
+                long pointer = map[forwardPointer+index*elementSize+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    return pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    return ret;
+                }
             }
             else {
                 // Return the pointer of the reverse pointer
-                return map[map[forwardPointer+index*elementSize+2]+2];
+                // return map[map[forwardPointer+index*elementSize+2]+2];
+
+                // This is either a forward pointer or a subbox pointer
+                long reversePointer = map[forwardPointer+index*elementSize+2];
+                long value = map[reversePointer+1];
+                long pointer = map[reversePointer+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    return pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    return ret;
+                }
             }
         }
             // Case 2) We found an element with the same key
         else if(map[forwardPointer+index*elementSize] == element) {
+            //cout << "Case 2\n";
             // Is this the real deal or a pointer?
             if(map[forwardPointer+index*elementSize+1] > 0) {
                 // Return pointer to this element
@@ -1505,27 +1552,119 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                     tempIndex++;
                 }
                 // No luck? Follow original pointer
-                return map[forwardPointer+index*elementSize+2];
+                //return map[forwardPointer+index*elementSize+2];
+                long value = map[forwardPointer+index*elementSize+1];
+                long pointer = map[forwardPointer+index*elementSize+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    return pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    return ret;
+                }
             }
         }
             // Case 3) We found an element with a larger key
         else if(map[forwardPointer+index*elementSize] > element) {
+            //cout << "Case 3\n";
             // Case 3a) We found a real element with a larger key
             if(map[forwardPointer+index*elementSize+1] > 0) {
                 // Return the pointer of the reverse pointer
-                return map[map[forwardPointer+index*elementSize+2]+2];
+                //cout << "Case 3a\n";
+                //return map[map[forwardPointer+index*elementSize+2]+2];
+                long reversePointer = map[forwardPointer+index*elementSize+2];
+                long value = map[reversePointer+1];
+                long pointer = map[reversePointer+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    return pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    return ret;
+                }
             }
             else {
                 index--;
                 if(map[forwardPointer+index*elementSize+1] > 0) {
                     // Return the pointer of the reverse pointer
-                    return map[map[forwardPointer+index*elementSize+2]+2];
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    long reversePointer = map[forwardPointer+index*elementSize+2];
+                    long value = map[reversePointer+1];
+                    long pointer = map[reversePointer+2];
+                    if(value == -2) {
+                        // Forward
+                        //return map[map[forwardPointer+index*elementSize+2]+2];
+                        return pointer;
+                    }
+                    else {
+                        // Subbox, calculate start of input buffer
+                        long y = map[pointer];
+                        long ret = 0;
+                        if(y <= minX) {
+                            // Start of input of a simple xBox
+                            ret = pointer+2;
+                        }
+                        else {
+                            // Location + offset
+                            ret = pointer + infoOffset;
+                        }
+                        return ret;
+                    }
                 }
                 else {
-                    return map[forwardPointer+index*elementSize+2]; // Return pointer
+                    //cout << "Case 3b\n";
+                    /*cout << "subbox element " << map[forwardPointer+index*elementSize] << " "
+                         << map[forwardPointer+index*elementSize+1] << " " << map[forwardPointer+index*elementSize+2]
+                         << " " << map[forwardPointer+index*elementSize+3] << "\n";*/
+                    //return map[forwardPointer+index*elementSize+2]; // Return pointer
+                    // This is either a forward pointer or a subbox pointer
+                    long value = map[forwardPointer+index*elementSize+1];
+                    long pointer = map[forwardPointer+index*elementSize+2];
+                    if(value == -2) {
+                        // Forward
+                        //return map[map[forwardPointer+index*elementSize+2]+2];
+                        return pointer;
+                    }
+                    else {
+                        // Subbox, calculate start of input buffer
+                        long y = map[pointer];
+                        long ret = 0;
+                        if(y <= minX) {
+                            // Start of input of a simple xBox
+                            ret = pointer+2;
+                        }
+                        else {
+                            // Location + offset
+                            ret = pointer + infoOffset;
+                        }
+                        return ret;
+                    }
                 }
             }
-
         }
         else {
             // You should never end up here, go away!
@@ -1535,28 +1674,103 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
     else {
         // Proper xBox
 
+        /*cout << "---\n";
+        cout << map[xBoxPointer] << " " << map[xBoxPointer+1] << " " << map[xBoxPointer+2] << " " << map[xBoxPointer+3] << " "
+             << map[xBoxPointer+4] << " " << map[xBoxPointer+5] << " " << map[xBoxPointer+6] << " " << map[xBoxPointer+7] << " "
+             << map[xBoxPointer+8] << " " << map[xBoxPointer+9] << "\n";
+
+        long maxUpperLevel = map[xBoxPointer+4];
+        long upB = map[xBoxPointer+6];
+        for(int i = 0; i < maxUpperLevel; i++) {
+            cout << map[upB+i] << " ";
+        }
+        cout << "\n";
+
+        long maxLowerLevel = map[xBoxPointer+5];
+        long lB = map[xBoxPointer+8];
+        for(int i = 0; i < maxLowerLevel; i++) {
+            cout << map[lB+i] << " ";
+        }
+        cout << "\n";
+
+
+        cout << "---\n";*/
+
         // ***Scan our input buffer starting at forwardPointer
         long index = 0;
         while(map[forwardPointer+index*elementSize] != -1 && map[forwardPointer+index*elementSize] < element) {
+            /*cout << "Input element " << map[forwardPointer+index*elementSize] << " "
+                 << map[forwardPointer+index*elementSize+1] << " " << map[forwardPointer+index*elementSize+2]
+                 << " " << map[forwardPointer+index*elementSize+3] << "\n";*/
             index++;
         }
 
-        cout << "Index=" << index << " " << map[forwardPointer+index*elementSize] << "\n";
+        /*cout << "Index Input = " << index << " " << map[forwardPointer+index*elementSize] << "\n";
+        cout << map[forwardPointer+index*elementSize] << " " << map[forwardPointer+index*elementSize+1] << " "
+             << map[forwardPointer+index*elementSize+2] << " " << map[forwardPointer+index*elementSize+3] << "\n";*/
 
+        // Case 1) We reached the end of the array
         if(map[forwardPointer+index*elementSize] == -1) {
-            cout << "Case 1 in input\n";
+            //cout << "Case 1\n";
             index--;
             if(map[forwardPointer+index*elementSize+1] < 0) {
                 // Return this pointer
-                forwardPointer = map[forwardPointer+index*elementSize+2];
+                //return map[forwardPointer+index*elementSize+2];
+                // This is either a forward pointer or a subbox pointer
+                long value = map[forwardPointer+index*elementSize+1];
+                long pointer = map[forwardPointer+index*elementSize+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    forwardPointer = pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    forwardPointer = ret;
+                }
             }
             else {
                 // Return the pointer of the reverse pointer
-                forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+                // return map[map[forwardPointer+index*elementSize+2]+2];
+
+                // This is either a forward pointer or a subbox pointer
+                long reversePointer = map[forwardPointer+index*elementSize+2];
+                long value = map[reversePointer+1];
+                long pointer = map[reversePointer+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    forwardPointer = pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    forwardPointer = ret;
+                }
             }
         }
+            // Case 2) We found an element with the same key
         else if(map[forwardPointer+index*elementSize] == element) {
-            cout << "Case 2 in input\n";
+            //cout << "Case 2\n";
             // Is this the real deal or a pointer?
             if(map[forwardPointer+index*elementSize+1] > 0) {
                 // Return pointer to this element
@@ -1568,37 +1782,132 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 long tempIndex = index+1;
                 while(map[forwardPointer+tempIndex*elementSize] == element) {
                     if(map[forwardPointer+tempIndex*elementSize+1] > 0) {
-                        return map[forwardPointer+tempIndex*elementSize];
+                        return forwardPointer+tempIndex*elementSize;
                     }
                     tempIndex++;
                 }
                 // No luck? Follow original pointer
-                forwardPointer = map[forwardPointer+index*elementSize+2];
+                //return map[forwardPointer+index*elementSize+2];
+                long value = map[forwardPointer+index*elementSize+1];
+                long pointer = map[forwardPointer+index*elementSize+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    forwardPointer = pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    forwardPointer = ret;
+                }
             }
         }
             // Case 3) We found an element with a larger key
         else if(map[forwardPointer+index*elementSize] > element) {
+            //cout << "Case 3\n";
             // Case 3a) We found a real element with a larger key
             if(map[forwardPointer+index*elementSize+1] > 0) {
                 // Return the pointer of the reverse pointer
-                forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+                //cout << "Case 3a\n";
+                //return map[map[forwardPointer+index*elementSize+2]+2];
+                long reversePointer = map[forwardPointer+index*elementSize+2];
+                long value = map[reversePointer+1];
+                long pointer = map[reversePointer+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    forwardPointer = pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    forwardPointer = ret;
+                }
             }
             else {
                 index--;
                 if(map[forwardPointer+index*elementSize+1] > 0) {
                     // Return the pointer of the reverse pointer
-                    forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    long reversePointer = map[forwardPointer+index*elementSize+2];
+                    long value = map[reversePointer+1];
+                    long pointer = map[reversePointer+2];
+                    if(value == -2) {
+                        // Forward
+                        //return map[map[forwardPointer+index*elementSize+2]+2];
+                        forwardPointer = pointer;
+                    }
+                    else {
+                        // Subbox, calculate start of input buffer
+                        long y = map[pointer];
+                        long ret = 0;
+                        if(y <= minX) {
+                            // Start of input of a simple xBox
+                            ret = pointer+2;
+                        }
+                        else {
+                            // Location + offset
+                            ret = pointer + infoOffset;
+                        }
+                        forwardPointer = ret;
+                    }
                 }
                 else {
-                    forwardPointer = map[forwardPointer+index*elementSize+2]; // Return pointer
+                    //cout << "Case 3b\n";
+                    /*cout << "subbox element " << map[forwardPointer+index*elementSize] << " "
+                         << map[forwardPointer+index*elementSize+1] << " " << map[forwardPointer+index*elementSize+2]
+                         << " " << map[forwardPointer+index*elementSize+3] << "\n";*/
+                    //return map[forwardPointer+index*elementSize+2]; // Return pointer
+                    // This is either a forward pointer or a subbox pointer
+                    long value = map[forwardPointer+index*elementSize+1];
+                    long pointer = map[forwardPointer+index*elementSize+2];
+                    if(value == -2) {
+                        // Forward
+                        //return map[map[forwardPointer+index*elementSize+2]+2];
+                        forwardPointer = pointer;
+                    }
+                    else {
+                        // Subbox, calculate start of input buffer
+                        long y = map[pointer];
+                        long ret = 0;
+                        if(y <= minX) {
+                            // Start of input of a simple xBox
+                            ret = pointer+2;
+                        }
+                        else {
+                            // Location + offset
+                            ret = pointer + infoOffset;
+                        }
+                        forwardPointer = ret;
+                    }
                 }
             }
-
         }
         else {
             // You should never end up here, go away!
             cout << "!!!!! ERROR IN SEARCH ON XBOX INPUT" << xBoxPointer << "\n";
         }
+
+        /*cout << "Input forward = " << forwardPointer << " points to " << map[forwardPointer] << " " << map[forwardPointer+1] << " " << map[forwardPointer+2]
+                << " " << map[forwardPointer+3] << "\n";*/
 
         // ***Recursively search the upper level subbox
 
@@ -1607,35 +1916,99 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
         long numberOfMaxUpperLevel = map[xBoxPointer+4];
         long upperBoolean = map[xBoxPointer+6];
         long upperLevelStartsAt = upperBoolean + numberOfMaxUpperLevel;
-        long subboxNumber = (forwardPointer-upperLevelStartsAt) % sizeOfSubboxes;
+        long subboxNumber = (forwardPointer-upperLevelStartsAt) / sizeOfSubboxes;
         long subboxPointer = upperLevelStartsAt+subboxNumber*sizeOfSubboxes;
+
+        /*cout << "UpperBool=" << upperBoolean << " upperLevelStartsAt=" << upperLevelStartsAt
+             << " subboxNumber=" << subboxNumber << " subboxSize=" << sizeOfSubboxes
+             << " subboxPointer=" << subboxPointer << " forward=" << forwardPointer << "\n";*/
 
         forwardPointer = search(subboxPointer,forwardPointer,element);
         if(map[forwardPointer] == element && map[forwardPointer+1] > 0) {
-            return map[forwardPointer+1];
+            //return map[forwardPointer+1];
+            //cout << "Upper subbox pointed directly at element\n";
+            return forwardPointer;
         }
+
+        /*cout << "Search on upper subbox returned " << forwardPointer << " containing " << map[forwardPointer]
+             << " " << map[forwardPointer+1] << " " << map[forwardPointer+2] << " " << map[forwardPointer+3] << "\n";*/
 
         // ***Scan the middle buffer starting at the forward pointer returned from the upper level
         index = 0;
         while(map[forwardPointer+index*elementSize] != -1 && map[forwardPointer+index*elementSize] < element) {
             index++;
         }
+
+        /*cout << "Index Middle = " << index << " " << map[forwardPointer+index*elementSize] << "\n";
+        cout << map[forwardPointer+index*elementSize] << " " << map[forwardPointer+index*elementSize+1] << " "
+             << map[forwardPointer+index*elementSize+2] << " " << map[forwardPointer+index*elementSize+3] << "\n";*/
+
+        // Case 1) We reached the end of the array
         if(map[forwardPointer+index*elementSize] == -1) {
+            //cout << "Case 1\n";
             index--;
             if(map[forwardPointer+index*elementSize+1] < 0) {
                 // Return this pointer
-                forwardPointer = map[forwardPointer+index*elementSize+2];
+                //return map[forwardPointer+index*elementSize+2];
+                // This is either a forward pointer or a subbox pointer
+                long value = map[forwardPointer+index*elementSize+1];
+                long pointer = map[forwardPointer+index*elementSize+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    forwardPointer = pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    forwardPointer = ret;
+                }
             }
             else {
                 // Return the pointer of the reverse pointer
-                forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+                // return map[map[forwardPointer+index*elementSize+2]+2];
+
+                // This is either a forward pointer or a subbox pointer
+                long reversePointer = map[forwardPointer+index*elementSize+2];
+                long value = map[reversePointer+1];
+                long pointer = map[reversePointer+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    forwardPointer = pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    forwardPointer = ret;
+                }
             }
         }
+            // Case 2) We found an element with the same key
         else if(map[forwardPointer+index*elementSize] == element) {
+            //cout << "Case 2\n";
             // Is this the real deal or a pointer?
             if(map[forwardPointer+index*elementSize+1] > 0) {
                 // Return pointer to this element
-                return map[forwardPointer+index*elementSize];
+                return forwardPointer+index*elementSize;
             }
             else {
                 // I lied, we can actually have multiple elements with the same value.
@@ -1643,32 +2016,124 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 long tempIndex = index+1;
                 while(map[forwardPointer+tempIndex*elementSize] == element) {
                     if(map[forwardPointer+tempIndex*elementSize+1] > 0) {
-                        return map[forwardPointer+tempIndex*elementSize];
+                        return forwardPointer+tempIndex*elementSize;
                     }
                     tempIndex++;
                 }
                 // No luck? Follow original pointer
-                forwardPointer = map[forwardPointer+index*elementSize+2];
+                //return map[forwardPointer+index*elementSize+2];
+                long value = map[forwardPointer+index*elementSize+1];
+                long pointer = map[forwardPointer+index*elementSize+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    forwardPointer = pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    forwardPointer = ret;
+                }
             }
         }
             // Case 3) We found an element with a larger key
         else if(map[forwardPointer+index*elementSize] > element) {
+            //cout << "Case 3\n";
             // Case 3a) We found a real element with a larger key
             if(map[forwardPointer+index*elementSize+1] > 0) {
                 // Return the pointer of the reverse pointer
-                forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+                //cout << "Case 3a\n";
+                //return map[map[forwardPointer+index*elementSize+2]+2];
+                long reversePointer = map[forwardPointer+index*elementSize+2];
+                long value = map[reversePointer+1];
+                long pointer = map[reversePointer+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    forwardPointer = pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    forwardPointer = ret;
+                }
             }
             else {
                 index--;
                 if(map[forwardPointer+index*elementSize+1] > 0) {
                     // Return the pointer of the reverse pointer
-                    forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    long reversePointer = map[forwardPointer+index*elementSize+2];
+                    long value = map[reversePointer+1];
+                    long pointer = map[reversePointer+2];
+                    if(value == -2) {
+                        // Forward
+                        //return map[map[forwardPointer+index*elementSize+2]+2];
+                        forwardPointer = pointer;
+                    }
+                    else {
+                        // Subbox, calculate start of input buffer
+                        long y = map[pointer];
+                        long ret = 0;
+                        if(y <= minX) {
+                            // Start of input of a simple xBox
+                            ret = pointer+2;
+                        }
+                        else {
+                            // Location + offset
+                            ret = pointer + infoOffset;
+                        }
+                        forwardPointer = ret;
+                    }
                 }
                 else {
-                    forwardPointer = map[forwardPointer+index*elementSize+2]; // Return pointer
+                    //cout << "Case 3b\n";
+                    /*cout << "subbox element " << map[forwardPointer+index*elementSize] << " "
+                         << map[forwardPointer+index*elementSize+1] << " " << map[forwardPointer+index*elementSize+2]
+                         << " " << map[forwardPointer+index*elementSize+3] << "\n";*/
+                    //return map[forwardPointer+index*elementSize+2]; // Return pointer
+                    // This is either a forward pointer or a subbox pointer
+                    long value = map[forwardPointer+index*elementSize+1];
+                    long pointer = map[forwardPointer+index*elementSize+2];
+                    if(value == -2) {
+                        // Forward
+                        //return map[map[forwardPointer+index*elementSize+2]+2];
+                        forwardPointer = pointer;
+                    }
+                    else {
+                        // Subbox, calculate start of input buffer
+                        long y = map[pointer];
+                        long ret = 0;
+                        if(y <= minX) {
+                            // Start of input of a simple xBox
+                            ret = pointer+2;
+                        }
+                        else {
+                            // Location + offset
+                            ret = pointer + infoOffset;
+                        }
+                        forwardPointer = ret;
+                    }
                 }
             }
-
         }
         else {
             // You should never end up here, go away!
@@ -1681,35 +2146,94 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
         long numberOfMaxLowerLevel = map[xBoxPointer+5];
         long lowerBoolean = map[xBoxPointer+8];
         long lowerLevelStartsAt = lowerBoolean + numberOfMaxLowerLevel;
-        subboxNumber = (forwardPointer-lowerLevelStartsAt) % sizeOfSubboxes;
+        subboxNumber = (forwardPointer-lowerLevelStartsAt) / sizeOfSubboxes;
         subboxPointer = lowerLevelStartsAt+subboxNumber*sizeOfSubboxes;
 
         forwardPointer = search(subboxPointer,forwardPointer,element);
         if(map[forwardPointer] == element && map[forwardPointer+1] > 0) {
-            return map[forwardPointer+1];
+            /*cout << "Lower subbox pointed directly to " << map[forwardPointer] << " "
+                 << map[forwardPointer+1] << " " << map[forwardPointer+2] << " " << map[forwardPointer+3] << "\n";*/
+            //return map[forwardPointer+1];
+            return forwardPointer;
         }
+
+        /*cout << "Search on lower subbox returned " << forwardPointer << " containing " << map[forwardPointer]
+             << " " << map[forwardPointer+1] << " " << map[forwardPointer+2] << " " << map[forwardPointer+3] << "\n";*/
 
         // ***Finally scan the output buffer
         index = 0;
         while(map[forwardPointer+index*elementSize] != -1 && map[forwardPointer+index*elementSize] < element) {
             index++;
         }
+
+        //cout << "Index Output = " << index << " " << map[forwardPointer+index*elementSize] << "\n";
+
+        // Case 1) We reached the end of the array
         if(map[forwardPointer+index*elementSize] == -1) {
+            //cout << "Case 1\n";
             index--;
             if(map[forwardPointer+index*elementSize+1] < 0) {
                 // Return this pointer
-                forwardPointer = map[forwardPointer+index*elementSize+2];
+                //return map[forwardPointer+index*elementSize+2];
+                // This is either a forward pointer or a subbox pointer
+                long value = map[forwardPointer+index*elementSize+1];
+                long pointer = map[forwardPointer+index*elementSize+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    forwardPointer = pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    forwardPointer = ret;
+                }
             }
             else {
                 // Return the pointer of the reverse pointer
-                forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+                // return map[map[forwardPointer+index*elementSize+2]+2];
+
+                // This is either a forward pointer or a subbox pointer
+                long reversePointer = map[forwardPointer+index*elementSize+2];
+                long value = map[reversePointer+1];
+                long pointer = map[reversePointer+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    forwardPointer = pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    forwardPointer = ret;
+                }
             }
         }
+            // Case 2) We found an element with the same key
         else if(map[forwardPointer+index*elementSize] == element) {
+            //cout << "Case 2\n";
             // Is this the real deal or a pointer?
             if(map[forwardPointer+index*elementSize+1] > 0) {
                 // Return pointer to this element
-                return map[forwardPointer+index*elementSize];
+                return forwardPointer+index*elementSize;
             }
             else {
                 // I lied, we can actually have multiple elements with the same value.
@@ -1717,32 +2241,124 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 long tempIndex = index+1;
                 while(map[forwardPointer+tempIndex*elementSize] == element) {
                     if(map[forwardPointer+tempIndex*elementSize+1] > 0) {
-                        return map[forwardPointer+tempIndex*elementSize];
+                        return forwardPointer+tempIndex*elementSize;
                     }
                     tempIndex++;
                 }
                 // No luck? Follow original pointer
-                forwardPointer = map[forwardPointer+index*elementSize+2];
+                //return map[forwardPointer+index*elementSize+2];
+                long value = map[forwardPointer+index*elementSize+1];
+                long pointer = map[forwardPointer+index*elementSize+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    forwardPointer = pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    forwardPointer = ret;
+                }
             }
         }
             // Case 3) We found an element with a larger key
         else if(map[forwardPointer+index*elementSize] > element) {
+            //cout << "Case 3\n";
             // Case 3a) We found a real element with a larger key
             if(map[forwardPointer+index*elementSize+1] > 0) {
                 // Return the pointer of the reverse pointer
-                forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+                //cout << "Case 3a\n";
+                //return map[map[forwardPointer+index*elementSize+2]+2];
+                long reversePointer = map[forwardPointer+index*elementSize+2];
+                long value = map[reversePointer+1];
+                long pointer = map[reversePointer+2];
+                if(value == -2) {
+                    // Forward
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    forwardPointer = pointer;
+                }
+                else {
+                    // Subbox, calculate start of input buffer
+                    long y = map[pointer];
+                    long ret = 0;
+                    if(y <= minX) {
+                        // Start of input of a simple xBox
+                        ret = pointer+2;
+                    }
+                    else {
+                        // Location + offset
+                        ret = pointer + infoOffset;
+                    }
+                    forwardPointer = ret;
+                }
             }
             else {
                 index--;
                 if(map[forwardPointer+index*elementSize+1] > 0) {
                     // Return the pointer of the reverse pointer
-                    forwardPointer = map[map[forwardPointer+index*elementSize+2]+2];
+                    //return map[map[forwardPointer+index*elementSize+2]+2];
+                    long reversePointer = map[forwardPointer+index*elementSize+2];
+                    long value = map[reversePointer+1];
+                    long pointer = map[reversePointer+2];
+                    if(value == -2) {
+                        // Forward
+                        //return map[map[forwardPointer+index*elementSize+2]+2];
+                        forwardPointer = pointer;
+                    }
+                    else {
+                        // Subbox, calculate start of input buffer
+                        long y = map[pointer];
+                        long ret = 0;
+                        if(y <= minX) {
+                            // Start of input of a simple xBox
+                            ret = pointer+2;
+                        }
+                        else {
+                            // Location + offset
+                            ret = pointer + infoOffset;
+                        }
+                        forwardPointer = ret;
+                    }
                 }
                 else {
-                    forwardPointer = map[forwardPointer+index*elementSize+2]; // Return pointer
+                    //cout << "Case 3b\n";
+                    /*cout << "subbox element " << map[forwardPointer+index*elementSize] << " "
+                         << map[forwardPointer+index*elementSize+1] << " " << map[forwardPointer+index*elementSize+2]
+                         << " " << map[forwardPointer+index*elementSize+3] << "\n";*/
+                    //return map[forwardPointer+index*elementSize+2]; // Return pointer
+                    // This is either a forward pointer or a subbox pointer
+                    long value = map[forwardPointer+index*elementSize+1];
+                    long pointer = map[forwardPointer+index*elementSize+2];
+                    if(value == -2) {
+                        // Forward
+                        //return map[map[forwardPointer+index*elementSize+2]+2];
+                        forwardPointer = pointer;
+                    }
+                    else {
+                        // Subbox, calculate start of input buffer
+                        long y = map[pointer];
+                        long ret = 0;
+                        if(y <= minX) {
+                            // Start of input of a simple xBox
+                            ret = pointer+2;
+                        }
+                        else {
+                            // Location + offset
+                            ret = pointer + infoOffset;
+                        }
+                        forwardPointer = ret;
+                    }
                 }
             }
-
         }
         else {
             // You should never end up here, go away!
@@ -1751,8 +2367,12 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
 
         // ***Return a pointer into the next xBox, or -1 if there are none.
 
+        // TODO
 
-        cout << "Did we find anything in xBox " << xBoxPointer << "\n";
+
+        //cout << "Did we find anything in xBox " << xBoxPointer << "\n";
+
+        return forwardPointer;
     }
 }
 
