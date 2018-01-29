@@ -23,6 +23,7 @@ public:
     long minSize;
     long infoOffset; // Number of information fields in an xBox greater than minX.
     int elementSize;
+    long insertionCap;
 
     XDict(float alpha);
     ~XDict();
@@ -37,7 +38,7 @@ public:
     /*
      * Standard methods from the paper
      */
-    void batchInsert();
+    void batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, long numberOfRealElements);
     void flush(long pointer, bool recursive);
     void sampleUpAfterFlush(long pointer);
     long search(long xBoxPointer, long forwardPointer, long element);
@@ -45,14 +46,13 @@ public:
     /*
      * Extended methods
      */
-
-
+    void recursivelyBatchInsertXBoxToXBox(long xBoxNumber);
+    void sampleToEmptyBufferFromBuffer(long pointerToDestination, long pointerToSource, long sampleEveryNth);
 
 
     /*
      * Helper methods
      */
-    void calculateNewSize(long x); // Each time its called we calculate the size of the next xBox in line into size
     long recursivelyCalculateSize(long x);
     long layoutXBox(long pointer, long x);
     long findNextSubboxForMerge(long pointer, long size);

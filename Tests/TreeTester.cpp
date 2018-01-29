@@ -688,8 +688,8 @@ void TreeTester::bufferedBTreeDeltaTest(int B, int M, int N, int runs) {
     int max = B * log2(N) + 1;
     int interval = (max - min) / 4; // 5 values linearly distributed between min and max
 
-    // TODO: Change deltaRuns to 0 again. Its 3 because a test got killed at 3 (unrelated to program).
-    for (int deltaRuns = 3; deltaRuns < 5; deltaRuns++) {
+    // TODO: Change deltaRuns to 0 again. Its 4 because a test got killed at 4 (unrelated to program).
+    for (int deltaRuns = 4; deltaRuns < 5; deltaRuns++) {
 
         // Insert, query, iocounter
         long insertTime = 0;
