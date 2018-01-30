@@ -27,6 +27,7 @@ XDict::XDict(float a) {
 
     alpha = a;
     elementSize = 4;
+    booleanSize = 2;
 
     //minX = 64;
     minX = 8; // Absolute minimum, since a proper xBox needs to be at least 64.
@@ -486,16 +487,25 @@ void XDict::flush(long pointer, bool recursive) {
 
     long pointerToInputBuffer = pointer+infoOffset;
 
+    long upperSubboxCounter = 0;
+    long lowerSubboxCounter = 0;
+
     // Flush all subboxes
     for(int i = 0; i < numberOfUpperLevelSubboxes; i++) {
-        if(map[pointerToUpperBoolean+i] != 0) {
-            flush(map[pointerToUpperBoolean+i],true);
+        if(map[pointerToUpperBoolean+i*booleanSize] != 0) {
+            flush(map[pointerToUpperBoolean+i*booleanSize],true);
+        }
+        else {
+            break;
         }
     }
 
     for(int i = 0; i < numberOfLowerLevelSubboxes; i++) {
-        if(map[pointerToLowerBoolean+i] != 0) {
-            flush(map[pointerToLowerBoolean+i],true);
+        if(map[pointerToLowerBoolean+i*booleanSize] != 0) {
+            flush(map[pointerToLowerBoolean+i*booleanSize],true);
+        }
+        else {
+            break;
         }
     }
 
@@ -537,7 +547,16 @@ void XDict::flush(long pointer, bool recursive) {
         }
 
         if(numberOfRealElements == numberOfRealElementsInOutputBuffer) {
-            // TODO wipe our subboxes and write -1 to input and middle.
+            map[pointerToInputBuffer] = -1;
+            for(long i = 0; i < numberOfUpperLevelSubboxes; i++) {
+                map[pointerToUpperBoolean+i*2] = 0;
+                map[pointerToUpperBoolean+i*2+1] = 0;
+            }
+            map[pointerToMiddleBuffer] = -1;
+            for(long i = 0; i < numberOfLowerLevelSubboxes; i++) {
+                map[pointerToLowerBoolean+i*2] = 0;
+                map[pointerToLowerBoolean+i*2+1] = 0;
+            }
             return; // We are already flushed
         }
 
@@ -558,21 +577,34 @@ void XDict::flush(long pointer, bool recursive) {
         // Obs new notations below.
 
         // Find upper level subbox with smallest element in output buffer
-        long upperPointer = findNextSubboxForMerge(pointerToUpperBoolean,numberOfUpperLevelSubboxes);
+        /*long upperPointer = findNextSubboxForMerge(pointerToUpperBoolean,numberOfUpperLevelSubboxes);
         long upperSubbox,upperMax,upperBuffer;
         if(upperPointer != -1) {
             upperSubbox = map[upperPointer];
             upperMax = map[upperSubbox+1]; // Real elements in subbox
             upperBuffer = map[upperSubbox+9]; // Its output buffer
+        }*/
+        long upperSubbox,upperMax,upperBuffer;
+        upperSubbox = map[pointerToUpperBoolean+upperSubboxCounter*booleanSize];
+        if(upperSubbox != 0) {
+            upperBuffer = upperSubbox+2; // Its output buffer
+            //cout << "Upper buffer placed at " << upperBuffer << " " << upperSubbox << "\n";
         }
 
-        long lowerPointer = findNextSubboxForMerge(pointerToLowerBoolean,numberOfLowerLevelSubboxes);
+
+        /*long lowerPointer = findNextSubboxForMerge(pointerToLowerBoolean,numberOfLowerLevelSubboxes);
         // Its now -1 if none was found, but proceed as if it found one.
         long lowerSubbox,lowerMax,lowerBuffer;
         if(lowerPointer != -1) {
             lowerSubbox = map[lowerPointer];
             lowerMax = map[lowerSubbox+1]; // Real elements in subbox
             lowerBuffer = map[lowerSubbox+9]; // Its output buffer
+        }*/
+
+        long lowerSubbox,lowerMax,lowerBuffer;
+        lowerSubbox = map[pointerToLowerBoolean+lowerSubboxCounter*booleanSize];
+        if(lowerSubbox != 0) {
+            lowerBuffer = lowerSubbox+2; // Its output buffer
         }
 
         long upperIndex = 0;
@@ -619,7 +651,7 @@ void XDict::flush(long pointer, bool recursive) {
         }
 
         // 2) Upper level subboxes
-        if(upperPointer == -1) {
+        if(upperSubbox == 0) {
             // We found no upper level subbox
             mergeArray[2] = -1;
             mergeArray[3] = -1;
@@ -666,7 +698,7 @@ void XDict::flush(long pointer, bool recursive) {
         }
 
         // 4) Lower level subboxes
-        if(lowerPointer == -1) {
+        if(lowerSubbox == 0) {
             // We found no lower level subbox
             mergeArray[6] = -1;
             mergeArray[7] = -1;
@@ -783,18 +815,19 @@ void XDict::flush(long pointer, bool recursive) {
                     // Else load in new subbox
 
                     // First mark the old subbox as deleted
-                    map[upperPointer] = 0; // upperPointed pointed into our array of upper level subboxes.
-                    upperPointer = findNextSubboxForMerge(pointerToUpperBoolean,numberOfUpperLevelSubboxes);
+                    map[pointerToUpperBoolean+upperSubboxCounter*booleanSize] = 0; // upperPointed pointed into our array of upper level subboxes.
+                    map[pointerToUpperBoolean+upperSubboxCounter*booleanSize+1] = 0;
+                    //upperPointer = findNextSubboxForMerge(pointerToUpperBoolean,numberOfUpperLevelSubboxes);
+                    upperSubboxCounter++;
+                    upperSubbox = map[pointerToUpperBoolean+upperSubboxCounter*booleanSize];
                     // Its now -1 if none was found, but proceed as if it found one.
 
                     // Did we find a subbox?
-                    if(upperPointer == -1) {
+                    if(upperSubbox == 0 || upperSubboxCounter >= numberOfUpperLevelSubboxes) {
                         mergeArray[2] = -1;
                         mergeArray[3] = -1;
                     }
                     else {
-                        upperSubbox = map[upperPointer];
-                        upperMax = map[upperSubbox+1]; // Real elements in subbox
                         upperBuffer = map[upperSubbox+9]; // Its output buffer
                         upperIndex = 0;
                         // Find first real element in the subbox
@@ -851,18 +884,19 @@ void XDict::flush(long pointer, bool recursive) {
                 }
                 else {
                     // Need to load in new subbox
-                    map[lowerPointer] = 0; // Mark old subbox as deleted.
-                    lowerPointer = findNextSubboxForMerge(pointerToLowerBoolean,numberOfLowerLevelSubboxes);
+                    map[pointerToLowerBoolean+lowerSubboxCounter*booleanSize] = 0; // Mark old subbox as deleted.
+                    map[pointerToLowerBoolean+lowerSubboxCounter*booleanSize+1] = 0;
+                    //lowerPointer = findNextSubboxForMerge(pointerToLowerBoolean,numberOfLowerLevelSubboxes);
+                    lowerSubboxCounter++;
+                    lowerSubbox = map[pointerToLowerBoolean+lowerSubboxCounter*booleanSize];
                     // Its now -1 if none was found, but proceed as if it found one.
 
                     // Did we find a subbox?
-                    if(lowerPointer == -1) {
+                    if(lowerSubbox == 0 || lowerSubboxCounter >= numberOfLowerLevelSubboxes) {
                         mergeArray[6] = -1;
                         mergeArray[7] = -1;
                     }
                     else {
-                        lowerSubbox = map[lowerPointer];
-                        lowerMax = map[lowerSubbox+1]; // Real elements in subbox
                         lowerBuffer = map[lowerSubbox+9]; // Its output buffer
                         lowerIndex = 0;
                         // Find first real element
@@ -906,11 +940,19 @@ void XDict::flush(long pointer, bool recursive) {
         // Merge done
 
         // In case we finished with an element from one of the subbox layers
-        if(upperPointer != -1) {
+        /*if(upperPointer != -1) {
             map[upperPointer] = 0;
         }
         if(lowerPointer != -1) {
             map[lowerPointer] = 0;
+        }*/
+        if(upperSubboxCounter < numberOfUpperLevelSubboxes) {
+            map[pointerToUpperBoolean+upperSubboxCounter*booleanSize] = 0; // upperPointed pointed into our array of upper level subboxes.
+            map[pointerToUpperBoolean+upperSubboxCounter*booleanSize+1] = 0;
+        }
+        if(lowerSubboxCounter < numberOfLowerLevelSubboxes) {
+            map[pointerToLowerBoolean+lowerSubboxCounter*booleanSize] = 0; // Mark old subbox as deleted.
+            map[pointerToLowerBoolean+lowerSubboxCounter*booleanSize+1] = 0;
         }
 
         // Now build up forward pointers with a linear scan of the output
@@ -963,7 +1005,16 @@ void XDict::flush(long pointer, bool recursive) {
         }
 
         if(numberOfRealElements == numberOfRealElementsInOutputBuffer) {
-            // TODO wipe our subboxes and write -1 to input and middle.
+            map[pointerToInputBuffer] = -1;
+            for(long i = 0; i < numberOfUpperLevelSubboxes; i++) {
+                map[pointerToUpperBoolean+i*2] = 0;
+                map[pointerToUpperBoolean+i*2+1] = 0;
+            }
+            map[pointerToMiddleBuffer] = -1;
+            for(long i = 0; i < numberOfLowerLevelSubboxes; i++) {
+                map[pointerToLowerBoolean+i*2] = 0;
+                map[pointerToLowerBoolean+i*2+1] = 0;
+            }
             return; // We are already flushed
         }
 
@@ -987,21 +1038,35 @@ void XDict::flush(long pointer, bool recursive) {
         // Obs new notations below.
 
         // Find upper level subbox with smallest element in output buffer
-        long upperPointer = findNextSubboxForMerge(pointerToUpperBoolean,numberOfUpperLevelSubboxes);
+        /*long upperPointer = findNextSubboxForMerge(pointerToUpperBoolean,numberOfUpperLevelSubboxes);
         //cout << "Upper Pointer = " << upperPointer << "\n";
         long upperSubbox,upperMax,upperBuffer;
         if(upperPointer != -1) {
             upperSubbox = map[upperPointer];
             upperMax = map[upperSubbox+1]; // Real elements in subbox
             upperBuffer = upperSubbox+2; // Its output buffer
+        }*/
+
+
+        long upperSubbox,upperMax,upperBuffer;
+        upperSubbox = map[pointerToUpperBoolean+upperSubboxCounter*booleanSize];
+        if(upperSubbox != 0) {
+            upperBuffer = upperSubbox+2; // Its output buffer
+            //cout << "Upper buffer placed at " << upperBuffer << " " << upperSubbox << "\n";
         }
 
-        long lowerPointer = findNextSubboxForMerge(pointerToLowerBoolean,numberOfLowerLevelSubboxes);
+        /*long lowerPointer = findNextSubboxForMerge(pointerToLowerBoolean,numberOfLowerLevelSubboxes);
         // Its now -1 if none was found, but proceed as if it found one.
         long lowerSubbox,lowerMax,lowerBuffer;
         if(lowerPointer != -1) {
             lowerSubbox = map[lowerPointer];
             lowerMax = map[lowerSubbox+1]; // Real elements in subbox
+            lowerBuffer = lowerSubbox+2; // Its output buffer
+        }*/
+
+        long lowerSubbox,lowerMax,lowerBuffer;
+        lowerSubbox = map[pointerToLowerBoolean+lowerSubboxCounter*booleanSize];
+        if(lowerSubbox != 0) {
             lowerBuffer = lowerSubbox+2; // Its output buffer
         }
 
@@ -1049,24 +1114,26 @@ void XDict::flush(long pointer, bool recursive) {
         }
 
         // 2) Upper level subboxes
-        if(upperPointer == -1) {
+        if(upperSubbox == 0) {
             // We found no upper level subbox
             mergeArray[2] = -1;
             mergeArray[3] = -1;
         }
         else {
             // Find first element that isnt a pointer
-            while(map[upperBuffer+upperIndex*2+1] < 0 &&
-                  map[upperBuffer+upperIndex*2] != -1) {
+            while(map[upperBuffer+upperIndex*elementSize+1] < 0 &&
+                  map[upperBuffer+upperIndex*elementSize] != -1) {
                 upperIndex++;
             }
-            if(map[upperBuffer+upperIndex*2] == -1) {
+            if(map[upperBuffer+upperIndex*elementSize] == -1) {
                 mergeArray[2] = -1;
                 mergeArray[3] = -1;
             }
             else {
-                mergeArray[2] = map[upperBuffer+upperIndex*2];
-                mergeArray[3] = map[upperBuffer+upperIndex*2+1];
+                mergeArray[2] = map[upperBuffer+upperIndex*elementSize];
+                mergeArray[3] = map[upperBuffer+upperIndex*elementSize+1];
+                //cout << "Key upper = " << mergeArray[2] << "\n";
+                //cout << "Value upper = " << mergeArray[3] << "\n";
             }
         }
 
@@ -1096,24 +1163,24 @@ void XDict::flush(long pointer, bool recursive) {
         }
 
         // 4) Lower level subboxes
-        if(lowerPointer == -1) {
+        if(lowerSubbox == 0) {
             // We found no lower level subbox
             mergeArray[6] = -1;
             mergeArray[7] = -1;
         }
         else {
             // Find first element that isnt a pointer
-            while(map[lowerBuffer+lowerIndex*2+1] < 0 &&
-                  map[lowerBuffer+lowerIndex*2] != -1) {
+            while(map[lowerBuffer+lowerIndex*elementSize+1] < 0 &&
+                  map[lowerBuffer+lowerIndex*elementSize] != -1) {
                 lowerIndex++;
             }
-            if(map[lowerBuffer+lowerIndex*2] == -1) {
+            if(map[lowerBuffer+lowerIndex*elementSize] == -1) {
                 mergeArray[6] = -1;
                 mergeArray[7] = -1;
             }
             else {
-                mergeArray[6] = map[lowerBuffer+lowerIndex*2];
-                mergeArray[7] = map[lowerBuffer+lowerIndex*2+1];
+                mergeArray[6] = map[lowerBuffer+lowerIndex*elementSize];
+                mergeArray[7] = map[lowerBuffer+lowerIndex*elementSize+1];
             }
         }
 
@@ -1220,17 +1287,19 @@ void XDict::flush(long pointer, bool recursive) {
                     // Else load in new subbox
 
                     // First mark the old subbox as deleted
-                    map[upperPointer] = 0; // upperPointed pointed into our array of upper level subboxes.
-                    upperPointer = findNextSubboxForMerge(pointerToUpperBoolean,numberOfUpperLevelSubboxes);
+                    map[pointerToUpperBoolean+upperSubboxCounter*booleanSize] = 0; // upperPointed pointed into our array of upper level subboxes.
+                    map[pointerToUpperBoolean+upperSubboxCounter*booleanSize+1] = 0;
+                    /*upperPointer = findNextSubboxForMerge(pointerToUpperBoolean,numberOfUpperLevelSubboxes);
+                    cout << "=== " << upperPointer << "\n";*/
+                    upperSubboxCounter++;
+                    upperSubbox = map[pointerToUpperBoolean+upperSubboxCounter*booleanSize];
 
                     // Did we find a subbox?
-                    if(upperPointer == -1) {
+                    if(upperSubbox == 0 || upperSubboxCounter >= numberOfUpperLevelSubboxes) {
                         mergeArray[2] = -1;
                         mergeArray[3] = -1;
                     }
                     else {
-                        upperSubbox = map[upperPointer];
-                        upperMax = map[upperSubbox+1]; // Real elements in subbox
                         upperBuffer = upperSubbox+2; // Its output buffer
                         upperIndex = 0;
 
@@ -1288,17 +1357,18 @@ void XDict::flush(long pointer, bool recursive) {
                 }
                 else {
                     // Need to load in new subbox
-                    map[lowerPointer] = 0; // Mark old subbox as deleted.
-                    lowerPointer = findNextSubboxForMerge(pointerToLowerBoolean,numberOfLowerLevelSubboxes);
+                    map[pointerToLowerBoolean+lowerSubboxCounter*booleanSize] = 0; // Mark old subbox as deleted.
+                    map[pointerToLowerBoolean+lowerSubboxCounter*booleanSize+1] = 0;
+                    //lowerPointer = findNextSubboxForMerge(pointerToLowerBoolean,numberOfLowerLevelSubboxes);
+                    lowerSubboxCounter++;
+                    lowerSubbox = map[pointerToLowerBoolean+lowerSubboxCounter*booleanSize];
 
                     // Did we find a subbox?
-                    if(lowerPointer == -1) {
+                    if(lowerSubbox == 0 || lowerSubboxCounter >= numberOfLowerLevelSubboxes) {
                         mergeArray[6] = -1;
                         mergeArray[7] = -1;
                     }
                     else {
-                        lowerSubbox = map[lowerPointer];
-                        lowerMax = map[lowerSubbox+1]; // Real elements in subbox
                         lowerBuffer = lowerSubbox+2; // Its output buffer
                         lowerIndex = 0;
 
@@ -1343,11 +1413,19 @@ void XDict::flush(long pointer, bool recursive) {
         // Merge done
 
         // In case we finished with an element from one of the subbox layers
-        if(upperPointer != -1) {
+        /*if(upperPointer != -1) {
             map[upperPointer] = 0;
         }
         if(lowerPointer != -1) {
             map[lowerPointer] = 0;
+        }*/
+        if(upperSubboxCounter < numberOfUpperLevelSubboxes) {
+            map[pointerToUpperBoolean+upperSubboxCounter*booleanSize] = 0; // upperPointed pointed into our array of upper level subboxes.
+            map[pointerToUpperBoolean+upperSubboxCounter*booleanSize+1] = 0;
+        }
+        if(lowerSubboxCounter < numberOfLowerLevelSubboxes) {
+            map[pointerToLowerBoolean+lowerSubboxCounter*booleanSize] = 0; // Mark old subbox as deleted.
+            map[pointerToLowerBoolean+lowerSubboxCounter*booleanSize+1] = 0;
         }
 
         // Now build up forward pointers with a linear scan of the output
@@ -1431,12 +1509,12 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
 
     long maxNumberOfLowerLevel = map[pointerToXBox+5];
     long pointerToLowerBoolean = map[pointerToXBox+8];
-    long latestLocation = pointerToLowerBoolean+maxNumberOfLowerLevel; // First subbox
+    long latestLocation = pointerToLowerBoolean+maxNumberOfLowerLevel*booleanSize; // First subbox
 
     cout << "Going to create " << lowerLevelSubboxesToCreate << " new lower level subboxes of y = " << y << "\n";
     for(int i = 0; i < lowerLevelSubboxesToCreate; i++) {
         //cout << "Subbox will be located at " << latestLocation << "\n";
-        map[pointerToLowerBoolean+i] = latestLocation;
+        map[pointerToLowerBoolean+i*booleanSize] = latestLocation;
         latestLocation = layoutXBox(latestLocation,y);
         //cout << latestLocation << "\n";
     }
@@ -1455,11 +1533,11 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
 
     if(y > minX) {
         // Subboxes are "proper" subboxes, i.e. not arrays.
-        currentSubboxOutputBuffer = map[map[pointerToLowerBoolean+currentSubboxIndex]+9];
+        currentSubboxOutputBuffer = map[map[pointerToLowerBoolean+currentSubboxIndex*booleanSize]+9];
     }
     else {
         // Subboxes are just arrays
-        currentSubboxOutputBuffer = map[pointerToLowerBoolean+currentSubboxIndex] + 2;
+        currentSubboxOutputBuffer = map[pointerToLowerBoolean+currentSubboxIndex*booleanSize] + 2;
     }
 
     // Run through output creating pointers
@@ -1485,11 +1563,11 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
                 currentSubboxIndex++;
                 if(y > minX) {
                     // Subboxes are "proper" subboxes, i.e. not arrays.
-                    currentSubboxOutputBuffer = map[map[pointerToLowerBoolean+currentSubboxIndex]+9];
+                    currentSubboxOutputBuffer = map[map[pointerToLowerBoolean+currentSubboxIndex*booleanSize]+9];
                 }
                 else {
                     // Subboxes are just arrays
-                    currentSubboxOutputBuffer = map[pointerToLowerBoolean+currentSubboxIndex] + 2;
+                    currentSubboxOutputBuffer = map[pointerToLowerBoolean+currentSubboxIndex*booleanSize] + 2;
                 }
 
                 // Insert this pointer
@@ -1509,7 +1587,7 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
 
     // Recursively call sample up on the subboxes in the lower level
     for(int i = 0; i < lowerLevelSubboxesToCreate; i++) {
-        sampleUpAfterFlush(map[pointerToLowerBoolean+i]);
+        sampleUpAfterFlush(map[pointerToLowerBoolean+i*booleanSize]);
     }
 
     // Sample into the middle buffer while counting elements
@@ -1532,17 +1610,22 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
     long pointerToMiddle = map[pointerToXBox+7];
     // Assume the subboxes where place in appropriate sequence (they are)
     for(int i = 0; i < lowerLevelSubboxesToCreate; i++) {
-        long pointerToSubbox = map[pointerToLowerBoolean+i];
+        long pointerToSubbox = map[pointerToLowerBoolean+i*booleanSize];
         long pointerToSubboxInput = 0;
+        long smallestKeyInSubbox = 0;
         if(y > minX) {
-            pointerToSubboxInput = pointerToSubbox + infoOffset + map[pointerToSubbox+4];
+            pointerToSubboxInput = pointerToSubbox + infoOffset;
+            smallestKeyInSubbox = map[map[pointerToSubbox+9]];
         }
         else {
             pointerToSubboxInput = pointerToSubbox+2;
+            smallestKeyInSubbox = map[pointerToSubboxInput];
         }
+        // Update
+        map[pointerToLowerBoolean+i*booleanSize+1] = smallestKeyInSubbox;
         // Create subbox pointer
         writeIndex++;
-        map[pointerToMiddle+writeIndex*elementSize] = map[pointerToSubboxInput]; // Key
+        map[pointerToMiddle+writeIndex*elementSize] = smallestKeyInSubbox; // Key
         map[pointerToMiddle+writeIndex*elementSize+1] = -1; // Subbox pointer
         map[pointerToMiddle+writeIndex*elementSize+2] = pointerToSubbox;
         map[pointerToMiddle+writeIndex*elementSize+3] = pointerToLowerBoolean+i;
@@ -1588,12 +1671,12 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
 
     long maxNumberOfUpperLevel = map[pointerToXBox+4];
     long pointerToUpperBoolean = map[pointerToXBox+6];
-    latestLocation = pointerToUpperBoolean+maxNumberOfUpperLevel; // First subbox
+    latestLocation = pointerToUpperBoolean+maxNumberOfUpperLevel*booleanSize; // First subbox
 
     cout << "Going to create " << upperLevelSubboxesToCreate << " new upper level subboxes of y = " << y << "\n";
     for(int i = 0; i < upperLevelSubboxesToCreate; i++) {
         cout << "Subbox will be located at " << latestLocation << "\n";
-        map[pointerToUpperBoolean+i] = latestLocation;
+        map[pointerToUpperBoolean+i*booleanSize] = latestLocation;
         latestLocation = layoutXBox(latestLocation,y);
         //cout << latestLocation << "\n";
     }
@@ -1612,11 +1695,11 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
 
     if(y > minX) {
         // Subboxes are "proper" subboxes, i.e. not arrays.
-        currentSubboxOutputBuffer = map[map[pointerToUpperBoolean+currentSubboxIndex]+9];
+        currentSubboxOutputBuffer = map[map[pointerToUpperBoolean+currentSubboxIndex*booleanSize]+9];
     }
     else {
         // Subboxes are just arrays
-        currentSubboxOutputBuffer = map[pointerToUpperBoolean+currentSubboxIndex] + 2;
+        currentSubboxOutputBuffer = map[pointerToUpperBoolean+currentSubboxIndex*booleanSize] + 2;
     }
 
     long tempIndex = -1;
@@ -1679,7 +1762,7 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
 
     // Recursively call SampleUp on the upper level subboxes
     for(int i = 0; i < upperLevelSubboxesToCreate; i++) {
-        sampleUpAfterFlush(map[pointerToUpperBoolean+i]);
+        sampleUpAfterFlush(map[pointerToUpperBoolean+i*booleanSize]);
     }
 
     // Sample from the upper level subboxes into the input buffer
@@ -1689,17 +1772,22 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
     long pointerToInput = pointerToXBox+infoOffset;
     // Assume the subboxes where place in appropriate sequence (they are)
     for(int i = 0; i < upperLevelSubboxesToCreate; i++) {
-        long pointerToSubbox = map[pointerToUpperBoolean+i];
+        long pointerToSubbox = map[pointerToUpperBoolean+i*booleanSize];
         long pointerToSubboxInput = 0;
+        long smallestKeyInSubbox = 0;
         if(y > minX) {
-            pointerToSubboxInput = pointerToSubbox + infoOffset + map[pointerToSubbox+4];
+            pointerToSubboxInput = pointerToSubbox + infoOffset;
+            smallestKeyInSubbox = map[map[pointerToSubbox+9]];
         }
         else {
             pointerToSubboxInput = pointerToSubbox+2;
+            smallestKeyInSubbox = map[pointerToSubboxInput];
         }
+        // Update
+        map[pointerToUpperBoolean+i*booleanSize+1] = smallestKeyInSubbox;
         // Create subbox pointer
         writeIndex++;
-        map[pointerToInput+writeIndex*elementSize] = map[pointerToSubboxInput]; // Key
+        map[pointerToInput+writeIndex*elementSize] = smallestKeyInSubbox; // Key
         map[pointerToInput+writeIndex*elementSize+1] = -1; // Subbox pointer
         map[pointerToInput+writeIndex*elementSize+2] = pointerToSubbox;
         map[pointerToInput+writeIndex*elementSize+3] = pointerToLowerBoolean+i;
@@ -2206,7 +2294,7 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
         long sizeOfSubboxes = map[xBoxPointer+3];
         long numberOfMaxUpperLevel = map[xBoxPointer+4];
         long upperBoolean = map[xBoxPointer+6];
-        long upperLevelStartsAt = upperBoolean + numberOfMaxUpperLevel;
+        long upperLevelStartsAt = upperBoolean + numberOfMaxUpperLevel*booleanSize;
         long subboxNumber = (forwardPointer-upperLevelStartsAt) / sizeOfSubboxes;
         long subboxPointer = upperLevelStartsAt+subboxNumber*sizeOfSubboxes;
 
@@ -2436,7 +2524,7 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
         // Calculate which subbox we point into
         long numberOfMaxLowerLevel = map[xBoxPointer+5];
         long lowerBoolean = map[xBoxPointer+8];
-        long lowerLevelStartsAt = lowerBoolean + numberOfMaxLowerLevel;
+        long lowerLevelStartsAt = lowerBoolean + numberOfMaxLowerLevel*booleanSize;
         subboxNumber = (forwardPointer-lowerLevelStartsAt) / sizeOfSubboxes;
         subboxPointer = lowerLevelStartsAt+subboxNumber*sizeOfSubboxes;
 
@@ -2777,8 +2865,8 @@ long XDict::recursivelyCalculateSize(long x) {
     long lowerLevelSize = numberOfLowerSubboxes*subboxSize;
 
     // Info+ Input + Upper Bool + Upper Subboxes + Middle + Lower Bool + Lower subboxes + output
-    return infoOffset +  x*elementSize+1 + numberOfUpperSubboxes + upperLevelSize + sizeOfMiddleBuffer
-            + numberOfLowerSubboxes + lowerLevelSize + sizeOfOutputBuffer;
+    return infoOffset +  x*elementSize+1 + numberOfUpperSubboxes * booleanSize + upperLevelSize + sizeOfMiddleBuffer
+            + numberOfLowerSubboxes * booleanSize + lowerLevelSize + sizeOfOutputBuffer;
 
 
 }
@@ -2833,13 +2921,13 @@ long XDict::layoutXBox(long pointer, long x) {
     map[pointer+6] = pointerToBoolUpper;
     /*pointerToFirstUpper = pointerToBoolUpper+numberOfUpperSubboxes;
     map[pointer+7] = pointerToFirstUpper;*/
-    pointerToMiddleBuffer = pointerToBoolUpper + numberOfUpperSubboxes + (numberOfUpperSubboxes*sizeOfSubboxes);
+    pointerToMiddleBuffer = pointerToBoolUpper + numberOfUpperSubboxes * booleanSize + (numberOfUpperSubboxes*sizeOfSubboxes);
     map[pointer+7] = pointerToMiddleBuffer;
     pointerToBoolLower = pointerToMiddleBuffer + sizeOfMiddleBuffer;
     map[pointer+8] = pointerToBoolLower;
     /*pointerToFirstLower = pointerToBoolLower + numberOfLowerSubboxes;
     map[pointer+10] = pointerToFirstLower;*/
-    pointerToOutputBuffer = pointerToBoolLower + numberOfLowerSubboxes + (numberOfLowerSubboxes*sizeOfSubboxes);
+    pointerToOutputBuffer = pointerToBoolLower + numberOfLowerSubboxes * booleanSize + (numberOfLowerSubboxes*sizeOfSubboxes);
     map[pointer+9] = pointerToOutputBuffer;
 
 
@@ -2848,7 +2936,7 @@ long XDict::layoutXBox(long pointer, long x) {
     map[pointerToBoolUpper-1] = -1; // Backstopper for input
 
     // Indicate that upper level subboxes are not in use
-    for(int i = 0; i < numberOfUpperSubboxes; i++) {
+    for(int i = 0; i < numberOfUpperSubboxes*booleanSize; i++) {
         map[pointerToBoolUpper+i] = 0;
     }
 
@@ -2857,7 +2945,7 @@ long XDict::layoutXBox(long pointer, long x) {
     map[pointerToBoolLower-1] = -1; // Backstopper for middle
 
     // Indicate that lower level subboxes are not in use
-    for(int i = 0; i < numberOfLowerSubboxes; i++) {
+    for(int i = 0; i < numberOfLowerSubboxes*booleanSize; i++) {
         map[pointerToBoolLower+i] = 0;
     }
 
@@ -2887,7 +2975,7 @@ long XDict::layoutXBox(long pointer, long x) {
 
 }
 
-/*
+/* OLD
  * Pointer must point to a boolean array of subboxes (its pointers really),
  * that has a max size of size. Assumes all subboxes have been flushed.
  * Returns a pointer INTO THE BOOLEAN ARRAY, which then points
@@ -2896,6 +2984,12 @@ long XDict::layoutXBox(long pointer, long x) {
  * You have to find the subbox and output buffer yourself,
  * based on the return value.
  */
+
+/*
+ * Returns a pointer into the boolean array to the subbox with the smallest
+ * element. Normally this would be the first entry, but we temporarily allow
+ * subboxes to be zeroed out during flush, with non zero subboxes following them.
+ */
 long XDict::findNextSubboxForMerge(long pointer, long size) {
 
     long index = 0;
@@ -2903,10 +2997,31 @@ long XDict::findNextSubboxForMerge(long pointer, long size) {
     long smallestPointer = pointer;
     bool min = false;
 
+    // Redid how boolean is laid out
+    // First non zero subbox in the list is the smallest
+    for(index; index < size; index++) {
+        if(map[pointer+index*2] != 0) {
+            //long subboxPointer = map[pointer+index*2];
+            long minElementInSubbox = map[pointer+index*2+1];
+            smallest = minElementInSubbox;
+            smallestPointer = pointer+index*2;
+            break; // Found smallest
+        }
+    }
+
+    if(smallest != LONG_MAX) {
+        cout << "--- " << smallestPointer << "\n";
+        return smallestPointer;
+    }
+    else {
+        return -1;
+    }
+
+
     //cout << "Finding first subbox at position " << pointer << "\n";
 
     // Find the first subbox
-    for(index; index < size; index++) {
+    /*for(index; index < size; index++) {
         //cout << map[pointer+index] << " ";
         if(map[pointer+index] != 0) {
             // We have a subbox!
@@ -2972,7 +3087,7 @@ long XDict::findNextSubboxForMerge(long pointer, long size) {
     }
 
     //cout << " Found " << smallestPointer << " " <<  smallest << "\n";
-    return smallestPointer;
+    return smallestPointer;*/
 }
 
 /*

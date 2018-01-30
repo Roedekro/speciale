@@ -23,6 +23,7 @@ public:
     long minSize;
     long infoOffset; // Number of information fields in an xBox greater than minX.
     int elementSize;
+    int booleanSize;
     long insertionCap;
 
     XDict(float alpha);

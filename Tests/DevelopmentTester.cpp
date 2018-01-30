@@ -2220,13 +2220,13 @@ void DevelopmentTester::xDictBasicTest() {
     long sizeOfSubbox = xDict->map[pointerToXBox+3];
     long numberOfUpperLevel = xDict->map[pointerToXBox+4];
     long pointerToUpperBool = xDict->map[pointerToXBox+6];
-    long placementOfFirst = pointerToUpperBool + numberOfUpperLevel;
+    long placementOfFirst = pointerToUpperBool + numberOfUpperLevel*2;
     long placementOfSecond = placementOfFirst+sizeOfSubbox;
 
     // Boolean update
 
     xDict->map[pointerToUpperBool] = placementOfFirst;
-    xDict->map[pointerToUpperBool+1] = placementOfSecond;
+    xDict->map[pointerToUpperBool+2] = placementOfSecond;
 
     // Layout
     xDict->layoutXBox(placementOfFirst,xDict->minX);
@@ -2243,7 +2243,7 @@ void DevelopmentTester::xDictBasicTest() {
         xDict->map[index] = ins;
         xDict->map[index+1] = ins;
         lastNumber = ins;
-        //cout << ins << " ";
+        cout << ins << " ";
         insertions.push_back(ins);
     }
     xDict->map[pointerToFirstArray+4*toInsert] = -1;
@@ -2268,6 +2268,8 @@ void DevelopmentTester::xDictBasicTest() {
     cout << "\n";
 
     cout << "Placed subboxes in bool = " << pointerToUpperBool << " boxes = " << placementOfFirst << " and " << placementOfSecond << "\n";
+    cout << pointerToUpperBool << " boxes = " << xDict->map[pointerToUpperBool] << " " << xDict->map[pointerToUpperBool+1]
+            << " and " << xDict->map[pointerToUpperBool+2] << " " << xDict->map[pointerToUpperBool+3] << "\n";
 
     xDict->map[pointerToXBox+1] = 3*toInsert+2*toInsert*bufferModifier; // TODO Number of real elements.
 
@@ -2289,6 +2291,7 @@ void DevelopmentTester::xDictBasicTest() {
         key = xDict->map[pointerToOutput+readIndex*4];
         if(key != -1 && key != insertions.at(readIndex)) {
             correct = false;
+            //cout << key << " ";
         }
         //cout << key << " ";
         readIndex++;
@@ -2316,6 +2319,19 @@ void DevelopmentTester::xDictBasicTest() {
     xDict->sampleUpAfterFlush(pointerToXBox);
 
     //cout << pointerToXBox << "\n";
+
+    long maxNumberOfUpper = xDict->map[pointerToXBox+4];
+    long maxNumberOfLower = xDict->map[pointerToXBox+5];
+    for(long i = 0; i < maxNumberOfUpper*2; i++) {
+        cout << xDict->map[pointerToUpperBool+i] << " ";
+    }
+    cout << "\n";
+
+    long pointerToLowerBool = xDict->map[pointerToXBox+8];
+    for(long i = 0; i < maxNumberOfLower*2; i++) {
+        cout << xDict->map[pointerToLowerBool+i] << " ";
+    }
+    cout << "\n";
 
     cout << "============================================= SEARCH TEST\n";
 
@@ -2359,7 +2375,7 @@ void DevelopmentTester::xDictBasicTest() {
         cout << "Search works correct\n";
     }
     else {
-        cout << "Error in Flush\n";
+        cout << "Error, either SampleUp or Search doesnt work!\n";
     }
 
 
