@@ -307,7 +307,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
     long writeIndex = 0;
     long insertIndex = 0;
     long originalIndex = 0;
-    long insertCounter = 0;
+    long insertCounter = 0; // TODO: Do we really need to count these? Removed it for now.
 
     long key, value;
     long smallestIndex;
@@ -362,14 +362,16 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
 
             // Reload!
             insertIndex++;
-            if(insertIndex < numberOfRealElements) {
+            mergeArray[2] = map[pointerStart+insertIndex*elementSize];
+            mergeArray[3] = map[pointerStart+insertIndex*elementSize+1];
+            /*if(insertCounter < numberOfRealElements) {
                 mergeArray[2] = map[pointerStart+insertIndex*elementSize];
                 mergeArray[3] = map[pointerStart+insertIndex*elementSize+1];
             }
             else {
                 // We already wrote out all the real elements to be inserted.
                 mergeArray[-1] = map[pointerStart+insertIndex*elementSize];
-            }
+            }*/
 
         }
     }
@@ -380,57 +382,110 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
     // *** Insert elements into upper level subboxes, updating subbox pointers!
     // +
     // *** Handle splits
-    index = 0;
+    index = 0; long startIndex = 0; writeIndex = 0;
     long start = 0; long end = 0;
     long counter = 0;
     long sizeOfBatch = (map[xBoxPointer+2] / 2); // y/2
     long maxRealElementsInSubbox = (pow(map[xBoxPointer+2],1+alpha) / 2); // Size of subbox output / 2.
     long maxNumberOfUpperLevelSubboxes = map[xBoxPointer+4];
+    long currentSubboxIndex = 0;
+    long pointerUpperBool = map[xBoxPointer+6];
+    long nextSubboxVal = map[pointerUpperBool+(currentSubboxIndex+1)*booleanSize+1]; // Values below this val is to
+                                                                                     // be inserted into current subbox.
+    if(nextSubboxVal == 0) {
+        nextSubboxVal = LONG_MAX;
+    }
+    bool aborted = false;
+
     while(map[pointerToInputBuffer+index*elementSize] != 1) {
-        if(map[pointerToInputBuffer+index*elementSize+1] > 0) {
+
+        key = map[pointerToInputBuffer+index*elementSize];
+        value = map[pointerToInputBuffer+index*elementSize+1];
+
+        if(value > 0) {
             counter++;
         }
-        else {
+        /*else {
             // Check if we need to update current subbox
             if(map[pointerToInputBuffer+index*elementSize+1] == -1) {
                 pointerToCurrentSubbox = map[pointerToInputBuffer+index*elementSize+2];
                 pointerDirectlyToBooleanForCurrentSubbox = map[pointerToInputBuffer+index*elementSize+3];
-                // TODO if this isnt the first subbox abort this batch range
+                if(firstSubboxEncountered) {
+                    // This batch wasnt big enough to get inserted, reset counter and start
+                    end = pointerToInputBuffer+(index+1)*elementSize;
+                    start = end;
+                    counter = 0;
+                }
+                else {
+                    firstSubboxEncountered = true;
+                }
             }
+        }*/
+
+        // Check if we are within range
+        if(key >= nextSubboxVal) {
+            // Move this aborted batch back to start of array.
+            /*for(long i = 0; i < index-startIndex; i++) {
+                map[pointerToInputBuffer+writeIndex*elementSize] = map[pointerToInputBuffer+(startIndex+i)*elementSize];
+                map[pointerToInputBuffer+writeIndex*elementSize+1] = map[pointerToInputBuffer+(startIndex+i)*elementSize+1];
+                map[pointerToInputBuffer+writeIndex*elementSize+2] = map[pointerToInputBuffer+(startIndex+i)*elementSize+1];
+                map[pointerToInputBuffer+writeIndex*elementSize+3] = map[pointerToInputBuffer+(startIndex+i)*elementSize+1];
+                writeIndex++;
+            }*/
+
+            // The range ran out, switch subbox
+            currentSubboxIndex++;
+            pointerToCurrentSubbox = map[pointerUpperBool+currentSubboxIndex*booleanSize];
+            nextSubboxVal = map[pointerUpperBool+(currentSubboxIndex+1)*booleanSize+1]; // Values below this val is to
+            // be inserted into current subbox.
+            if(nextSubboxVal == 0 || currentSubboxIndex+1 == maxNumberOfUpperLevelSubboxes) {
+                nextSubboxVal = LONG_MAX;
+            }
+            counter = 0;
+            startIndex = index;
+            index--; // Recount this element, could jump several subboxes!
         }
-
-        // TODO
-
-        if(counter >= sizeOfBatch) {
+        else if(counter >= sizeOfBatch) {
             end = pointerToInputBuffer+(index+1)*elementSize;
             // Check if we need to split
-            // TODO trick, if we split insert new subbox pointer. Create space by inserting a single element.
-            // TODO This element is the first before the current subbox pointer?
             if(map[pointerToCurrentSubbox+1] + counter >= maxRealElementsInSubbox) {
                 // Do we have room to split?
                 if(upperLevelSubboxCounter < maxNumberOfUpperLevelSubboxes) {
 
 
-                    //
+                    // TODO split
 
                     upperLevelSubboxCounter++;
                     // Reset and scan this range again
+                    index = startIndex-1; // Rescan this entire batch
+
+                    // TODO update nextSubboxVal?
+
                 }
                 else {
                     // Break and flush upper level. Then merge input + upper level to middle.
+                    aborted = true;
                 }
 
             }
             else {
+                // Mark elements in the batch as zeroed out.
+                for(long i = 0; i < index-startIndex; i++) {
+                    map[pointerToInputBuffer+writeIndex*elementSize] = 0;
+                    map[pointerToInputBuffer+writeIndex*elementSize+1] = 0;
+                    map[pointerToInputBuffer+writeIndex*elementSize+2] = 0;
+                    map[pointerToInputBuffer+writeIndex*elementSize+3] = 0;
+                }
+
                 // Batch insert into subbox
+                batchInsert(pointerToCurrentSubbox,start,end,counter);
+
+
+                startIndex = index+1;
                 start = end;
                 counter = 0;
             }
         }
-
-
-
-
     }
 
 
@@ -439,8 +494,27 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
     // *** If we finish inserting into the upper level without running out of subboxes we now
     // *** sample from the input buffer of the upper layer, restoring pointers, and return.
 
+    if(!aborted) {
+
+        // First scan upper level to determine how many pointers to make room for.
+
+
+        // Then rescan input array and remove zeroed out elements that got inserted into suboxxes.
+        // Also remove all pointers. Place this array so we have room for pointers from subboxes.
+        // TODO must be split into two scans. Can not place the final array during first scan.
+        // TODO Otherwhise we might overwrite part of the array as we place it!
+
+        // Now merge the pointers and elements in the input buffer.
+
+
+        return;
+    }
+
     // *** Else we ran out of subboxes. Flush upper level, then merge input and upper level into middle,
     // *** while removing pointers.
+
+    // TODO OBS: Input buffer contains zeroed out elements to be skipped over.
+
 
     // *** Insert elements into lower level subboxes, updating subbox pointers!
     // +
@@ -455,7 +529,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
     // *** while removing pointers
 
     // Sample up the entire structure.
-
+    sampleUpAfterFlush(xBoxPointer); // Our state is that of a flushed xBox.
 }
 
 
@@ -1889,6 +1963,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
 
                 // This is either a forward pointer or a subbox pointer
                 long reversePointer = map[forwardPointer+index*elementSize+2];
+                if(reversePointer == 0) {
+                    return 0; // Convention
+                }
                 long value = map[reversePointer+1];
                 long pointer = map[reversePointer+2];
                 if(value == -2) {
@@ -1964,6 +2041,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 //cout << "Case 3a\n";
                 //return map[map[forwardPointer+index*elementSize+2]+2];
                 long reversePointer = map[forwardPointer+index*elementSize+2];
+                if(reversePointer == 0) {
+                    return 0; // Convention
+                }
                 long value = map[reversePointer+1];
                 long pointer = map[reversePointer+2];
                 if(value == -2) {
@@ -1992,6 +2072,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                     // Return the pointer of the reverse pointer
                     //return map[map[forwardPointer+index*elementSize+2]+2];
                     long reversePointer = map[forwardPointer+index*elementSize+2];
+                    if(reversePointer == 0) {
+                        return 0; // Convention
+                    }
                     long value = map[reversePointer+1];
                     long pointer = map[reversePointer+2];
                     if(value == -2) {
@@ -2124,6 +2207,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
 
                 // This is either a forward pointer or a subbox pointer
                 long reversePointer = map[forwardPointer+index*elementSize+2];
+                if(reversePointer == 0) {
+                    return 0; // Convention
+                }
                 long value = map[reversePointer+1];
                 long pointer = map[reversePointer+2];
                 if(value == -2) {
@@ -2199,6 +2285,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 //cout << "Case 3a\n";
                 //return map[map[forwardPointer+index*elementSize+2]+2];
                 long reversePointer = map[forwardPointer+index*elementSize+2];
+                if(reversePointer == 0) {
+                    return 0; // Convention
+                }
                 long value = map[reversePointer+1];
                 long pointer = map[reversePointer+2];
                 if(value == -2) {
@@ -2227,6 +2316,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                     // Return the pointer of the reverse pointer
                     //return map[map[forwardPointer+index*elementSize+2]+2];
                     long reversePointer = map[forwardPointer+index*elementSize+2];
+                    if(reversePointer == 0) {
+                        return 0; // Convention
+                    }
                     long value = map[reversePointer+1];
                     long pointer = map[reversePointer+2];
                     if(value == -2) {
@@ -2303,6 +2395,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
              << " subboxPointer=" << subboxPointer << " forward=" << forwardPointer << "\n";*/
 
         forwardPointer = search(subboxPointer,forwardPointer,element);
+        if(forwardPointer == 0) {
+            forwardPointer = map[xBoxPointer+7]; // Middle, convention
+        }
         if(map[forwardPointer] == element && map[forwardPointer+1] > 0) {
             //return map[forwardPointer+1];
             //cout << "Upper subbox pointed directly at element\n";
@@ -2358,6 +2453,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
 
                 // This is either a forward pointer or a subbox pointer
                 long reversePointer = map[forwardPointer+index*elementSize+2];
+                if(reversePointer == 0) {
+                    return 0; // Convention
+                }
                 long value = map[reversePointer+1];
                 long pointer = map[reversePointer+2];
                 if(value == -2) {
@@ -2433,6 +2531,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 //cout << "Case 3a\n";
                 //return map[map[forwardPointer+index*elementSize+2]+2];
                 long reversePointer = map[forwardPointer+index*elementSize+2];
+                if(reversePointer == 0) {
+                    return 0; // Convention
+                }
                 long value = map[reversePointer+1];
                 long pointer = map[reversePointer+2];
                 if(value == -2) {
@@ -2461,6 +2562,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                     // Return the pointer of the reverse pointer
                     //return map[map[forwardPointer+index*elementSize+2]+2];
                     long reversePointer = map[forwardPointer+index*elementSize+2];
+                    if(reversePointer == 0) {
+                        return 0; // Convention
+                    }
                     long value = map[reversePointer+1];
                     long pointer = map[reversePointer+2];
                     if(value == -2) {
@@ -2529,6 +2633,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
         subboxPointer = lowerLevelStartsAt+subboxNumber*sizeOfSubboxes;
 
         forwardPointer = search(subboxPointer,forwardPointer,element);
+        if(forwardPointer == 0) {
+            forwardPointer = map[xBoxPointer+9]; // Output, convention
+        }
         if(map[forwardPointer] == element && map[forwardPointer+1] > 0) {
             /*cout << "Lower subbox pointed directly to " << map[forwardPointer] << " "
                  << map[forwardPointer+1] << " " << map[forwardPointer+2] << " " << map[forwardPointer+3] << "\n";*/
@@ -2583,6 +2690,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
 
                 // This is either a forward pointer or a subbox pointer
                 long reversePointer = map[forwardPointer+index*elementSize+2];
+                if(reversePointer == 0) {
+                    return 0; // Convention
+                }
                 long value = map[reversePointer+1];
                 long pointer = map[reversePointer+2];
                 if(value == -2) {
@@ -2658,6 +2768,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 //cout << "Case 3a\n";
                 //return map[map[forwardPointer+index*elementSize+2]+2];
                 long reversePointer = map[forwardPointer+index*elementSize+2];
+                if(reversePointer == 0) {
+                    return 0; // Convention
+                }
                 long value = map[reversePointer+1];
                 long pointer = map[reversePointer+2];
                 if(value == -2) {
@@ -2788,6 +2901,7 @@ void XDict::recursivelyBatchInsertXBoxToXBox(long xBoxnumber) {
     long sizeOfBatch = map[nextXBoxPointer]/2;
     long maxOfNextXBox = (pow(map[nextXBoxPointer],1+alpha) / 2);
     long index = 0;
+
     // Run through the elements, batch inserting as we go
     while(map[startOfElementsToInsert+index*elementSize] != -1) {
         if(map[startOfElementsToInsert+index*elementSize+1] > 0) {
@@ -2801,6 +2915,9 @@ void XDict::recursivelyBatchInsertXBoxToXBox(long xBoxnumber) {
 
                 // Recursively batch insert
                 recursivelyBatchInsertXBoxToXBox(xBoxnumber+1);
+
+                // SampleUp on next xBox
+                sampleUpAfterFlush(nextXBoxPointer);
             }
             batchInsert(nextXBoxPointer,start,end,counter);
             counter = 0;
@@ -2817,6 +2934,9 @@ void XDict::recursivelyBatchInsertXBoxToXBox(long xBoxnumber) {
 
             // Recursively batch insert
             recursivelyBatchInsertXBoxToXBox(xBoxnumber+1);
+
+            // SampleUp on next xBox
+            sampleUpAfterFlush(nextXBoxPointer);
         }
         batchInsert(nextXBoxPointer,start,end,counter);
     }

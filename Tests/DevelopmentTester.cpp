@@ -2243,7 +2243,7 @@ void DevelopmentTester::xDictBasicTest() {
         xDict->map[index] = ins;
         xDict->map[index+1] = ins;
         lastNumber = ins;
-        cout << ins << " ";
+        //cout << ins << " ";
         insertions.push_back(ins);
     }
     xDict->map[pointerToFirstArray+4*toInsert] = -1;
