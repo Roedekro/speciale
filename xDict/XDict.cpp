@@ -233,7 +233,7 @@ long XDict::query(long element) {
     // Notice the first xBox is of minimum size, and a special Search is made.
     ret = search(xBoxPointer,2,element);
 
-    cout << "Search on first xBox = " << ret << " " << map[ret] << " " << map[ret+1]<< "\n";
+    //cout << "Search on first xBox = " << ret << " " << map[ret] << " " << map[ret+1]<< "\n";
 
     if(map[ret] == element && map[ret+1] > 0) {
         return map[ret+1]; // If only it was always this easy!
@@ -464,6 +464,8 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
     // Populate merge array
     mergeArray[0] = map[pointerToStartOfOriginalElements];
     mergeArray[1] = map[pointerToStartOfOriginalElements+1];
+    subboxPointer = map[pointerToStartOfOriginalElements+2];
+    boolPointer = map[pointerToStartOfOriginalElements+3];
 
     mergeArray[2] = map[pointerStart];
     mergeArray[3] = map[pointerStart+1];
@@ -588,10 +590,12 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
         layoutXBox(location,y);
         map[pointerUpperBool] = location;
         pointerToCurrentSubbox = location;
+        upperLevelSubboxCounter++;
         // Next subbox val already set to max
     }
 
     cout << "Inserting into subboxes in batches of " << sizeOfBatch << " maxSubboxSize " << maxRealElementsInSubbox << "\n";
+    cout << "Maximum number of subboxes is " << maxNumberOfUpperLevelSubboxes << "\n";
 
     while(map[pointerToInputBuffer+index*elementSize] != -1) {
 
@@ -620,7 +624,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
 
         // Check if we are within range
         if(key >= nextSubboxVal) {
-            cout << "Switching subbox\n";
+            cout << "Switching subbox from " << pointerToCurrentSubbox << " " << nextSubboxVal << " " << index << " " << key << "\n";
             // Move this aborted batch back to start of array.
             /*for(long i = 0; i < index-startIndex; i++) {
                 map[pointerToInputBuffer+writeIndex*elementSize] = map[pointerToInputBuffer+(startIndex+i)*elementSize];
@@ -630,11 +634,16 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
                 writeIndex++;
             }*/
 
+            for(int i = 0; i < maxNumberOfUpperLevelSubboxes; i++) {
+                cout << map[pointerUpperBool+i*booleanSize] << " ";
+                cout << map[pointerUpperBool+i*booleanSize] << " | ";
+            }
+            cout << "\n";
+
             // The range ran out, switch subbox
             currentSubboxIndex++;
             pointerToCurrentSubbox = map[pointerUpperBool+currentSubboxIndex*booleanSize];
-            nextSubboxVal = map[pointerUpperBool+(currentSubboxIndex+1)*booleanSize+1]; // Values below this val is to
-            // be inserted into current subbox.
+            nextSubboxVal = map[pointerUpperBool+(currentSubboxIndex+1)*booleanSize+1];
             if(nextSubboxVal == 0 || currentSubboxIndex+1 == maxNumberOfUpperLevelSubboxes) {
                 nextSubboxVal = LONG_MAX;
             }
@@ -644,21 +653,25 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
         }
         else if(counter >= sizeOfBatch) {
             cout << "Reached batch size " << index << "\n";
+            cout << upperLevelSubboxCounter << " " << maxNumberOfUpperLevelSubboxes << "\n";
             end = pointerToInputBuffer+(index+1)*elementSize;
             // Check if we need to split
             if(map[pointerToCurrentSubbox+1] + counter > maxRealElementsInSubbox) {
                 // Do we have room to split?
                 if(upperLevelSubboxCounter < maxNumberOfUpperLevelSubboxes) {
 
-                    cout << "*********************** Split " << map[pointerToCurrentSubbox+1] << " " << counter << "\n";
-                    // TODO split
+                    flush(pointerToCurrentSubbox,false);
+
+                    splitSubbox(pointerToCurrentSubbox,map[xBoxPointer+3],currentSubboxIndex,maxNumberOfUpperLevelSubboxes,pointerUpperBool);
 
                     upperLevelSubboxCounter++;
                     // Reset and scan this range again
                     index = startIndex-1; // Rescan this entire batch
 
-                    // TODO update nextSubboxVal
-
+                    nextSubboxVal = map[pointerUpperBool+(currentSubboxIndex+1)*booleanSize+1];
+                    if(nextSubboxVal == 0 || currentSubboxIndex+1 == maxNumberOfUpperLevelSubboxes) {
+                        nextSubboxVal = LONG_MAX;
+                    }
                 }
                 else {
                     // Break and flush upper level. Then merge input + upper level to middle.
@@ -3249,6 +3262,126 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
 /***********************************************************************************************************************
  * Extended Methods
  **********************************************************************************************************************/
+
+/*
+ * Assumes the subbox has already been flushed.
+ * Will sample up afterwards.
+ */
+void XDict::splitSubbox(long pointerToSubbox, long subboxSize,long subboxIndex, long maxSubboxes, long pointerToBool) {
+
+    cout << "----- SPLIT on " << pointerToSubbox << "\n";
+
+    long x = map[pointerToSubbox];
+
+    // First move the bools back to make room
+    long index = maxSubboxes-1;
+    while(index > subboxIndex) {
+        map[pointerToBool+index*booleanSize] = map[pointerToBool+(index-1)*booleanSize];
+        map[pointerToBool+index*booleanSize+1] = map[pointerToBool+(index-1)*booleanSize+1];
+        index--;
+    }
+
+    // Layout new subbox
+    long location = pointerToSubbox+subboxSize;
+    layoutXBox(location,x);
+
+    map[pointerToBool+(subboxIndex+1)*booleanSize] = location; // Inserted subbox in parent
+    long pointerToOutput;
+    long pointerToNewOutput;
+
+    if(x <= minX) {
+        pointerToOutput = pointerToSubbox+2;
+        pointerToNewOutput = location+2;
+    }
+    else {
+        pointerToOutput = map[pointerToSubbox+9];
+        pointerToNewOutput = map[location+9];
+    }
+
+    // Counter output elements, real and pointers
+    long counterRealElements = 0;
+    index = 0;
+    while(map[pointerToOutput+index*elementSize] != -1) {
+        if(map[pointerToOutput+index*elementSize+1] > 0) {
+            counterRealElements++;
+        }
+        index++;
+    }
+
+    long elementsToKeep = counterRealElements / 2;
+    long elementsToTransfer = map[pointerToSubbox+1] - elementsToKeep;
+
+    long counterRealElementsMoved = 0;
+
+    // Run through elements until we find where to split
+    long counter = 0;
+    index = 0;
+    while(counter < elementsToKeep) {
+        if(map[pointerToOutput+index*elementSize+1] > 0) {
+            counter++;
+        }
+        index++;
+    }
+
+    // Move forward until there are no pointers matching this key!
+    long key = map[pointerToOutput+(index-1)*elementSize];
+    while(map[pointerToOutput+index*elementSize] == key) {
+        index++;
+        //cout << "++\n";
+    }
+
+    // TODO means we cant split a subbox containing elements with only the same key!
+
+    long split = index;
+    long writeIndex = 0;
+
+    // Move elements
+    while(map[pointerToOutput+index*elementSize] != -1) {
+        map[pointerToNewOutput+writeIndex*elementSize] = map[pointerToOutput+index*elementSize];
+        map[pointerToNewOutput+writeIndex*elementSize+1] = map[pointerToOutput+index*elementSize+1];
+        map[pointerToNewOutput+writeIndex*elementSize+2] = map[pointerToOutput+index*elementSize+2];
+        map[pointerToNewOutput+writeIndex*elementSize+3] = map[pointerToOutput+index*elementSize+3];
+        writeIndex++;
+        index++;
+    }
+
+
+    /*for(long i = 0; i < elementsToTransfer; i++) {
+        if(map[pointerToOutput+(elementsToKeep+i)*elementSize+1] > 0) {
+            counterRealElementsMoved++;
+        }
+        map[pointerToNewOutput+i*elementSize] = map[pointerToOutput+(elementsToKeep+i)*elementSize];
+        map[pointerToNewOutput+i*elementSize+1] = map[pointerToOutput+(elementsToKeep+i)*elementSize+1];
+        map[pointerToNewOutput+i*elementSize+2] = map[pointerToOutput+(elementsToKeep+i)*elementSize+2];
+        map[pointerToNewOutput+i*elementSize+3] = map[pointerToOutput+(elementsToKeep+i)*elementSize+3];
+    }*/
+
+    // Mark end of buffers and update boolean
+    /*map[pointerToNewOutput+elementsToTransfer*elementSize] = -1;
+    map[pointerToBool+(subboxIndex+1)*booleanSize+1] = map[pointerToOutput+elementsToKeep*elementSize];
+    map[pointerToOutput+elementsToKeep*elementSize] = -1;
+
+    map[pointerToSubbox+1] = map[pointerToSubbox]*/
+
+    map[pointerToNewOutput+writeIndex*elementSize] = -1;
+    map[pointerToBool+(subboxIndex+1)*booleanSize+1] = map[pointerToOutput+split*elementSize];
+    map[pointerToOutput+split*elementSize] = -1;
+
+    cout << "Old min element for subbox = " << map[pointerToBool+(subboxIndex)*booleanSize+1] << "\n";
+    cout << "Min element for new subbox = " << map[pointerToBool+(subboxIndex+1)*booleanSize+1] << "\n";
+
+    map[pointerToSubbox+1] = elementsToKeep;
+    map[location+1] = elementsToTransfer;
+
+    cout << "----- Split completed " << pointerToSubbox << " " << location << "\n";
+    cout << elementsToKeep << " " << elementsToTransfer << "\n";
+
+    sampleUpAfterFlush(pointerToSubbox);
+    sampleUpAfterFlush(location);
+
+    cout << "----- Split SampleUps completed\n";
+}
+
 
 /*
  * Handles the recursive BatchInsert (and SampleUp) on xBoxes in the xDict.

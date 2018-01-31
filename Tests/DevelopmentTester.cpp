@@ -2388,7 +2388,7 @@ void DevelopmentTester::xDictBasicTest() {
     vector<long> advanced;
 
     xDict = new XDict(alpha);
-    long elementsToInsert = 35;
+    long elementsToInsert = 64;
     for(int i = 1; i <= elementsToInsert; i++) {
         xDict->insert(KeyValue(i,i));
         advanced.push_back(i);
@@ -2426,7 +2426,7 @@ void DevelopmentTester::xDictBasicTest() {
     bool advancedTest = true;
     for(int i = 0; i < advanced.size(); i++) {
         long ele = advanced.at(i);
-        cout << "----- " << ele << "\n";
+        //cout << "----- " << ele << "\n";
         long ret = xDict->query(ele);
         if(ret != ele) {
             cout << "Should have returned " << ele << " " << ret << "\n";

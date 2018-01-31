@@ -49,6 +49,7 @@ public:
      */
     void recursivelyBatchInsertXBoxToXBox(long xBoxNumber);
     void sampleToEmptyBufferFromBuffer(long pointerToDestination, long pointerToSource, long sampleEveryNth);
+    void splitSubbox(long pointerToSubbox, long subboxSize, long subboxIndex, long maxSubboxes, long pointerToBool);
 
 
     /*
