@@ -2383,5 +2383,67 @@ void DevelopmentTester::xDictBasicTest() {
 
     delete(xDict);
 
+    cout << "============================================= ADVANCED INSERT TEST\n";
+
+    vector<long> advanced;
+
+    xDict = new XDict(alpha);
+    long elementsToInsert = 35;
+    for(int i = 1; i <= elementsToInsert; i++) {
+        xDict->insert(KeyValue(i,i));
+        advanced.push_back(i);
+    }
+
+    if(xDict->xBoxes->size() >= 1) {
+        pointerToXBox = xDict->xBoxes->at(0);
+        long index = 0;
+        while(xDict->map[pointerToXBox+2+index*4] != -1) {
+            cout << xDict->map[pointerToXBox+2+index*4] << " ";
+            cout << xDict->map[pointerToXBox+2+index*4+1] << " ";
+            cout << xDict->map[pointerToXBox+2+index*4+2] << " ";
+            cout << xDict->map[pointerToXBox+2+index*4+3] << " | ";
+            index++;
+        }
+        cout << "\n";
+    }
+
+    if(xDict->xBoxes->size() >= 2) {
+
+        pointerToXBox = xDict->xBoxes->at(1);
+        long index = 0;
+        while(xDict->map[pointerToXBox+10+index*4] != -1) {
+            cout << xDict->map[pointerToXBox+10+index*4] << " ";
+            cout << xDict->map[pointerToXBox+10+index*4+1] << " ";
+            cout << xDict->map[pointerToXBox+10+index*4+2] << " ";
+            cout << xDict->map[pointerToXBox+10+index*4+3] << " | ";
+            index++;
+        }
+        cout << "\n";
+    }
+
+    cout << "============================================= ADVANCED SEARCH TEST\n";
+
+    bool advancedTest = true;
+    for(int i = 0; i < advanced.size(); i++) {
+        long ele = advanced.at(i);
+        cout << "----- " << ele << "\n";
+        long ret = xDict->query(ele);
+        if(ret != ele) {
+            cout << "Should have returned " << ele << " " << ret << "\n";
+            advancedTest = false;
+        }
+    }
+
+    if(advancedTest) {
+        cout << "Advanced test works\n";
+    }
+    else {
+        cout << "Error in advanced test\n";
+    }
+
+    cout << "============================================= CLEANING UP\n";
+
+    delete(xDict);
+
     cout << "Done!\n";
 }
