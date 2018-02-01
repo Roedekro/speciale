@@ -23,6 +23,7 @@
 #include <cmath>
 #include <algorithm>
 #include <sys/resource.h>
+#include <climits>
 
 using namespace std;
 
@@ -612,7 +613,13 @@ int BufferedBTree::specialQuery(int element) {
                 }
                 else if(index == 0) {
                     // Special case for the first child
-                    int firstKey = keys->at(index); // Elements smaller or equal to this key
+                    int firstKey;
+                    if(nodeSize != 0) {
+                        firstKey = keys->at(index); // Elements smaller or equal to this key
+                    }
+                    else {
+                        firstKey = INT_MAX;
+                    }
                     int endOfElements=-1;
                     // Add elements toChild
                     for(int i = 0; i < buffer->size(); i++) {

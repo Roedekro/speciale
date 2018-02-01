@@ -2421,6 +2421,17 @@ void DevelopmentTester::xDictBasicTest() {
         cout << "\n";
     }
 
+    pointerToMiddle = xDict->map[pointerToXBox+7];
+    long index = 0;
+    while(xDict->map[pointerToMiddle+index*4] != -1) {
+        cout << xDict->map[pointerToMiddle+index*4] << " ";
+        cout << xDict->map[pointerToMiddle+index*4+1] << " ";
+        cout << xDict->map[pointerToMiddle+index*4+2] << " ";
+        cout << xDict->map[pointerToMiddle+index*4+3] << " | ";
+        index++;
+    }
+    cout << "\n";
+
     cout << "============================================= ADVANCED SEARCH TEST\n";
 
     bool advancedTest = true;

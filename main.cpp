@@ -21,6 +21,11 @@ void test() {
 
     /*TreeTester* test = new TreeTester();
     // B = 128KB, M = 8MB, N = 100mil, runs = 2
+    test->bufferedBTreeTestSpecialQuery(131072,8388608,50000000,10,32);
+    delete(test);*/
+
+    /*TreeTester* test = new TreeTester();
+    // B = 128KB, M = 8MB, N = 100mil, runs = 2
     test->bufferedBTreeDeltaTest(13107,838860,50000000,10);
     delete(test);*/
 
