@@ -2388,13 +2388,14 @@ void DevelopmentTester::xDictBasicTest() {
     vector<long> advanced;
 
     xDict = new XDict(alpha);
-    long elementsToInsert = 64;
+    long elementsToInsert = 319;
     for(int i = 1; i <= elementsToInsert; i++) {
         xDict->insert(KeyValue(i,i));
         advanced.push_back(i);
     }
 
     if(xDict->xBoxes->size() >= 1) {
+        cout << "Input of xBox 0: ";
         pointerToXBox = xDict->xBoxes->at(0);
         long index = 0;
         while(xDict->map[pointerToXBox+2+index*4] != -1) {
@@ -2409,6 +2410,7 @@ void DevelopmentTester::xDictBasicTest() {
 
     if(xDict->xBoxes->size() >= 2) {
 
+        cout << "Input of xBox 1: ";
         pointerToXBox = xDict->xBoxes->at(1);
         long index = 0;
         while(xDict->map[pointerToXBox+10+index*4] != -1) {
@@ -2421,6 +2423,7 @@ void DevelopmentTester::xDictBasicTest() {
         cout << "\n";
     }
 
+    cout << "Middle of xBox 1: ";
     pointerToMiddle = xDict->map[pointerToXBox+7];
     long index = 0;
     while(xDict->map[pointerToMiddle+index*4] != -1) {
