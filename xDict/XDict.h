@@ -59,6 +59,7 @@ public:
     long layoutXBox(long pointer, long x);
     long findNextSubboxForMerge(long pointer, long size);
     void extendMapTo(long pointer);
+    long recursivelyCheckxBox(long pointer);
 
 };
 

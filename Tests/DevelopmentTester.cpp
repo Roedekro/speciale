@@ -2388,7 +2388,7 @@ void DevelopmentTester::xDictBasicTest() {
     vector<long> advanced;
 
     xDict = new XDict(alpha);
-    long elementsToInsert = 319;
+    long elementsToInsert = 960; // 959 doesnt crash
     for(int i = 1; i <= elementsToInsert; i++) {
         xDict->insert(KeyValue(i,i));
         advanced.push_back(i);
