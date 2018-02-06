@@ -2388,10 +2388,19 @@ void DevelopmentTester::xDictBasicTest() {
     vector<long> advanced;
 
     xDict = new XDict(alpha);
-    long elementsToInsert = 20000; // 18000 works.
+    long elementsToInsert = 64;
+
+    /*elementsToInsert = 500000; // 500000 works with non random input.
+    elementsToInsert = 20000;
     for(int i = 1; i <= elementsToInsert; i++) {
         xDict->insert(KeyValue(i,i));
         advanced.push_back(i);
+    }*/
+
+    for(int i = 1; i <= elementsToInsert; i++) {
+        long toInsert = rand() % 1000 + 1;
+        xDict->insert(KeyValue(toInsert,toInsert));
+        advanced.push_back(toInsert);
     }
 
     if(xDict->xBoxes->size() >= 1) {
@@ -2443,7 +2452,7 @@ void DevelopmentTester::xDictBasicTest() {
         //cout << "----- " << ele << "\n";
         long ret = xDict->query(ele);
         if(ret != ele) {
-            cout << "Should have returned " << ele << " " << ret << "\n";
+            cout << i << " Should have returned " << ele << " " << ret << "\n";
             advancedTest = false;
         }
     }
