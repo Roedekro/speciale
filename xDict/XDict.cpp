@@ -28,6 +28,7 @@ XDict::XDict(float a) {
 
     //minX = 64;
     minX = 8; // Absolute minimum, since a proper xBox needs to be at least 64.
+    //minX = 64;
     long minXalpha = (long) pow(minX,1+alpha);
     minSize = minXalpha*elementSize+3; // x, #real elements, the elements, and -1 at the end
     infoOffset = 10;
@@ -113,7 +114,7 @@ XDict::~XDict() {
  */
 void XDict::insert(KeyValue kvt) {
 
-    cout << "Inserting " << kvt.key << "\n";
+    //cout << "Inserting " << kvt.key << "\n";
 
     //*** First merge the element into the first xBox
 
@@ -206,7 +207,7 @@ void XDict::insert(KeyValue kvt) {
     // We saved minX^(1+alpha) / 2 in insertionCap
     //*** Are we at capacity?
     if(map[1] >= insertionCap) {
-        cout << "=== Check before recursive on top xBox\n";
+        //cout << "=== Check before recursive on top xBox\n";
         recursivelyCheckxBox(0);
 
 
@@ -218,6 +219,9 @@ void XDict::addXBox() {
 
     // Expand mapping
     long x = pow(latestX,1+alpha);
+    /*if(x < 64) {
+        x = 64; // Smallest allowable
+    }*/
     long pointer = fileSize;
     long newSize = recursivelyCalculateSize(x);
     extendMapTo(fileSize+newSize);
@@ -261,6 +265,9 @@ long XDict::query(long element) {
     for(int i = 1; i < xBoxes->size(); i++) {
         xBoxPointer = xBoxes->at(i);
         ret = search(xBoxPointer,ret,element);
+        if(ret == -1) {
+            return 0; // Was an error
+        }
         if(map[ret] == element && map[ret+1] > 0) {
             return map[ret+1];
         }
@@ -291,10 +298,10 @@ long XDict::query(long element) {
  */
 void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, long numberOfRealElements) {
 
-    cout << "========== BatchInsert on xBox located at " << xBoxPointer << " " << pointerStart << " " << pointerEnd << " " << numberOfRealElements << " " << map[xBoxPointer+1] << "\n";
+    //cout << "========== BatchInsert on xBox located at " << xBoxPointer << " " << pointerStart << " " << pointerEnd << " " << numberOfRealElements << " " << map[xBoxPointer+1] << "\n";
     //cout << "First element is " << map[pointerStart] << "\n";
 
-    cout << "Elements to be inserted: ";
+    /*cout << "Elements to be inserted: ";
     long tempPointerIndex = pointerStart;
     while(tempPointerIndex != pointerEnd) {
         cout << map[tempPointerIndex] << " ";
@@ -303,12 +310,12 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
         cout << map[tempPointerIndex+3] << " | ";
         tempPointerIndex = tempPointerIndex + 4;
     }
-    cout << "\n";
+    cout << "\n";*/
 
         // *** If this is a simple subbox we merge while preserving all pointers in subbox, then return
     if(map[xBoxPointer] <= minX) {
 
-        long tInd = 0;
+        /*long tInd = 0;
         cout << "Elements already present: ";
         while(map[xBoxPointer+2+tInd*elementSize] != -1) {
             cout << map[xBoxPointer+2+tInd*elementSize] << " ";
@@ -317,7 +324,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
             cout << map[xBoxPointer+2+tInd*elementSize+3] << " | ";
             tInd++;
         }
-        cout << "\n";
+        cout << "\n";*/
 
         //cout << "Simple xBox\n";
 
@@ -440,7 +447,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
             }
         }
 
-        cout << "Elements in " << xBoxPointer << " after merge into input:\n";
+        /*cout << "Elements in " << xBoxPointer << " after merge into input:\n";
         index = 0;
         while(map[pointerToInputBuffer+index*elementSize] != -1) {
             cout << map[pointerToInputBuffer+index*elementSize] << " ";
@@ -449,7 +456,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
             cout << map[pointerToInputBuffer+index*elementSize+3] << " | ";
             index++;
         }
-        cout << "\n";
+        cout << "\n";*/
 
         /*if(map[0] != 8) {
             cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!! xBox 0 was overwritten after batch insert on simple xBox\n";
@@ -589,7 +596,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
     //map[pointerStart+writeIndex*elementSize] = -1;
     map[pointerToInputBuffer+writeIndex*elementSize] = -1;
 
-    cout << "Elements in " << xBoxPointer << " after merge into input:\n";
+    /*cout << "Elements in " << xBoxPointer << " after merge into input:\n";
     index = 0;
     while(map[pointerToInputBuffer+index*elementSize] != -1) {
         cout << map[pointerToInputBuffer+index*elementSize] << " ";
@@ -598,7 +605,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
         cout << map[pointerToInputBuffer+index*elementSize+3] << " | ";
         index++;
     }
-    cout << "\n";
+    cout << "\n";*/
 
     // *** Insert elements into upper level subboxes, updating subbox pointers!
     // +
@@ -663,7 +670,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
 
         // Check if we are within range
         if(key >= nextSubboxVal) {
-            cout << "Switching subbox from " << pointerToCurrentSubbox << " " << nextSubboxVal << " " << index << " " << key << "\n";
+            //cout << "Switching subbox from " << pointerToCurrentSubbox << " " << nextSubboxVal << " " << index << " " << key << "\n";
             // Move this aborted batch back to start of array.
             /*for(long i = 0; i < index-startIndex; i++) {
                 map[pointerToInputBuffer+writeIndex*elementSize] = map[pointerToInputBuffer+(startIndex+i)*elementSize];
@@ -703,7 +710,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
 
                     flush(pointerToCurrentSubbox,false);
 
-                    cout << "Split\n";
+                    //cout << "Split\n";
                     splitSubbox(pointerToCurrentSubbox,map[xBoxPointer+3],currentSubboxIndex,maxNumberOfUpperLevelSubboxes,pointerUpperBool);
 
                     upperLevelSubboxCounter++;
@@ -875,6 +882,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
                     map[pointerToInputBuffer+writeIndex*elementSize+1] = value;
                     map[pointerToInputBuffer+writeIndex*elementSize+2] = pointerToCurrentSubbox;
                     map[pointerToInputBuffer+writeIndex*elementSize+3] = pointerUpperBool+currentSubboxIndex*booleanSize;
+                    currentReversePointer = pointerToInputBuffer+writeIndex*elementSize;
                     writeIndex++;
                 }
                 else {
@@ -883,6 +891,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
                     map[pointerToInputBuffer+writeIndex*elementSize+1] = value;
                     map[pointerToInputBuffer+writeIndex*elementSize+2] = tempPointer;
                     map[pointerToInputBuffer+writeIndex*elementSize+3] = 0;
+                    currentReversePointer = pointerToInputBuffer+writeIndex*elementSize;
                     writeIndex++;
                 }
 
@@ -1399,6 +1408,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
                     map[pointerToMiddleBuffer+writeIndex*elementSize+1] = value;
                     map[pointerToMiddleBuffer+writeIndex*elementSize+2] = pointerToCurrentSubbox;
                     map[pointerToMiddleBuffer+writeIndex*elementSize+3] = pointerUpperBool+currentSubboxIndex*booleanSize;
+                    currentReversePointer = pointerToMiddleBuffer+writeIndex*elementSize;
                     writeIndex++;
                 }
                 else {
@@ -1407,6 +1417,7 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
                     map[pointerToMiddleBuffer+writeIndex*elementSize+1] = value;
                     map[pointerToMiddleBuffer+writeIndex*elementSize+2] = tempPointer;
                     map[pointerToMiddleBuffer+writeIndex*elementSize+3] = 0;
+                    currentReversePointer = pointerToMiddleBuffer+writeIndex*elementSize;
                     writeIndex++;
                 }
 
@@ -1712,13 +1723,13 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
 
     //cout << "==================================================================================================================================\n";
 
-    if(map[6] == -1) {
+    /*if(map[6] == -1) {
         cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!! -1 in input before flush in complete " << xBoxPointer << "\n";
         for(int i = 0; i < 20; i++) {
             cout << map[i] << " ";
         }
         cout << "\n";
-    }
+    }*/
 
     flush(xBoxPointer,false); // False = preserves pointers.
 
@@ -1734,24 +1745,24 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
     }
     //cout << "\n";
 
-    if(map[6] == -1) {
+    /*if(map[6] == -1) {
         cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!! -1 in input before sampleUp in complete " << xBoxPointer << "\n";
         for(int i = 0; i < 20; i++) {
             cout << map[i] << " ";
         }
         cout << "\n";
-    }
+    }*/
 
     // Sample up the entire structure.
     sampleUpAfterFlush(xBoxPointer); // Our state is that of a flushed xBox.
 
-    if(map[6] == -1) {
+    /*if(map[6] == -1) {
         cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!! -1 in input after complete " << xBoxPointer << "\n";
         for(int i = 0; i < 20; i++) {
             cout << map[i] << " ";
         }
         cout << "\n";
-    }
+    }*/
 }
 
 // TODO lots of todos to highlight this section
@@ -1772,10 +1783,10 @@ void XDict::batchInsert(long xBoxPointer, long pointerStart, long pointerEnd, lo
  */
 void XDict::flush(long pointer, bool recursive) {
 
-    cout << "FLUSH on xBox at position " << pointer << "\n";
+    //cout << "FLUSH on xBox at position " << pointer << "\n";
 
     if(map[pointer] <= minX) {
-        //cout << "It is a simple xBox and contains: ";
+        /*//cout << "It is a simple xBox and contains: ";
         long index = 0;
         while(map[pointer+2+index*elementSize] != -1) {
             //cout << map[pointer+2+index*elementSize] << " ";
@@ -1784,7 +1795,7 @@ void XDict::flush(long pointer, bool recursive) {
             //cout << map[pointer+2+index*elementSize+3] << " | ";
             index++;
         }
-        //cout << "\n";
+        //cout << "\n";*/
         return; // This xBox is just an array, and is thus by default flushed.
     }
 
@@ -3282,7 +3293,7 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
                     currentSubboxOutputBuffer = map[pointerToLowerBoolean+currentSubboxIndex*booleanSize] + 2;
                 }
 
-                cout << "Switched subbox " << currentSubboxOutputBuffer << " " << index << "\n";
+                //cout << "Switched subbox " << currentSubboxOutputBuffer << " " << index << "\n";
 
                 // Insert this pointer
                 map[currentSubboxOutputBuffer+counter*elementSize] = map[pointerToOutput+index*4];
@@ -3299,7 +3310,7 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
     // Insert -1 at the end of the last subbox's buffer
     map[currentSubboxOutputBuffer+counter*elementSize] = -1;
 
-    if(map[6] == -1) {
+    /*if(map[6] == -1) {
         cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!! -1 in input after sampleUp to lower\n";
         cout << numberOfPointersToCreate << " " << maxNumberOfLowerLevel << " " << lowerLevelSubboxesToCreate
              << " " << currentSubboxIndex << " " << pointersToEachSubbox << " " << index
@@ -3309,7 +3320,7 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
             cout << map[i] << " ";
         }
         cout << "\n";
-    }
+    }*/
 
     // Recursively call sample up on the subboxes in the lower level
     for(int i = 0; i < lowerLevelSubboxesToCreate; i++) {
@@ -3565,16 +3576,20 @@ void XDict::sampleUpAfterFlush(long pointerToXBox) {
  */
 long XDict::search(long xBoxPointer, long forwardPointer, long element) {
 
-    cout << "Search on xBox " << xBoxPointer << " with forward pointer " << forwardPointer << " for element " << element << "\n";
+    //cout << "Search on xBox " << xBoxPointer << " with forward pointer " << forwardPointer << " for element " << element << "\n";
 
     if(map[xBoxPointer] <= minX) {
         // Special case, scan the array at forward pointer
         long index = 0;
+        //cout << "Listing the elements we search: ";
         while(map[forwardPointer+index*elementSize] != -1 && map[forwardPointer+index*elementSize] < element) {
-            cout << map[forwardPointer+index*elementSize] << " ";
+            /*cout << map[forwardPointer+index*elementSize] << " " << map[forwardPointer+index*elementSize+1] << " "
+                    << map[forwardPointer+index*elementSize+2] << " " << map[forwardPointer+index*elementSize+3] << " | ";*/
             index++;
         }
-        cout << "\n";
+        /*cout << map[forwardPointer+index*elementSize] << " " << map[forwardPointer+index*elementSize+1] << " "
+             << map[forwardPointer+index*elementSize+2] << " " << map[forwardPointer+index*elementSize+3] << " | ";
+        cout << "\n";*/
 
         // Couple of cases now
         // 1) We reached the end of the array
@@ -3647,7 +3662,7 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 }
             }
         }
-            // Case 2) We found an element with the same key
+        // Case 2) We found an element with the same key
         else if(map[forwardPointer+index*elementSize] == element) {
             ////cout << "Case 2\n";
             // Is this the real deal or a pointer?
@@ -3725,6 +3740,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 }
             }
             else {
+                if(index == 0) {
+                    return 0; // Convention
+                }
                 index--;
                 if(map[forwardPointer+index*elementSize+1] > 0) {
                     // Return the pointer of the reverse pointer
@@ -3817,13 +3835,19 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
         //cout << "---\n";*/
 
         // ***Scan our input buffer starting at forwardPointer
+        //cout << "Listing the elements we search in input: ";
         long index = 0;
         while(map[forwardPointer+index*elementSize] != -1 && map[forwardPointer+index*elementSize] < element) {
             /*//cout << "Input element " << map[forwardPointer+index*elementSize] << " "
                  << map[forwardPointer+index*elementSize+1] << " " << map[forwardPointer+index*elementSize+2]
                  << " " << map[forwardPointer+index*elementSize+3] << "\n";*/
+            /*cout << map[forwardPointer+index*elementSize] << " " << map[forwardPointer+index*elementSize+1] << " "
+                 << map[forwardPointer+index*elementSize+2] << " " << map[forwardPointer+index*elementSize+3] << " | ";*/
             index++;
         }
+        /*cout << map[forwardPointer+index*elementSize] << " " << map[forwardPointer+index*elementSize+1] << " "
+             << map[forwardPointer+index*elementSize+2] << " " << map[forwardPointer+index*elementSize+3] << " | ";
+        cout << "\n";*/
 
         /*//cout << "Index Input = " << index << " " << map[forwardPointer+index*elementSize] << "\n";
         //cout << map[forwardPointer+index*elementSize] << " " << map[forwardPointer+index*elementSize+1] << " "
@@ -3866,29 +3890,32 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 // This is either a forward pointer or a subbox pointer
                 long reversePointer = map[forwardPointer+index*elementSize+2];
                 if(reversePointer == 0) {
-                    return 0; // Convention
-                }
-                long value = map[reversePointer+1];
-                long pointer = map[reversePointer+2];
-                if(value == -2) {
-                    // Forward
-                    //return map[map[forwardPointer+index*elementSize+2]+2];
-                    forwardPointer = pointer;
+                    forwardPointer = 0; // Convention
                 }
                 else {
-                    // Subbox, calculate start of input buffer
-                    long y = map[pointer];
-                    long ret = 0;
-                    if(y <= minX) {
-                        // Start of input of a simple xBox
-                        ret = pointer+2;
+                    long value = map[reversePointer+1];
+                    long pointer = map[reversePointer+2];
+                    if(value == -2) {
+                        // Forward
+                        //return map[map[forwardPointer+index*elementSize+2]+2];
+                        forwardPointer = pointer;
                     }
                     else {
-                        // Location + offset
-                        ret = pointer + infoOffset;
+                        // Subbox, calculate start of input buffer
+                        long y = map[pointer];
+                        long ret = 0;
+                        if(y <= minX) {
+                            // Start of input of a simple xBox
+                            ret = pointer+2;
+                        }
+                        else {
+                            // Location + offset
+                            ret = pointer + infoOffset;
+                        }
+                        forwardPointer = ret;
                     }
-                    forwardPointer = ret;
                 }
+
             }
         }
             // Case 2) We found an element with the same key
@@ -3944,39 +3971,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 //return map[map[forwardPointer+index*elementSize+2]+2];
                 long reversePointer = map[forwardPointer+index*elementSize+2];
                 if(reversePointer == 0) {
-                    return 0; // Convention
-                }
-                long value = map[reversePointer+1];
-                long pointer = map[reversePointer+2];
-                if(value == -2) {
-                    // Forward
-                    //return map[map[forwardPointer+index*elementSize+2]+2];
-                    forwardPointer = pointer;
+                    forwardPointer = 0; // Convention
                 }
                 else {
-                    // Subbox, calculate start of input buffer
-                    long y = map[pointer];
-                    long ret = 0;
-                    if(y <= minX) {
-                        // Start of input of a simple xBox
-                        ret = pointer+2;
-                    }
-                    else {
-                        // Location + offset
-                        ret = pointer + infoOffset;
-                    }
-                    forwardPointer = ret;
-                }
-            }
-            else {
-                index--;
-                if(map[forwardPointer+index*elementSize+1] > 0) {
-                    // Return the pointer of the reverse pointer
-                    //return map[map[forwardPointer+index*elementSize+2]+2];
-                    long reversePointer = map[forwardPointer+index*elementSize+2];
-                    if(reversePointer == 0) {
-                        return 0; // Convention
-                    }
                     long value = map[reversePointer+1];
                     long pointer = map[reversePointer+2];
                     if(value == -2) {
@@ -3999,33 +3996,72 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                         forwardPointer = ret;
                     }
                 }
+            }
+            else {
+                if(index == 0) {
+                    forwardPointer = 0;
+                }
                 else {
-                    ////cout << "Case 3b\n";
-                    /*//cout << "subbox element " << map[forwardPointer+index*elementSize] << " "
-                         << map[forwardPointer+index*elementSize+1] << " " << map[forwardPointer+index*elementSize+2]
-                         << " " << map[forwardPointer+index*elementSize+3] << "\n";*/
-                    //return map[forwardPointer+index*elementSize+2]; // Return pointer
-                    // This is either a forward pointer or a subbox pointer
-                    long value = map[forwardPointer+index*elementSize+1];
-                    long pointer = map[forwardPointer+index*elementSize+2];
-                    if(value == -2) {
-                        // Forward
+                    index--;
+                    if(map[forwardPointer+index*elementSize+1] > 0) {
+                        // Return the pointer of the reverse pointer
                         //return map[map[forwardPointer+index*elementSize+2]+2];
-                        forwardPointer = pointer;
-                    }
-                    else {
-                        // Subbox, calculate start of input buffer
-                        long y = map[pointer];
-                        long ret = 0;
-                        if(y <= minX) {
-                            // Start of input of a simple xBox
-                            ret = pointer+2;
+                        long reversePointer = map[forwardPointer+index*elementSize+2];
+                        if(reversePointer == 0) {
+                            forwardPointer = 0; // Convention
                         }
                         else {
-                            // Location + offset
-                            ret = pointer + infoOffset;
+                            long value = map[reversePointer+1];
+                            long pointer = map[reversePointer+2];
+                            if(value == -2) {
+                                // Forward
+                                //return map[map[forwardPointer+index*elementSize+2]+2];
+                                forwardPointer = pointer;
+                            }
+                            else {
+                                // Subbox, calculate start of input buffer
+                                long y = map[pointer];
+                                long ret = 0;
+                                if(y <= minX) {
+                                    // Start of input of a simple xBox
+                                    ret = pointer+2;
+                                }
+                                else {
+                                    // Location + offset
+                                    ret = pointer + infoOffset;
+                                }
+                                forwardPointer = ret;
+                            }
                         }
-                        forwardPointer = ret;
+                    }
+                    else {
+                        ////cout << "Case 3b\n";
+                        /*//cout << "subbox element " << map[forwardPointer+index*elementSize] << " "
+                             << map[forwardPointer+index*elementSize+1] << " " << map[forwardPointer+index*elementSize+2]
+                             << " " << map[forwardPointer+index*elementSize+3] << "\n";*/
+                        //return map[forwardPointer+index*elementSize+2]; // Return pointer
+                        // This is either a forward pointer or a subbox pointer
+                        long value = map[forwardPointer+index*elementSize+1];
+                        long pointer = map[forwardPointer+index*elementSize+2];
+                        if(value == -2) {
+                            // Forward
+                            //return map[map[forwardPointer+index*elementSize+2]+2];
+                            forwardPointer = pointer;
+                        }
+                        else {
+                            // Subbox, calculate start of input buffer
+                            long y = map[pointer];
+                            long ret = 0;
+                            if(y <= minX) {
+                                // Start of input of a simple xBox
+                                ret = pointer+2;
+                            }
+                            else {
+                                // Location + offset
+                                ret = pointer + infoOffset;
+                            }
+                            forwardPointer = ret;
+                        }
                     }
                 }
             }
@@ -4035,8 +4071,8 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
             //cout << "!!!!! ERROR IN SEARCH ON XBOX INPUT" << xBoxPointer << "\n";
         }
 
-        cout << "Input forward = " << forwardPointer << " points to " << map[forwardPointer] << " " << map[forwardPointer+1] << " " << map[forwardPointer+2]
-                << " " << map[forwardPointer+3] << "\n";
+        /*cout << "Input forward = " << forwardPointer << " points to " << map[forwardPointer] << " " << map[forwardPointer+1] << " " << map[forwardPointer+2]
+                << " " << map[forwardPointer+3] << "\n";*/
 
         // ***Recursively search the upper level subbox
 
@@ -4046,7 +4082,23 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
         long upperBoolean = map[xBoxPointer+6];
         long upperLevelStartsAt = upperBoolean + numberOfMaxUpperLevel*booleanSize;
         long subboxNumber = (forwardPointer-upperLevelStartsAt) / sizeOfSubboxes;
+        if(forwardPointer == 0) {
+            subboxNumber = 0;
+        }
         long subboxPointer = upperLevelStartsAt+subboxNumber*sizeOfSubboxes;
+        if(forwardPointer == 0) {
+            if(map[subboxPointer] <= minX) {
+                forwardPointer = subboxPointer+2;
+            }
+            else {
+                forwardPointer = subboxPointer + infoOffset;
+            }
+        }
+
+        if(map[upperBoolean+subboxNumber*booleanSize] == 0) {
+            cout << "Error, Search pointed to non-existing upper subbox\n";
+            return -1;
+        }
 
         /*//cout << "UpperBool=" << upperBoolean << " upperLevelStartsAt=" << upperLevelStartsAt
              << " subboxNumber=" << subboxNumber << " subboxSize=" << sizeOfSubboxes
@@ -4056,20 +4108,31 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
         if(forwardPointer == 0) {
             forwardPointer = map[xBoxPointer+7]; // Middle, convention
         }
+
+        if(forwardPointer == -1) {
+            return -1; // Error
+        }
+
         if(map[forwardPointer] == element && map[forwardPointer+1] > 0) {
             //return map[forwardPointer+1];
-            ////cout << "Upper subbox pointed directly at element\n";
+            //cout << "Upper subbox pointed directly at element\n";
             return forwardPointer;
         }
 
-        /*//cout << "Search on upper subbox returned " << forwardPointer << " containing " << map[forwardPointer]
+        /*cout << "Search on upper subbox returned " << forwardPointer << " containing " << map[forwardPointer]
              << " " << map[forwardPointer+1] << " " << map[forwardPointer+2] << " " << map[forwardPointer+3] << "\n";*/
 
         // ***Scan the middle buffer starting at the forward pointer returned from the upper level
+        //cout << "Listing the elements we scan in middle: ";
         index = 0;
         while(map[forwardPointer+index*elementSize] != -1 && map[forwardPointer+index*elementSize] < element) {
+            /*cout << map[forwardPointer+index*elementSize] << " " << map[forwardPointer+index*elementSize+1] << " "
+                 << map[forwardPointer+index*elementSize+2] << " " << map[forwardPointer+index*elementSize+3] << " | ";*/
             index++;
         }
+        /**cout << map[forwardPointer+index*elementSize] << " " << map[forwardPointer+index*elementSize+1] << " "
+             << map[forwardPointer+index*elementSize+2] << " " << map[forwardPointer+index*elementSize+3] << " | ";
+        cout << "\n";*/
 
         /*//cout << "Index Middle = " << index << " " << map[forwardPointer+index*elementSize] << "\n";
         //cout << map[forwardPointer+index*elementSize] << " " << map[forwardPointer+index*elementSize+1] << " "
@@ -4112,29 +4175,32 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 // This is either a forward pointer or a subbox pointer
                 long reversePointer = map[forwardPointer+index*elementSize+2];
                 if(reversePointer == 0) {
-                    return 0; // Convention
-                }
-                long value = map[reversePointer+1];
-                long pointer = map[reversePointer+2];
-                if(value == -2) {
-                    // Forward
-                    //return map[map[forwardPointer+index*elementSize+2]+2];
-                    forwardPointer = pointer;
+                    forwardPointer = 0; // Convention
                 }
                 else {
-                    // Subbox, calculate start of input buffer
-                    long y = map[pointer];
-                    long ret = 0;
-                    if(y <= minX) {
-                        // Start of input of a simple xBox
-                        ret = pointer+2;
+                    long value = map[reversePointer+1];
+                    long pointer = map[reversePointer+2];
+                    if(value == -2) {
+                        // Forward
+                        //return map[map[forwardPointer+index*elementSize+2]+2];
+                        forwardPointer = pointer;
                     }
                     else {
-                        // Location + offset
-                        ret = pointer + infoOffset;
+                        // Subbox, calculate start of input buffer
+                        long y = map[pointer];
+                        long ret = 0;
+                        if(y <= minX) {
+                            // Start of input of a simple xBox
+                            ret = pointer+2;
+                        }
+                        else {
+                            // Location + offset
+                            ret = pointer + infoOffset;
+                        }
+                        forwardPointer = ret;
                     }
-                    forwardPointer = ret;
                 }
+
             }
         }
             // Case 2) We found an element with the same key
@@ -4190,39 +4256,9 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                 //return map[map[forwardPointer+index*elementSize+2]+2];
                 long reversePointer = map[forwardPointer+index*elementSize+2];
                 if(reversePointer == 0) {
-                    return 0; // Convention
-                }
-                long value = map[reversePointer+1];
-                long pointer = map[reversePointer+2];
-                if(value == -2) {
-                    // Forward
-                    //return map[map[forwardPointer+index*elementSize+2]+2];
-                    forwardPointer = pointer;
+                    forwardPointer = 0; // Convention
                 }
                 else {
-                    // Subbox, calculate start of input buffer
-                    long y = map[pointer];
-                    long ret = 0;
-                    if(y <= minX) {
-                        // Start of input of a simple xBox
-                        ret = pointer+2;
-                    }
-                    else {
-                        // Location + offset
-                        ret = pointer + infoOffset;
-                    }
-                    forwardPointer = ret;
-                }
-            }
-            else {
-                index--;
-                if(map[forwardPointer+index*elementSize+1] > 0) {
-                    // Return the pointer of the reverse pointer
-                    //return map[map[forwardPointer+index*elementSize+2]+2];
-                    long reversePointer = map[forwardPointer+index*elementSize+2];
-                    if(reversePointer == 0) {
-                        return 0; // Convention
-                    }
                     long value = map[reversePointer+1];
                     long pointer = map[reversePointer+2];
                     if(value == -2) {
@@ -4245,33 +4281,72 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
                         forwardPointer = ret;
                     }
                 }
+            }
+            else {
+                if(index == 0) {
+                    forwardPointer = 0;
+                }
                 else {
-                    ////cout << "Case 3b\n";
-                    /*//cout << "subbox element " << map[forwardPointer+index*elementSize] << " "
-                         << map[forwardPointer+index*elementSize+1] << " " << map[forwardPointer+index*elementSize+2]
-                         << " " << map[forwardPointer+index*elementSize+3] << "\n";*/
-                    //return map[forwardPointer+index*elementSize+2]; // Return pointer
-                    // This is either a forward pointer or a subbox pointer
-                    long value = map[forwardPointer+index*elementSize+1];
-                    long pointer = map[forwardPointer+index*elementSize+2];
-                    if(value == -2) {
-                        // Forward
+                    index--;
+                    if(map[forwardPointer+index*elementSize+1] > 0) {
+                        // Return the pointer of the reverse pointer
                         //return map[map[forwardPointer+index*elementSize+2]+2];
-                        forwardPointer = pointer;
-                    }
-                    else {
-                        // Subbox, calculate start of input buffer
-                        long y = map[pointer];
-                        long ret = 0;
-                        if(y <= minX) {
-                            // Start of input of a simple xBox
-                            ret = pointer+2;
+                        long reversePointer = map[forwardPointer+index*elementSize+2];
+                        if(reversePointer == 0) {
+                            forwardPointer = 0; // Convention
                         }
                         else {
-                            // Location + offset
-                            ret = pointer + infoOffset;
+                            long value = map[reversePointer+1];
+                            long pointer = map[reversePointer+2];
+                            if(value == -2) {
+                                // Forward
+                                //return map[map[forwardPointer+index*elementSize+2]+2];
+                                forwardPointer = pointer;
+                            }
+                            else {
+                                // Subbox, calculate start of input buffer
+                                long y = map[pointer];
+                                long ret = 0;
+                                if(y <= minX) {
+                                    // Start of input of a simple xBox
+                                    ret = pointer+2;
+                                }
+                                else {
+                                    // Location + offset
+                                    ret = pointer + infoOffset;
+                                }
+                                forwardPointer = ret;
+                            }
                         }
-                        forwardPointer = ret;
+                    }
+                    else {
+                        ////cout << "Case 3b\n";
+                        /*//cout << "subbox element " << map[forwardPointer+index*elementSize] << " "
+                             << map[forwardPointer+index*elementSize+1] << " " << map[forwardPointer+index*elementSize+2]
+                             << " " << map[forwardPointer+index*elementSize+3] << "\n";*/
+                        //return map[forwardPointer+index*elementSize+2]; // Return pointer
+                        // This is either a forward pointer or a subbox pointer
+                        long value = map[forwardPointer+index*elementSize+1];
+                        long pointer = map[forwardPointer+index*elementSize+2];
+                        if(value == -2) {
+                            // Forward
+                            //return map[map[forwardPointer+index*elementSize+2]+2];
+                            forwardPointer = pointer;
+                        }
+                        else {
+                            // Subbox, calculate start of input buffer
+                            long y = map[pointer];
+                            long ret = 0;
+                            if(y <= minX) {
+                                // Start of input of a simple xBox
+                                ret = pointer+2;
+                            }
+                            else {
+                                // Location + offset
+                                ret = pointer + infoOffset;
+                            }
+                            forwardPointer = ret;
+                        }
                     }
                 }
             }
@@ -4288,12 +4363,33 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
         long lowerBoolean = map[xBoxPointer+8];
         long lowerLevelStartsAt = lowerBoolean + numberOfMaxLowerLevel*booleanSize;
         subboxNumber = (forwardPointer-lowerLevelStartsAt) / sizeOfSubboxes;
+        if(forwardPointer == 0) {
+            subboxNumber = 0;
+        }
         subboxPointer = lowerLevelStartsAt+subboxNumber*sizeOfSubboxes;
+        if(forwardPointer == 0) {
+            if(map[subboxPointer] <= minX) {
+                forwardPointer = subboxPointer+2;
+            }
+            else {
+                forwardPointer = subboxPointer + infoOffset;
+            }
+        }
+
+        if(map[lowerBoolean+subboxNumber*booleanSize] == 0) {
+            cout << "Error, Search pointed to non-existing lower subbox\n";
+            return -1;
+        }
 
         forwardPointer = search(subboxPointer,forwardPointer,element);
         if(forwardPointer == 0) {
             forwardPointer = map[xBoxPointer+9]; // Output, convention
         }
+
+        if(forwardPointer == -1) {
+            return -1; // Error
+        }
+
         if(map[forwardPointer] == element && map[forwardPointer+1] > 0) {
             /*//cout << "Lower subbox pointed directly to " << map[forwardPointer] << " "
                  << map[forwardPointer+1] << " " << map[forwardPointer+2] << " " << map[forwardPointer+3] << "\n";*/
@@ -4538,7 +4634,7 @@ long XDict::search(long xBoxPointer, long forwardPointer, long element) {
  */
 void XDict::splitSubbox(long pointerToSubbox, long subboxSize,long subboxIndex, long maxSubboxes, long pointerToBool) {
 
-    cout << "----- SPLIT on " << pointerToSubbox << "\n";
+    //cout << "----- SPLIT on " << pointerToSubbox << "\n";
 
     long x = map[pointerToSubbox];
 
@@ -4559,7 +4655,7 @@ void XDict::splitSubbox(long pointerToSubbox, long subboxSize,long subboxIndex, 
     long location = pointerToBool+maxSubboxes*booleanSize+firstEmptyIndex*subboxSize;
     layoutXBox(location,x);
 
-    cout << "New subbox will be located at " << location << "\n";
+    //cout << "New subbox will be located at " << location << "\n";
 
     map[pointerToBool+(subboxIndex+1)*booleanSize] = location; // Inserted subbox in parent
     long pointerToOutput;
@@ -4603,11 +4699,15 @@ void XDict::splitSubbox(long pointerToSubbox, long subboxSize,long subboxIndex, 
     }
 
     // Move forward until there are no pointers matching this key!
-    long key = map[pointerToOutput+(index-1)*elementSize];
+    /*long key = map[pointerToOutput+(index-1)*elementSize];
     while(map[pointerToOutput+index*elementSize] == key) {
+        if(map[pointerToOutput+index*elementSize+1] > 0 ) {
+            elementsToTransfer--;
+            elementsToKeep++;
+        }
         index++;
         ////cout << "++\n";
-    }
+    }*/
 
     // TODO means we cant split a subbox containing elements with only the same key!
 
@@ -4685,7 +4785,7 @@ void XDict::recursivelyBatchInsertXBoxToXBox(long xBoxnumber) {
         startOfElementsToInsert = map[xBoxPointer+9]; // Output buffer
     }
 
-    cout << "------------------------------ RecursiveBatchInsert on " << xBoxes->at(xBoxnumber) << " " << map[xBoxPointer] << "\n";
+    //cout << "------------------------------ RecursiveBatchInsert on " << xBoxes->at(xBoxnumber) << " " << map[xBoxPointer] << "\n";
 
     /*if(map[0] != 8) {
         cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!! xBox 0 has been overwritten before\n";
@@ -4709,13 +4809,13 @@ void XDict::recursivelyBatchInsertXBoxToXBox(long xBoxnumber) {
                 flush(nextXBoxPointer,false);
 
                 // Recursively batch insert
-                cout << "1=== Checking xBox before recurSiveBatchInsert " << map[startOfElementsToInsert+index*elementSize] << "\n";
+                //cout << "1=== Checking xBox before recurSiveBatchInsert " << map[startOfElementsToInsert+index*elementSize] << "\n";
                 recursivelyCheckxBox(xBoxes->at(xBoxnumber+1));
-                cout << "1=== Check Completed\n";
+                //cout << "1=== Check Completed\n";
                 recursivelyBatchInsertXBoxToXBox(xBoxnumber+1);
-                cout << "1+++ Checking xBox after recurSiveBatchInsert\n";
+                //cout << "1+++ Checking xBox after recurSiveBatchInsert\n";
                 recursivelyCheckxBox(xBoxes->at(xBoxnumber+1));
-                cout << "1+++ Check Done\n";
+                //cout << "1+++ Check Done\n";
 
                 // SampleUp on next xBox
                 //cout << "===1 " << nextXBoxPointer << "\n";
@@ -4723,21 +4823,21 @@ void XDict::recursivelyBatchInsertXBoxToXBox(long xBoxnumber) {
                 recursivelyCheckxBox(xBoxes->at(xBoxnumber+1));
                 cout << "1=== Check Completed\n";*/
                 sampleUpAfterFlush(nextXBoxPointer);
-                cout << "1+++ Checking xBox after sampleUp\n";
+                //cout << "1+++ Checking xBox after sampleUp\n";
                 recursivelyCheckxBox(xBoxes->at(xBoxnumber+1));
-                cout << "1+++ Check Done\n";
+                //cout << "1+++ Check Done\n";
 
             }
-            cout << "2=== Checking xBox before BatchInsert " << map[startOfElementsToInsert+index*elementSize] << "\n";
+            //cout << "2=== Checking xBox before BatchInsert " << map[startOfElementsToInsert+index*elementSize] << "\n";
             recursivelyCheckxBox(xBoxes->at(xBoxnumber+1));
-            cout << "2=== Check Completed\n";
-            cout << start << " " << end << " " << sizeOfBatch << " " << counter << "\n";
+            //cout << "2=== Check Completed\n";
+            //cout << start << " " << end << " " << sizeOfBatch << " " << counter << "\n";
             batchInsert(nextXBoxPointer,start,end,counter);
-            cout << "2+++ Checking xBox after BatchInsert\n";
+            //cout << "2+++ Checking xBox after BatchInsert\n";
             recursivelyCheckxBox(xBoxes->at(xBoxnumber+1));
-            cout << "2+++ Check Done\n";
+            //cout << "2+++ Check Done\n";
             counter = 0;
-            cout << "Changing " << start << " " << end << "\n";
+            //cout << "Changing " << start << " " << end << "\n";
             start = end;
         }
         index++;
@@ -4750,14 +4850,14 @@ void XDict::recursivelyBatchInsertXBoxToXBox(long xBoxnumber) {
             // Flush next xBox
             flush(nextXBoxPointer,false);
 
-            cout << "3=== Checking xBox before recurSiveBatchInsert "  << map[startOfElementsToInsert+index*elementSize] << "\n";
+            //cout << "3=== Checking xBox before recurSiveBatchInsert "  << map[startOfElementsToInsert+index*elementSize] << "\n";
             recursivelyCheckxBox(xBoxes->at(xBoxnumber+1));
-            cout << "3=== Check Completed\n";
+            //cout << "3=== Check Completed\n";
             // Recursively batch insert
             recursivelyBatchInsertXBoxToXBox(xBoxnumber+1);
-            cout << "3+++ Checking xBox after recurSiveBatchInsert\n";
+            //cout << "3+++ Checking xBox after recurSiveBatchInsert\n";
             recursivelyCheckxBox(xBoxes->at(xBoxnumber+1));
-            cout << "3+++ Check Done\n";
+            //cout << "3+++ Check Done\n";
 
             // SampleUp on next xBox
             //cout << "===2 " << nextXBoxPointer << "\n";
@@ -4765,17 +4865,17 @@ void XDict::recursivelyBatchInsertXBoxToXBox(long xBoxnumber) {
             recursivelyCheckxBox(xBoxes->at(xBoxnumber+1));
             cout << "3=== Check Completed\n";*/
             sampleUpAfterFlush(nextXBoxPointer);
-            cout << "3+++ Checking xBox after sampleUp\n";
+            //cout << "3+++ Checking xBox after sampleUp\n";
             recursivelyCheckxBox(xBoxes->at(xBoxnumber+1));
-            cout << "3+++ Check Done\n";
+            //cout << "3+++ Check Done\n";
         }
-        cout << "4=== Checking xBox before BatchInsert " << map[startOfElementsToInsert+index*elementSize] << " " << start << " " << end << " " << counter << "\n";
+        //cout << "4=== Checking xBox before BatchInsert " << map[startOfElementsToInsert+index*elementSize] << " " << start << " " << end << " " << counter << "\n";
         recursivelyCheckxBox(xBoxes->at(xBoxnumber+1));
-        cout << "4=== Check Completed\n";
+        //cout << "4=== Check Completed\n";
         batchInsert(nextXBoxPointer,start,end,counter);
-        cout << "4+++ Checking xBox after recurSiveBatchInsert\n";
+        //cout << "4+++ Checking xBox after recurSiveBatchInsert\n";
         recursivelyCheckxBox(xBoxes->at(xBoxnumber+1));
-        cout << "4+++ Check Done\n";
+        //cout << "4+++ Check Done\n";
     }
 
     /*if(map[0] != 8) {
@@ -4787,23 +4887,23 @@ void XDict::recursivelyBatchInsertXBoxToXBox(long xBoxnumber) {
     map[startOfElementsToInsert] = -1; // Empty array
     ////cout << "Wrote -1 to " << startOfElementsToInsert << "\n";
 
-    cout << "5=== Checking xBox before sampleEmpty\n";
+    //cout << "5=== Checking xBox before sampleEmpty\n";
     recursivelyCheckxBox(xBoxPointer);
-    cout << "5=== Check Completed\n";
+    //cout << "5=== Check Completed\n";
 
 
     // Sample from the next xBox into this one
     sampleToEmptyBufferFromBuffer(startOfElementsToInsert,nextXBoxPointer+infoOffset,16);
 
-    cout << "5+++ Checking xBox after sampleEmpty\n";
+    //cout << "5+++ Checking xBox after sampleEmpty\n";
     recursivelyCheckxBox(xBoxPointer);
-    cout << "5+++ Check Done\n";
+    //cout << "5+++ Check Done\n";
 
     /*if(map[0] != 8) {
         cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!! xBox 0 was overwritten\n";
     }*/
 
-    cout << "------------------------------ RecursiveBatchInsert COMPLETED on " << xBoxes->at(xBoxnumber) << "\n";
+    //cout << "------------------------------ RecursiveBatchInsert COMPLETED on " << xBoxes->at(xBoxnumber) << "\n";
 
 }
 
@@ -4851,8 +4951,18 @@ long XDict::recursivelyCalculateSize(long x) {
     }
 
     long y = (long) sqrt(x);
-    long numberOfUpperSubboxes = y/4; // *(1/4)
+    if(y < minX) {
+        y = minX;
+    }
+    //long numberOfUpperSubboxes = y/4; // *(1/4)
+    long numberOfUpperSubboxes = sqrt(x)/4; // *(1/4)
+    if(numberOfUpperSubboxes < 2) {
+        numberOfUpperSubboxes = 2;
+    }
     long numberOfLowerSubboxes = (long) pow(x,0.5 + alpha/2)/4; // *(1/4)
+    if(numberOfLowerSubboxes < 2) {
+        numberOfLowerSubboxes = 2;
+    }
     long sizeOfMiddleBuffer = elementSize* (long) pow(x,1+alpha/2) +1;
     long sizeOfOutputBuffer = elementSize* (long) pow(x,1+alpha) +1;
 
@@ -4884,6 +4994,9 @@ long XDict::layoutXBox(long pointer, long x) {
     // Layout the xbox. Subboxes will be created as needed, just make space for them.
     long numberOfRealElements = 0;
     long y = (long) sqrt(x);
+    if(y < minX) {
+        y = minX;
+    }
     long sizeOfSubboxes;
     long numberOfUpperSubboxes;
     long numberOfLowerSubboxes;
@@ -4898,8 +5011,15 @@ long XDict::layoutXBox(long pointer, long x) {
     sizeOfSubboxes = recursivelyCalculateSize(y);
 
     // Calculate number of subboxes
-    numberOfUpperSubboxes = y/4; // *(1/4)
+    //numberOfUpperSubboxes = y/4; // *(1/4)
+    numberOfUpperSubboxes = (long) (sqrt(x)/4);
+    if(numberOfUpperSubboxes < 2) {
+        numberOfUpperSubboxes = 2;
+    }
     numberOfLowerSubboxes = (long) pow(x,0.5 + alpha/2) / 4; // *(1/4)
+    if(numberOfLowerSubboxes < 2) {
+        numberOfLowerSubboxes = 2;
+    }
 
     // Calculate size of arrays
     // Input buffer is obviously of size x
@@ -4952,17 +5072,18 @@ long XDict::layoutXBox(long pointer, long x) {
     //cout << "Wrote to " << pointerToOutputBuffer+sizeOfOutputBuffer-1 << " fileSize=" << fileSize << "\n";
 
     //cout << "************************ NEW XBOX ************************\n";
-    //cout << "placement = " << pointer << "\n";
-    //cout << "x = " << x << "\n";
-    //cout << "#realEle = " << numberOfRealElements << "\n";
-    //cout << "y = " << y << "\n";
-    //cout << "sizeSubboxes = " << sizeOfSubboxes << "\n";
-    //cout << "#upperSubboxes = " << numberOfUpperSubboxes << "\n";
-    //cout << "#lowerSubboxes = " << numberOfLowerSubboxes << "\n";
-    //cout << "size input = " << x*elementSize << "\n";
-    //cout << "size middle = " << sizeOfMiddleBuffer << "\n";
-    //cout << "size output = " << sizeOfOutputBuffer << "\n";
-    //cout << "**********************************************************\n";
+    cout << "------------------------ NEW XBOX ------------------------\n";
+    cout << "placement = " << pointer << "\n";
+    cout << "x = " << x << "\n";
+    cout << "#realEle = " << numberOfRealElements << "\n";
+    cout << "y = " << y << "\n";
+    cout << "sizeSubboxes = " << sizeOfSubboxes << "\n";
+    cout << "#upperSubboxes = " << numberOfUpperSubboxes << "\n";
+    cout << "#lowerSubboxes = " << numberOfLowerSubboxes << "\n";
+    cout << "size input = " << x*elementSize << "\n";
+    cout << "size middle = " << sizeOfMiddleBuffer << "\n";
+    cout << "size output = " << sizeOfOutputBuffer << "\n";
+    cout << "----------------------------------------------------------\n";
     /*//cout << pow(x,(1/2 + alpha/2)) << " " << pow(x,1/2 + alpha/2) / 4 << "\n";
     //cout << alpha/2 << " " << pow(x,(1/2)) << " " << pow(x,(1/2 + 1/2)) << " " << pow(x,1) << "\n";
     double calc = 0.5 + alpha/2;

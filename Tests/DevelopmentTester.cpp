@@ -2388,7 +2388,7 @@ void DevelopmentTester::xDictBasicTest() {
     vector<long> advanced;
 
     xDict = new XDict(alpha);
-    long elementsToInsert = 64;
+    long elementsToInsert = 20000;
 
     /*elementsToInsert = 500000; // 500000 works with non random input.
     elementsToInsert = 20000;
@@ -2430,19 +2430,21 @@ void DevelopmentTester::xDictBasicTest() {
             index++;
         }
         cout << "\n";
+
+        cout << "Middle of xBox 1: ";
+        pointerToMiddle = xDict->map[pointerToXBox+7];
+        index = 0;
+        while(xDict->map[pointerToMiddle+index*4] != -1) {
+            cout << xDict->map[pointerToMiddle+index*4] << " ";
+            cout << xDict->map[pointerToMiddle+index*4+1] << " ";
+            cout << xDict->map[pointerToMiddle+index*4+2] << " ";
+            cout << xDict->map[pointerToMiddle+index*4+3] << " | ";
+            index++;
+        }
+        cout << "\n";
     }
 
-    cout << "Middle of xBox 1: ";
-    pointerToMiddle = xDict->map[pointerToXBox+7];
-    long index = 0;
-    while(xDict->map[pointerToMiddle+index*4] != -1) {
-        cout << xDict->map[pointerToMiddle+index*4] << " ";
-        cout << xDict->map[pointerToMiddle+index*4+1] << " ";
-        cout << xDict->map[pointerToMiddle+index*4+2] << " ";
-        cout << xDict->map[pointerToMiddle+index*4+3] << " | ";
-        index++;
-    }
-    cout << "\n";
+
 
     cout << "============================================= ADVANCED SEARCH TEST\n";
 
