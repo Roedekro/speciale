@@ -61,6 +61,9 @@ public:
     void extendMapTo(long pointer);
     long recursivelyCheckxBox(long pointer);
 
+    void printXDict();
+    void recursivelyPrintXBox(long pointer);
+
 };
 
 

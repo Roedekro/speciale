@@ -13,12 +13,12 @@ public:
     DevelopmentTester();
     ~DevelopmentTester();
     void test();
-
-private:
     int streamtestread(long n, int increment);
     int streamtestread2(long n, int increment);
     int streamtestwrite(long n, int increment);
     int streamtestwrite2(long n, int increment);
+
+private:
     void BtreeInsertTest();
     void simpleInsertAndQueryTest();
     void insertAndQueryTest();

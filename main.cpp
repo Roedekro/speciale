@@ -110,15 +110,27 @@ int main(int argc, char* argv[]) {
     int test = atoi(argv[1]);
     if(test == 1) {
         //streamtestread(atol(argv[2]),atoi(argv[3]));
+        DevelopmentTester* dev = new DevelopmentTester();
+        dev->streamtestread(atol(argv[2]),atoi(argv[3]));
+        delete(dev);
     }
     else if(test == 2) {
         //streamtestwrite(atol(argv[2]),atoi(argv[3]));
+        DevelopmentTester* dev = new DevelopmentTester();
+        dev->streamtestwrite(atol(argv[2]),atoi(argv[3]));
+        delete(dev);
     }
     else if(test == 3) {
         //streamtestread2(atol(argv[2]),atoi(argv[3]));
+        DevelopmentTester* dev = new DevelopmentTester();
+        dev->streamtestread2(atol(argv[2]),atoi(argv[3]));
+        delete(dev);
     }
     else if(test == 4) {
         //streamtestwrite2(atol(argv[2]),atoi(argv[3]));
+        DevelopmentTester* dev = new DevelopmentTester();
+        dev->streamtestwrite2(atol(argv[2]),atoi(argv[3]));
+        delete(dev);
     }
     else if(test == 5) {
         // Truncated delta test - Insert and Query

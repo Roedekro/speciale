@@ -2361,7 +2361,7 @@ void DevelopmentTester::xDictBasicTest() {
     cout << "Search returned " << ret << " " << xDict->map[ret+1] << "\n";*/
 
     bool works = true;
-    for(int i = 0; i < insertions.size(); i++) {
+    /*for(int i = 0; i < insertions.size(); i++) {
         long search = insertions.at(i);
         long ret = xDict->search(pointerToXBox,forwardPointer,search);
         if(xDict->map[ret+1] != search) {
@@ -2369,7 +2369,7 @@ void DevelopmentTester::xDictBasicTest() {
                  << "!!! " << search << " " << xDict->map[ret+1] << "\n";
             works = false;
         }
-    }
+    }*/
 
     if(works) {
         cout << "Search works correct\n";
@@ -2387,7 +2387,7 @@ void DevelopmentTester::xDictBasicTest() {
 
     vector<long> advanced;
 
-    xDict = new XDict(alpha);
+    xDict = new XDict(0.1);
     long elementsToInsert = 20000;
 
     /*elementsToInsert = 500000; // 500000 works with non random input.
@@ -2448,14 +2448,16 @@ void DevelopmentTester::xDictBasicTest() {
 
     cout << "============================================= ADVANCED SEARCH TEST\n";
 
+    long errors = 0;
     bool advancedTest = true;
     for(int i = 0; i < advanced.size(); i++) {
         long ele = advanced.at(i);
-        //cout << "----- " << ele << "\n";
+        cout << "----- " << ele << "\n";
         long ret = xDict->query(ele);
         if(ret != ele) {
-            cout << i << " Should have returned " << ele << " " << ret << "\n";
+            //cout << i << " xxx Should have returned " << ele << " " << ret << "\n";
             advancedTest = false;
+            errors++;
         }
     }
 
@@ -2464,9 +2466,12 @@ void DevelopmentTester::xDictBasicTest() {
     }
     else {
         cout << "Error in advanced test\n";
+        cout << errors << "\n";
     }
 
     cout << "============================================= CLEANING UP\n";
+
+    //xDict->printXDict();
 
     delete(xDict);
 
