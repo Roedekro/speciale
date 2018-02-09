@@ -16,7 +16,8 @@ public:
     int fileDescriptor;
     long fileSize;
     std::vector<long>* xBoxes; // Contains longs that acts as pointers to the xBoxes of the xDict.
-    float alpha;
+    //float alpha;
+    double alpha;
     long latestSize; // Holds the size of the latest xBox. Used to calculate size of new xBox.
     long latestX; // Holds the x of the latest xBox
     long minX; // The minimum x of any xBox, at which point its just a single array + one counter.
@@ -26,7 +27,8 @@ public:
     int booleanSize;
     long insertionCap;
 
-    XDict(float alpha);
+    //XDict(float alpha);
+    XDict(double alpha);
     ~XDict();
 
     /*

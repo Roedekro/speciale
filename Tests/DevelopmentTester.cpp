@@ -41,6 +41,8 @@
 #include <sys/stat.h>
 #include <fstream>
 #include <sys/resource.h>
+#include <sys/mman.h>
+#include <cstring>
 
 using namespace std;
 
@@ -173,6 +175,8 @@ int DevelopmentTester::streamtestread2(long n, int increment) {
         }
         os->close();
 
+        //cout << "System\n" << std::flush;
+
         InputStream* is = new SystemInputStream();
         is->open("testRead");
         high_resolution_clock::time_point t1 = high_resolution_clock::now();
@@ -183,6 +187,7 @@ int DevelopmentTester::streamtestread2(long n, int increment) {
         is->close();
         time[0] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
+        //cout << "Buffered\n" << std::flush;
         is = new BufferedInputStream(4096);
         is->open("testRead");
         t1 = high_resolution_clock::now();
@@ -193,7 +198,7 @@ int DevelopmentTester::streamtestread2(long n, int increment) {
         is->close();
         time[1] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
-        is = new MapInputStream(4096, counter);
+        /*is = new MapInputStream(4096, counter);
         is->open("testRead");
         t1 = high_resolution_clock::now();
         for (int i = 0; i < counter; i++) {
@@ -201,11 +206,61 @@ int DevelopmentTester::streamtestread2(long n, int increment) {
         }
         t2 = high_resolution_clock::now();
         is->close();
+        time[2] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();*/
+
+        //cout << "Mmap\n" << std::flush;
+
+        t1 = high_resolution_clock::now();
+
+        // Error in original mmap implementation, use this one.
+
+        string str = "testRead";
+        struct stat stat_buf;
+        int rc = stat(str.c_str(), &stat_buf);
+
+        int fileDescriptor = open(str.c_str(), O_RDWR, 0777);
+        if (fileDescriptor == -1) {
+            perror("Error creating original file");
+            exit(EXIT_FAILURE);
+        }
+
+        int* map = (int*) mmap(0, stat_buf.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fileDescriptor, 0);
+        if (map == MAP_FAILED) {
+            close(fileDescriptor);
+            perror("Error mmap original file");
+            exit(EXIT_FAILURE);
+        }
+
+        //cout << counter << "\n";
+        //cout << stat_buf.st_size << "\n" << std::flush;
+
+        int read = 0;
+        for (int i = 0; i < counter; i++) {
+            //cout << i << "\n" << std::flush;
+            read += map[i]; // So it doesnt get cut
+        }
+
+        //cout << "Finished reading\n" << std::flush;
+
+        if(munmap(map, stat_buf.st_size) == -1) {
+            printf ("Error errno is: %s\n",strerror(errno));
+            perror("Error unmapping the file");
+            exit(EXIT_FAILURE);
+        }
+
+        //cout << "Closing file\n" << std::flush;
+
+        close(fileDescriptor);
+
+        t2 = high_resolution_clock::now();
         time[2] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
+        //cout << "This round done\n" << std::flush;
 
         cout << counter << " " << time[0] << " " << time[1]
              << " " << time[2] << "\n";
+
+        cout << read << "\n"; // So it doesnt  get cut.
 
         counter = counter + increment;
         remove("testRead");
@@ -266,7 +321,6 @@ int DevelopmentTester::streamtestwrite(long n, int increment) {
         remove("testWrite");
         time[3] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
-
         cout << counter << " " << time[0] << " " << time[1]
              << " " << time[2] << " " << time[3] << "\n";
 
@@ -306,7 +360,7 @@ int DevelopmentTester::streamtestwrite2(long n, int increment) {
         remove("testWrite");
         time[1] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
-        os = new MapOutputStream(4096,counter);
+        /*os = new MapOutputStream(4096,counter);
         os->create("testWrite");
         t1 = high_resolution_clock::now();
         for(int i = 0; i < counter; i++) {
@@ -315,8 +369,57 @@ int DevelopmentTester::streamtestwrite2(long n, int increment) {
         t2 = high_resolution_clock::now();
         os->close();
         remove("testWrite");
+        time[2] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();*/
+
+        string fileName = "testWrite";
+        int fileDescriptor = open(fileName.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0777);
+        if (fileDescriptor == -1) {
+            perror("Error creating original file");
+            exit(EXIT_FAILURE);
+        }
+
+        // Extend file to appropriate size
+        int result = (int) lseek(fileDescriptor, (1+counter)*sizeof(int), SEEK_SET);
+        if (result == -1) {
+            close(fileDescriptor);
+            perror("Error original lseek");
+            exit(EXIT_FAILURE);
+        }
+
+        // Write to end of file
+        // Empty string = single byte containing '0'.
+        result = (int) ::write(fileDescriptor, "", 1);
+        if (result != 1) {
+            close(fileDescriptor);
+            perror("Error original write to EOF");
+            exit(EXIT_FAILURE);
+        }
+
+        t1 = high_resolution_clock::now();
+
+        // Map file
+        int* map = (int*) mmap(0, (1+counter)*sizeof(long), PROT_READ | PROT_WRITE, MAP_SHARED, fileDescriptor, 0);
+        if (map == MAP_FAILED) {
+            close(fileDescriptor);
+            perror("Error mmap original file");
+            exit(EXIT_FAILURE);
+        }
+
+        for(int i = 0; i < counter; i++) {
+            map[i] = write;
+        }
+        t2 = high_resolution_clock::now();
+        remove("testWrite");
         time[2] = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
 
+        // Close down mapping
+        if(munmap(map, (1+counter)*sizeof(int)) == -1) {
+            printf ("Error errno is: %s\n",strerror(errno));
+            perror("Error unmapping the file");
+            exit(EXIT_FAILURE);
+        }
+        // Close file
+        ::close(fileDescriptor);
 
         cout << counter << " " << time[0] << " " << time[1]
              << " " << time[2] << "\n";
@@ -2387,8 +2490,8 @@ void DevelopmentTester::xDictBasicTest() {
 
     vector<long> advanced;
 
-    xDict = new XDict(0.1);
-    long elementsToInsert = 20000;
+    xDict = new XDict(0.2001);
+    long elementsToInsert = 5000000;
 
     /*elementsToInsert = 500000; // 500000 works with non random input.
     elementsToInsert = 20000;
@@ -2397,8 +2500,10 @@ void DevelopmentTester::xDictBasicTest() {
         advanced.push_back(i);
     }*/
 
+    srand (time(NULL));
+
     for(int i = 1; i <= elementsToInsert; i++) {
-        long toInsert = rand() % 1000 + 1;
+        long toInsert = rand() % 2*elementsToInsert + 1;
         xDict->insert(KeyValue(toInsert,toInsert));
         advanced.push_back(toInsert);
     }
@@ -2452,7 +2557,7 @@ void DevelopmentTester::xDictBasicTest() {
     bool advancedTest = true;
     for(int i = 0; i < advanced.size(); i++) {
         long ele = advanced.at(i);
-        cout << "----- " << ele << "\n";
+        //cout << "----- " << ele << "\n";
         long ret = xDict->query(ele);
         if(ret != ele) {
             //cout << i << " xxx Should have returned " << ele << " " << ret << "\n";
