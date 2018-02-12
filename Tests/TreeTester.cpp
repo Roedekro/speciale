@@ -1388,18 +1388,54 @@ void TreeTester::xDictAlphaTest(int N, int runs) {
     long diskWrites4 = 0;
     long temp = 0;
 
-    runs = 1;
+    //runs = 1;
+
+    srand (time(NULL));
 
     for(int i = 1; i<=10; i++) {
 
+        /* Inaccurate
         double alpha = 0.1*i;
-        if(i == 2) {
+        /*if(i == 2) {
             continue;
            alpha = 0.22;
+        }*/
+
+        double alpha;
+        if(i == 1) {
+            alpha = 0.1;
         }
+        else if(i == 2) {
+            alpha = 0.2;
+        }
+        else if(i == 3) {
+            alpha = 0.3;
+        }
+        else if(i == 4) {
+            alpha = 0.4;
+        }
+        else if(i == 5) {
+            alpha = 0.5;
+        }
+        else if(i == 6) {
+            alpha = 0.6;
+        }
+        else if(i == 7) {
+            alpha = 0.7;
+        }
+        else if(i == 8) {
+            alpha = 0.8;
+        }
+        else if(i == 9) {
+            alpha = 0.9;
+        }
+        else if(i == 10) {
+            alpha = 1;
+        }
+
         for(int r = 0; r < runs; r++) {
 
-            srand (time(NULL));
+            //srand (time(NULL));
 
             using namespace std::chrono;
 
@@ -1461,7 +1497,7 @@ void TreeTester::xDictAlphaTest(int N, int runs) {
             }
             file1.close();
 
-            //cout << "Inserting\n";
+            cout << "Inserting\n";
             // Now insert 1mil elements that we time
             high_resolution_clock::time_point t1 = high_resolution_clock::now();
             for (int j = 0; j < N; j++) {
@@ -1503,7 +1539,7 @@ void TreeTester::xDictAlphaTest(int N, int runs) {
             insertionIO[i] = insertionIO[i] + temp;
 
 
-            //cout << "Query\n";
+            cout << "Query\n";
             t1 = high_resolution_clock::now();
             for(int j = 1; j <= numberOfQueries; j++) {
                 number = rand() % modulus +1;
@@ -1551,8 +1587,6 @@ void TreeTester::xDictAlphaTest(int N, int runs) {
         cout << "Run " << alpha << " " << insertionTime[i] << " " << insertionIO[i] << " " << queryTime[i] << " " << queryIO[i] << "\n";
 
     }
-
-
 
     // Divide by runs
     for(int i = 0; i < 10; i++) {

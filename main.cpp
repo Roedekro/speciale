@@ -16,7 +16,8 @@ void test() {
     treeTester->modifiedBTreeTest(32,256,10000,2);*/
 
     TreeTester* treeTester = new TreeTester();
-    treeTester->xDictAlphaTest(1000000,2);
+    treeTester->xDictAlphaTest(1000000,1);
+    delete(treeTester);
 
     /*DevelopmentTester* dev = new DevelopmentTester();
     dev->test();
