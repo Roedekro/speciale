@@ -15,9 +15,12 @@ void test() {
     /*TreeTester* treeTester = new TreeTester();
     treeTester->modifiedBTreeTest(32,256,10000,2);*/
 
-    TreeTester* treeTester = new TreeTester();
-    treeTester->xDictAlphaTest(1000000,1);
-    delete(treeTester);
+    DevelopmentTester* devTest = new DevelopmentTester();
+    devTest->sparseFileTest();
+
+    /*TreeTester* treeTester = new TreeTester();
+    treeTester->xDictAlphaTest(10000000,1);
+    delete(treeTester);*/
 
     /*DevelopmentTester* dev = new DevelopmentTester();
     dev->test();

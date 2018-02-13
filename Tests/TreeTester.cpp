@@ -1497,7 +1497,7 @@ void TreeTester::xDictAlphaTest(int N, int runs) {
             }
             file1.close();
 
-            cout << "Inserting\n";
+            //cout << "Inserting\n";
             // Now insert 1mil elements that we time
             high_resolution_clock::time_point t1 = high_resolution_clock::now();
             for (int j = 0; j < N; j++) {
@@ -1539,7 +1539,7 @@ void TreeTester::xDictAlphaTest(int N, int runs) {
             insertionIO[i] = insertionIO[i] + temp;
 
 
-            cout << "Query\n";
+            //cout << "Query\n";
             t1 = high_resolution_clock::now();
             for(int j = 1; j <= numberOfQueries; j++) {
                 number = rand() % modulus +1;
@@ -1584,7 +1584,7 @@ void TreeTester::xDictAlphaTest(int N, int runs) {
 
         }
 
-        cout << "Run " << alpha << " " << insertionTime[i] << " " << insertionIO[i] << " " << queryTime[i] << " " << queryIO[i] << "\n";
+        cout << "Run " << alpha << " " << insertionTime[i] << " " << insertionIO[i] << " " << queryTime[i] << " " << queryIO[i] << "\n" << std::flush;
 
     }
 

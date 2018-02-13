@@ -2,6 +2,9 @@
 // Created by martin on 11/8/17.
 //
 
+#define _FILE_OFFSET_BITS 64
+#define _LARGEFILE64_SOURCE
+
 #include "DevelopmentTester.h"
 #include <iostream>
 #include "../Streams/OutputStream.h"
@@ -43,6 +46,11 @@
 #include <sys/resource.h>
 #include <sys/mman.h>
 #include <cstring>
+
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
 
 using namespace std;
 
@@ -2637,4 +2645,46 @@ void DevelopmentTester::xDictBasicTest() {
     delete(xDict);*/
 
     cout << "Done!\n";
+}
+
+void DevelopmentTester::sparseFileTest() {
+
+    string fileName = "sparseFileTest";
+    off64_t fileSize = 180000000000000;
+    fileSize = 17000000000000; // Works with 1.800.000.000.000 and 17.000.000.000.000 but not 18TB
+
+    cout << fileSize << "\n";
+
+    // Delete file if it already exists
+    if(FILE *file = fopen64(fileName.c_str(), "r")) {
+        fclose(file);
+        remove(fileName.c_str());
+    }
+
+    // Open original file
+    int fileDescriptor = open64(fileName.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0777);
+    if (fileDescriptor == -1) {
+        perror("Error creating original file");
+        exit(EXIT_FAILURE);
+    }
+
+    // Extend file to appropriate size
+    off64_t result = lseek64(fileDescriptor, fileSize, SEEK_SET);
+    if (result == -1) {
+        close(fileDescriptor);
+        perror("Error original lseek");
+        exit(EXIT_FAILURE);
+    }
+
+    // Write to end of file
+    // Empty string = single byte containing '0'.
+    result = (int) write(fileDescriptor, "", 1);
+    if (result != 1) {
+        close(fileDescriptor);
+        perror("Error original write to EOF");
+        exit(EXIT_FAILURE);
+    }
+
+
+
 }
