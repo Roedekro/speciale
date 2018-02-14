@@ -6,6 +6,9 @@
 // of 4 longs.
 //
 
+#define _FILE_OFFSET_BITS 64
+#define _LARGEFILE64_SOURCE
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -53,14 +56,14 @@ XDict::XDict(double a) {
      */
 
     // Open original file
-    fileDescriptor = open(fileName.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0777);
+    fileDescriptor = open64(fileName.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0777);
     if (fileDescriptor == -1) {
         perror("Error creating original file");
         exit(EXIT_FAILURE);
     }
 
     // Extend file to appropriate size
-    __off_t result = (int) lseek(fileDescriptor, fileSize*sizeof(long), SEEK_SET);
+    __off_t result =  lseek64(fileDescriptor, fileSize*sizeof(long), SEEK_SET);
     if (result == -1) {
         close(fileDescriptor);
         perror("Error original lseek");
@@ -69,17 +72,15 @@ XDict::XDict(double a) {
 
     // Write to end of file
     // Empty string = single byte containing '0'.
-    result = (int) write(fileDescriptor, "", 1);
+    result = write(fileDescriptor, "", 1);
     if (result != 1) {
         close(fileDescriptor);
         perror("Error original write to EOF");
         exit(EXIT_FAILURE);
     }
 
-
-
     // Map file
-    map = (long*) mmap(0, fileSize*sizeof(long), PROT_READ | PROT_WRITE, MAP_SHARED, fileDescriptor, 0);
+    map = (long*) mmap64(0, fileSize*sizeof(long), PROT_READ | PROT_WRITE, MAP_SHARED, fileDescriptor, 0);
     if (map == MAP_FAILED) {
         close(fileDescriptor);
         perror("Error mmap original file");
@@ -5754,7 +5755,7 @@ void XDict::extendMapTo(long pointer) {
         exit(EXIT_FAILURE);
     }*/
 
-    __off_t result = lseek(fileDescriptor, (pointer+1)*sizeof(long), SEEK_SET);
+    __off_t result = lseek64(fileDescriptor, (pointer+1)*sizeof(long), SEEK_SET);
     if (result == -1) {
         cout << "Failed extending to size " << (pointer+1) << " " << (pointer+1)*sizeof(long) << "\n";
         close(fileDescriptor);

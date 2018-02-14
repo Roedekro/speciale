@@ -1364,7 +1364,7 @@ void TreeTester::bufferedBTreeTestSpecialQuery(int B, int M, int N, int runs, fl
 
 void TreeTester::xDictAlphaTest(int N, int runs) {
 
-    int numberOfQueries = 100000; // 100k
+    int numberOfQueries = 10000; // 10k
 
     long insertionTime[10];
     long insertionIO[10];

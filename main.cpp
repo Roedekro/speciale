@@ -15,12 +15,12 @@ void test() {
     /*TreeTester* treeTester = new TreeTester();
     treeTester->modifiedBTreeTest(32,256,10000,2);*/
 
-    DevelopmentTester* devTest = new DevelopmentTester();
-    devTest->sparseFileTest();
+    /*DevelopmentTester* devTest = new DevelopmentTester();
+    devTest->sparseFileTest();*/
 
-    /*TreeTester* treeTester = new TreeTester();
+    TreeTester* treeTester = new TreeTester();
     treeTester->xDictAlphaTest(10000000,1);
-    delete(treeTester);*/
+    delete(treeTester);
 
     /*DevelopmentTester* dev = new DevelopmentTester();
     dev->test();
@@ -161,15 +161,21 @@ int main(int argc, char* argv[]) {
     else if(test == 7) {
         // Buffered B Tree delta test
         TreeTester* test = new TreeTester();
-        // B = 128KB, M = 8MB, N = 100mil, runs = 2
+        // B = 128KB, M = 8MB
         test->bufferedBTreeDeltaTest(131072,8388608,atoi(argv[2]),10);
         delete(test);
     }
     else if(test == 8) {
         // Buffered B Tree insert, query and special query (with "flush")
         TreeTester* test = new TreeTester();
-        // B = 128KB, M = 8MB, N = 100mil, runs = 2
+        // B = 128KB, M = 8MB
         test->bufferedBTreeTestSpecialQuery(131072,8388608,atoi(argv[2]),10,atoi(argv[3]));
+        delete(test);
+    }
+    else if(test == 9) {
+        // Alpha test for xDict, notice no M and B because its cache oblivious.
+        TreeTester* test = new TreeTester();
+        test->xDictAlphaTest(atoi(argv[2]),10);
         delete(test);
     }
 
