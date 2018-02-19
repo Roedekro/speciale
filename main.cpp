@@ -19,7 +19,7 @@ void test() {
     devTest->sparseFileTest();*/
 
     TreeTester* treeTester = new TreeTester();
-    treeTester->xDictAlphaTest(10000000,1);
+    treeTester->xDictAlphaTest(1000000,2);
     delete(treeTester);
 
     /*DevelopmentTester* dev = new DevelopmentTester();
@@ -176,6 +176,11 @@ int main(int argc, char* argv[]) {
         // Alpha test for xDict, notice no M and B because its cache oblivious.
         TreeTester* test = new TreeTester();
         test->xDictAlphaTest(atoi(argv[2]),10);
+        delete(test);
+    }
+    else if(test == 10) {
+        DevelopmentTester* test = new DevelopmentTester();
+        test->testNumberFilesImpactIOWrite(atoi(argv[2]),atoi(argv[3]));
         delete(test);
     }
 

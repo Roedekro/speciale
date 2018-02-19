@@ -18,6 +18,7 @@ public:
     int streamtestwrite(long n, int increment);
     int streamtestwrite2(long n, int increment);
     void sparseFileTest();
+    void testNumberFilesImpactIOWrite(int n, int increment);
 
 private:
     void BtreeInsertTest();

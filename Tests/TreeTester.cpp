@@ -1392,7 +1392,7 @@ void TreeTester::xDictAlphaTest(int N, int runs) {
 
     srand (time(NULL));
 
-    for(int i = 1; i<=10; i++) {
+    for(int i  = 0 ; i< 10; i++) {
 
         /* Inaccurate
         double alpha = 0.1*i;
@@ -1402,34 +1402,34 @@ void TreeTester::xDictAlphaTest(int N, int runs) {
         }*/
 
         double alpha;
-        if(i == 1) {
+        if(i == 0) {
             alpha = 0.1;
         }
-        else if(i == 2) {
+        else if(i == 1) {
             alpha = 0.2;
         }
-        else if(i == 3) {
+        else if(i == 2) {
             alpha = 0.3;
         }
-        else if(i == 4) {
+        else if(i == 3) {
             alpha = 0.4;
         }
-        else if(i == 5) {
+        else if(i == 4) {
             alpha = 0.5;
         }
-        else if(i == 6) {
+        else if(i == 5) {
             alpha = 0.6;
         }
-        else if(i == 7) {
+        else if(i == 6) {
             alpha = 0.7;
         }
-        else if(i == 8) {
+        else if(i == 7) {
             alpha = 0.8;
         }
-        else if(i == 9) {
+        else if(i == 8) {
             alpha = 0.9;
         }
-        else if(i == 10) {
+        else if(i == 9) {
             alpha = 1;
         }
 

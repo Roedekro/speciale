@@ -5757,7 +5757,7 @@ void XDict::extendMapTo(long pointer) {
 
     __off_t result = lseek64(fileDescriptor, (pointer+1)*sizeof(long), SEEK_SET);
     if (result == -1) {
-        cout << "Failed extending to size " << (pointer+1) << " " << (pointer+1)*sizeof(long) << "\n";
+        cout << "Failed extending to size " << (pointer+1) << " " << (pointer+1)*sizeof(long) << "\n" << std::flush;
         close(fileDescriptor);
         perror("Error mremap lseek");
         exit(EXIT_FAILURE);
@@ -5781,7 +5781,7 @@ void XDict::extendMapTo(long pointer) {
     map = (long*) mremap(map, fileSize*sizeof(long), (pointer+1)*sizeof(long), MREMAP_MAYMOVE);
     if (map == MAP_FAILED) {
         close(fileDescriptor);
-        perror("Error mmap original file");
+        perror("Error mremap file");
         exit(EXIT_FAILURE);
     }
 

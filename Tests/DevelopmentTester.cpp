@@ -2688,3 +2688,152 @@ void DevelopmentTester::sparseFileTest() {
 
 
 }
+
+void DevelopmentTester::testNumberFilesImpactIOWrite(int n, int increment) {
+
+    int ratio = n/increment;
+    long time[ratio];
+    long io[ratio];
+
+    long diskReads1 = 0;
+    long diskWrites1 = 0;
+    long diskReads2 = 0;
+    long diskWrites2 = 0;
+
+    int runs = 10;
+
+    for(int i = 0; i < ratio; i++) {
+        time[i] = 0;
+        io[i] = 0;
+    }
+
+    for(int i = 0; i < ratio; i++) {
+
+        long numberOfFiles = (i+1)*increment;
+
+        for(int r = 0; r < runs; r++) {
+
+            using namespace std::chrono;
+
+            // GET DISK STATS
+            sleep(10);
+            string diskstats = "/proc/diskstats";
+
+            diskReads1 = 0;
+            diskWrites1 = 0;
+            std::string str;
+            std::ifstream file1(diskstats);
+            while (std::getline(file1, str))
+            {
+                /*1 - major number
+                2 - minor mumber
+                3 - device name
+                4 - reads completed successfully
+                5 - reads merged
+                6 - sectors read
+                7 - time spent reading (ms)
+                8 - writes completed
+                9 - writes merged
+                10 - sectors written
+                11 - time spent writing (ms)
+                12 - I/Os currently in progress
+                13 - time spent doing I/Os (ms)
+                14 - weighted time spent doing I/Os (ms)*/
+
+                istringstream iss(str);
+
+                string s;
+                iss >> s;
+                if(s.compare("8") == 0) { // If major number = 8.
+                    iss >> s;
+                    iss >> s; // Device name
+                    iss >> s;
+                    iss >> s;
+                    iss >> s; // Sectors read
+                    //cout << s << " ";
+                    diskReads1 = diskReads1 + stol(s);
+                    iss >> s;
+                    iss >> s;
+                    iss >> s;
+                    iss >> s; // Sectors written
+                    diskWrites1 = diskWrites1 + stol(s);
+                }
+            }
+            file1.close();
+
+            // Now insert 1mil elements that we time
+            high_resolution_clock::time_point t1 = high_resolution_clock::now();
+
+            for(int j = 0; j < numberOfFiles; j++) {
+                BufferedOutputStream* out = new BufferedOutputStream(131072);
+                string filename = "temp";
+                filename += to_string(j);
+                out->create(filename.c_str());
+                for(int k = 1; k <= 100; k++) {
+                    out->write(&k);
+                }
+                out->close();
+                delete(out);
+            }
+
+            high_resolution_clock::time_point t2 = high_resolution_clock::now();
+            time[i] = time[i] + chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
+
+            // Write out diskstats again
+            sleep(10);
+            diskReads2 = 0;
+            diskWrites2 = 0;
+            std::ifstream file2(diskstats);
+            while (std::getline(file2, str))
+            {
+
+                istringstream iss(str);
+                string s;
+                iss >> s;
+                if(s.compare("8") == 0) { // If major number = 8.
+                    iss >> s;
+                    iss >> s; // Device name
+                    iss >> s;
+                    iss >> s;
+                    iss >> s; // Sectors read
+                    //cout << s << " ";
+                    diskReads2 = diskReads2 + stol(s);
+                    iss >> s;
+                    iss >> s;
+                    iss >> s;
+                    iss >> s; // Sectors written
+                    diskWrites2 = diskWrites2 + stol(s);
+                }
+            }
+            file2.close();
+
+            // Clean up
+            for(int j = 0; j < numberOfFiles; j++) {
+                string filename = "temp";
+                filename += to_string(j);
+                if (FILE *file = fopen(filename.c_str(), "r")) {
+                    fclose(file);
+                    remove(filename.c_str());
+                }
+            }
+
+            long temp = (diskReads2-diskReads1) + (diskWrites2 - diskWrites1);
+            io[i] = io[i] + temp;
+
+        }
+    }
+
+    for(int i = 0; i < ratio; i++) {
+        time[i] = time[i] / runs;
+        io[i] = io[i] / runs;
+    }
+
+    cout << "Results: \n";
+
+    for(int i = 0; i < ratio; i++) {
+        cout << (i+1)*increment << " " << time[i] << " " << io[i] << "\n";
+    }
+
+
+
+}
