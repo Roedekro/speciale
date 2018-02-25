@@ -146,8 +146,8 @@ void ModifiedBtree::recursiveExternalize(ModifiedInternalNode *node) {
         // Externalize children
         node->values = new int[size*2];
         int cHeight, cSize;
-        int* cKeys = new int[size*2-1];
-        int* cValues = new int[size*2];
+        /*int* cKeys = new int[size*2-1];
+        int* cValues = new int[size*2];*/
         ModifiedInternalNode* child;
         for(int i = 0; i < node->nodeSize+1; i++) {
             child = node->children[i];
@@ -427,6 +427,11 @@ void ModifiedBtree::insertIntoNonFull(KeyValue* element, int id, int height, int
         // Write node to disk, if necessary
         if(write) {
             writeNode(id,height,nodeSize,keys,values);
+        }
+        else {
+            // Memory leak found after performing tests!
+            delete[] keys;
+            delete[] values;
         }
 
         // Insert into child

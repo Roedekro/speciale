@@ -90,6 +90,7 @@ BufferedBTree::BufferedBTree(int B, int M, int N, float delta) {
     minToPush = B * log2(N) / delta;
     minToPush = minToPush / sizeof(KeyValueTime);
 
+    // Changed because its just an expression of size
     minToPush = maxBufferSize / (4*size);
 
     if(minToPush < 2) {

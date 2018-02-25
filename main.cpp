@@ -18,9 +18,23 @@ void test() {
     /*DevelopmentTester* devTest = new DevelopmentTester();
     devTest->sparseFileTest();*/
 
-    TreeTester* treeTester = new TreeTester();
+    // Clean up
+    for(int j = 0; j < 1000000; j++) {
+        string filename = "temp";
+        filename += to_string(j);
+        if (FILE *file = fopen(filename.c_str(), "r")) {
+            fclose(file);
+            remove(filename.c_str());
+        }
+    }
+
+    /*TreeTester* test = new TreeTester();
+    test->xDictTest(1000000,2);
+    delete(test);*/
+
+    /*TreeTester* treeTester = new TreeTester();
     treeTester->xDictAlphaTest(1000000,2);
-    delete(treeTester);
+    delete(treeTester);*/
 
     /*DevelopmentTester* dev = new DevelopmentTester();
     dev->test();
@@ -181,6 +195,12 @@ int main(int argc, char* argv[]) {
     else if(test == 10) {
         DevelopmentTester* test = new DevelopmentTester();
         test->testNumberFilesImpactIOWrite(atoi(argv[2]),atoi(argv[3]));
+        delete(test);
+    }
+    else if(test == 11) {
+        // xDict insert and query test
+        TreeTester* test = new TreeTester();
+        test->xDictTest(atoi(argv[2]),atoi(argv[3]));
         delete(test);
     }
 

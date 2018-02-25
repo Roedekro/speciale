@@ -2821,6 +2821,8 @@ void DevelopmentTester::testNumberFilesImpactIOWrite(int n, int increment) {
             io[i] = io[i] + temp;
 
         }
+
+        cout << "Run=" << i << " " << numberOfFiles << " " << time[i] << " " << io[i] << "\n" << std::flush;
     }
 
     for(int i = 0; i < ratio; i++) {

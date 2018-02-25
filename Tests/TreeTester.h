@@ -17,6 +17,7 @@ public:
     void bufferedBTreeTest(int B, int M, int N, int runs, float delta);
     void bufferedBTreeTestSpecialQuery(int B, int M, int N, int runs, float delta);
     void xDictAlphaTest(int N, int runs);
+    void xDictTest(int N, int runs);
 };
 
 

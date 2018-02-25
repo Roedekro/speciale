@@ -1605,3 +1605,197 @@ void TreeTester::xDictAlphaTest(int N, int runs) {
 
 }
 
+void TreeTester::xDictTest(int N, int runs) {
+
+    int numberOfQueries = 10000;
+    int insertions = 1000000; // 1mil to measure
+
+    // Insert, query, iocounter
+    long insertTime = 0;
+    long insertIO = 0;
+    long queryTime = 0;
+    long queryIO = 0;
+
+    long diskReads1 = 0;
+    long diskReads2 = 0;
+    long diskReads3 = 0;
+    long diskWrites1 = 0;
+    long diskWrites2 = 0;
+    long diskWrites3 = 0;
+    long temp = 0;
+
+    double alpha = 0.2;
+
+
+    for(int i = 0; i < runs; i++) {
+
+        srand (time(NULL));
+
+        using namespace std::chrono;
+
+        XDict* xDict = new XDict(alpha);
+
+        int number;
+        long tempMod = 2*N;
+        int modulus;
+        if(tempMod > 2147483647) {
+            modulus = 2147483647;
+        }
+        else {
+            modulus = tempMod;
+        }
+
+        // Create tree of size N
+        cout << "Building\n" << std::flush;
+        for (int j = 0; j < N; j++) {
+            number = rand() % modulus + 1;
+            xDict->insert(KeyValue(number,number));
+        }
+
+        // GET DISK STATS
+        sleep(10);
+        string diskstats = "/proc/diskstats";
+
+        diskReads1 = 0;
+        diskWrites1 = 0;
+        std::string str;
+        std::ifstream file1(diskstats);
+        while (std::getline(file1, str))
+        {
+            /*1 - major number
+            2 - minor mumber
+            3 - device name
+            4 - reads completed successfully
+            5 - reads merged
+            6 - sectors read
+            7 - time spent reading (ms)
+            8 - writes completed
+            9 - writes merged
+            10 - sectors written
+            11 - time spent writing (ms)
+            12 - I/Os currently in progress
+            13 - time spent doing I/Os (ms)
+            14 - weighted time spent doing I/Os (ms)*/
+
+            istringstream iss(str);
+
+            string s;
+            iss >> s;
+            if(s.compare("8") == 0) { // If major number = 8.
+                iss >> s;
+                iss >> s; // Device name
+                iss >> s;
+                iss >> s;
+                iss >> s; // Sectors read
+                //cout << s << " ";
+                diskReads1 = diskReads1 + stol(s);
+                iss >> s;
+                iss >> s;
+                iss >> s;
+                iss >> s; // Sectors written
+                diskWrites1 = diskWrites1 + stol(s);
+            }
+        }
+        file1.close();
+
+        cout << "Inserting\n" << std::flush;
+        // Now insert 1mil elements that we time
+        high_resolution_clock::time_point t1 = high_resolution_clock::now();
+        for (int j = 0; j < insertions; j++) {
+            number = rand() % modulus + 1;
+            xDict->insert(KeyValue(number, number));
+        }
+        high_resolution_clock::time_point t2 = high_resolution_clock::now();
+        insertTime = insertTime + chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
+
+        // Write out diskstats again
+        sleep(10);
+        diskReads2 = 0;
+        diskWrites2 = 0;
+        std::ifstream file2(diskstats);
+        while (std::getline(file2, str))
+        {
+
+            istringstream iss(str);
+            string s;
+            iss >> s;
+            if(s.compare("8") == 0) { // If major number = 8.
+                iss >> s;
+                iss >> s; // Device name
+                iss >> s;
+                iss >> s;
+                iss >> s; // Sectors read
+                //cout << s << " ";
+                diskReads2 = diskReads2 + stol(s);
+                iss >> s;
+                iss >> s;
+                iss >> s;
+                iss >> s; // Sectors written
+                diskWrites2 = diskWrites2 + stol(s);
+            }
+        }
+        file2.close();
+
+        temp = (diskReads2-diskReads1) + (diskWrites2 - diskWrites1);
+        insertIO = insertIO + temp;
+
+
+        cout << "Query\n" << std::flush;
+        t1 = high_resolution_clock::now();
+        for(int j = 1; j <= numberOfQueries; j++) {
+            number = rand() % modulus +1;
+            xDict->query(number);
+        }
+        t2 = high_resolution_clock::now();
+        queryTime = queryTime + chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
+
+
+        // Write out diskstats a final time
+        sleep(10);
+        //cout << "Diskread3 ";
+        diskReads3 = 0;
+        diskWrites3 = 0;
+        std::ifstream file3(diskstats);
+        while (std::getline(file3, str))
+        {
+
+            istringstream iss(str);
+            string s;
+            iss >> s;
+            if(s.compare("8") == 0) { // If major number = 8.
+                iss >> s;
+                iss >> s; // Device name
+                iss >> s;
+                iss >> s;
+                iss >> s; // Sectors read
+                //cout << s << " ";
+                diskReads3 = diskReads3 + stol(s);
+                iss >> s;
+                iss >> s;
+                iss >> s;
+                iss >> s; // Sectors written
+                diskWrites3 =  diskWrites3 + stol(s);
+            }
+        }
+        file3.close();
+
+        temp = (diskReads3-diskReads2) + (diskWrites3 - diskWrites2);
+        queryIO = queryIO + temp;
+
+        // Write out temp result, force flush
+        cout << "run=" << i << " " << insertTime << " " << insertIO << " " << queryTime << " " << queryIO << "\n" << std::flush;
+    }
+
+    // Divide by runs
+    insertTime = insertTime/runs;
+    insertIO = insertIO/runs;
+    queryTime = queryTime/runs;
+    queryIO = queryIO/runs;
+
+    // Write out results
+
+    cout << insertTime << " " << insertIO << " " << queryTime << " " << queryIO << "\n";
+
+
+}
+
