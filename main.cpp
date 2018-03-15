@@ -19,14 +19,18 @@ void test() {
     devTest->sparseFileTest();*/
 
     // Clean up
-    for(int j = 0; j < 1000000; j++) {
+    /*for(int j = 0; j < 1000000; j++) {
         string filename = "temp";
         filename += to_string(j);
         if (FILE *file = fopen(filename.c_str(), "r")) {
             fclose(file);
             remove(filename.c_str());
         }
-    }
+    }*/
+
+    TreeTester* test = new TreeTester();
+    test->modifiedBTreeTest(131072,8388608,10000000,2);
+    delete(test);
 
     /*TreeTester* test = new TreeTester();
     test->xDictTest(1000000,2);
@@ -169,7 +173,7 @@ int main(int argc, char* argv[]) {
         // Modified BTree test - Insert and Query
         TreeTester* test = new TreeTester();
         // int B, int M, int N, int runs
-        test->modifiedBTreeTest(131072,8388608,atoi(argv[2]),10);
+        test->modifiedBTreeTest(131072,8388608,atoi(argv[2]),atoi(argv[3]));
         delete(test);
     }
     else if(test == 7) {
@@ -203,7 +207,18 @@ int main(int argc, char* argv[]) {
         test->xDictTest(atoi(argv[2]),atoi(argv[3]));
         delete(test);
     }
-
+    else if(test == 12) {
+        // xDict insert and query test
+        TreeTester* test = new TreeTester();
+        test->newxDictTest(atoi(argv[2]));
+        delete(test);
+    }
+    else if(test == 13) {
+        // Modified insert and query test
+        TreeTester* test = new TreeTester();
+        test->newModifiedTest(atoi(argv[2]));
+        delete(test);
+    }
 
     return 0;
 }
