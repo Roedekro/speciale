@@ -1962,7 +1962,7 @@ void TreeTester::newxDictTest(int maxN) {
         queryIO = (diskReads3-diskReads2) + (diskWrites3 - diskWrites2);
 
         cout << currentN << " " << insertTime << " " << insertIO << " "
-             << queryTime << " " << queryIO << "\n" << std::flush;
+             << queryTime << " " << queryIO << " " << xDict->xBoxes->size() << "\n" << std::flush;
 
     }
 
